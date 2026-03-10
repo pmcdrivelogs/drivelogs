@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Drive Logs - Home</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .logo-bar {
+      background: #FFD700;
+      
+      box-shadow: 0 2px 4px rgba(0,0,0,0.07);
+    }
+    .menu-btn {
+      background: #FFD700;
+      border-radius: 9999px;
+      font-weight: bold;
+      font-size: 1.15rem;
+      color: #111827;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+      transition: transform 0.1s, box-shadow 0.1s;
+      text-align: left;
+      text-transform: uppercase;
+      letter-spacing: 0.01em;
+      padding-left: 2rem;
+    }
+    .menu-btn:hover {
+      background: #FFC700;
+      transform: translateY(-2px) scale(1.03);
+      box-shadow: 0 4px 16px rgba(255,215,0,0.18);
+    }
+    .main-box {
+      border-radius: 24px;
+      box-shadow: 0 2px 16px rgba(0,0,0,0.07);
+      border: 1.5px solid #eee;
+    }
+  </style>
+</head>
+<body class="bg-[#fcfcfc] min-h-screen flex flex-col">
+  <!-- Logo Bar -->
+  <div class="logo-bar w-full flex items-center px-4 py-2" style="min-height:64px;">
+    <img src="./img/drive-logs.png" alt="Drive Logs Logo" class="h-10 md:h-12 w-auto ml-2">
+  </div>
+
+  <!-- College Header -->
+  <div class="w-full flex justify-center items-center border-b border-gray-300 bg-white">
+    <img src="./img/pmc-logo.png" alt="College Header" class="w-full max-w-5xl h-auto p-2 md:p-4">
+  </div>
+
+  <!-- Main Content -->
+  <div class="flex-1 flex justify-center items-start md:items-center py-4 md:py-8 px-2 md:px-0">
+    <div class="main-box bg-white w-full max-w-3xl mx-auto p-2 md:p-8 mt-2 md:mt-0">
+      <div class="flex flex-col gap-4 md:gap-6">
+        <a href="vehicle-profile.html" class="menu-btn py-3 md:py-4 px-4 md:px-8">1. VEHICLE PROFILE</a>
+        <a href="trip-opening-attention.html" class="menu-btn py-3 md:py-4 px-4 md:px-8">2. TRIP OPENEING ATTENTION CHECK LIST</a>
+        <a href="utilization-record.html" class="menu-btn py-3 md:py-4 px-4 md:px-8">3. UTILIZATION RECORD</a>
+        <a href="fuel-consumption.html" class="menu-btn py-3 md:py-4 px-4 md:px-8">4. FUEL CONSUMPTION STATEMENT</a>
+        <a href="daily-technical-remarks.html" class="menu-btn py-3 md:py-4 px-4 md:px-8">5. DAILY TECHNICAL REMARKS</a>
+        <a href="weekly-attention.html" class="menu-btn py-3 md:py-4 px-4 md:px-8">6. WEEKLY/FORTHNIGHT ATTENTION CHECKLIST</a>
+        <a href="job-card.html" class="menu-btn py-3 md:py-4 px-4 md:px-8">7. JOB CARD</a>
+        <a href="monthly-maintenance.html" class="menu-btn py-3 md:py-4 px-4 md:px-8">8. MONTHLY PERIODICAL MAINTENANCE</a>
+        <a href="halfyearly-maintenance.html" class="menu-btn py-3 md:py-4 px-4 md:px-8">9. HALFYEARLY PERIODICAL MAINTENANCE</a>
+        <a href="annual-maintenance.html" class="menu-btn py-3 md:py-4 px-4 md:px-8">10. ANNUAL PERIODICAL MAINTENANCE</a>
+        <a href="annual-summary.html" class="menu-btn py-3 md:py-4 px-4 md:px-8">11. ANNUAL SUMMARY & RECOMMENDATIONS</a>
+        <a href="incidents-reports.html" class="menu-btn py-3 md:py-4 px-4 md:px-8">12. INCIDENTS & REPORTS RECORD</a>
+        <a href="feedback.html" class="menu-btn py-3 md:py-4 px-4 md:px-8">13. FEEEDBACK</a>
+      </div>
+    </div>
+  </div>
+</body>
+</html>

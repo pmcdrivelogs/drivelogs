@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Stock Issue History - Drive Logs</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    * { font-family: 'Inter', sans-serif; }
+    
+    body {
+      background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 50%, #f0f9ff 100%);
+    }
+    
+    .table-container {
+      background: white;
+      border-radius: 16px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+      overflow: hidden;
+    }
+    
+    .table-header {
+      background: linear-gradient(135deg, #1e40af 0%, #1e3a8a 100%);
+      color: white;
+      padding: 20px 24px;
+      font-size: 1.25rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    
+    .table-wrapper {
+      overflow-x: auto;
+    }
+    
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    
+    th {
+      background: #f8fafc;
+      padding: 16px 12px;
+      text-align: left;
+      font-size: 0.75rem;
+      font-weight: 700;
+      color: #475569;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      border-bottom: 2px solid #e2e8f0;
+      white-space: nowrap;
+    }
+    
+    td {
+      padding: 16px 12px;
+      border-bottom: 1px solid #e2e8f0;
+      font-size: 0.875rem;
+      color: #1e293b;
+    }
+    
+    tr:hover {
+      background: #f8fafc;
+    }
+    
+    tr:last-child td {
+      border-bottom: none;
+    }
+    
+    .empty-state {
+      text-align: center;
+      padding: 60px 20px;
+      color: #6b7280;
+    }
+    
+    .empty-icon {
+      font-size: 4rem;
+      margin-bottom: 16px;
+      opacity: 0.3;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col pt-20">
+  
+  <!-- Logo Bar -->
+  <div class="logo-bar w-full flex items-center justify-between px-4 py-3 fixed top-0 left-0 z-50">
+    <img src="{{ url_for('static', filename='img/drive-logs.png') }}" alt="Drive Logs Logo" class="h-12 md:h-14 w-auto ml-2">
+    <div class="flex items-center gap-4">
+      <a href="{{ url_for('stock_inventory') }}" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-full text-sm font-semibold transition-colors">
+        ← Back to Inventory
+      </a>
+      <a href="{{ url_for('logout') }}" class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-full text-sm font-semibold transition-colors">
+        Logout
+      </a>
+    </div>
+  </div>
+
+  <!-- College Header -->
+  <div class="w-full flex justify-center items-center border-b border-gray-300 bg-white">
+    <img src="{{ url_for('static', filename='img/pmc-logo.png') }}" alt="College Header" class="w-full max-w-5xl h-auto p-2 md:p-4">
+  </div>
+
+  <!-- Main Content -->
+  <div class="flex-1 py-8 px-4">
+    <div class="max-w-7xl mx-auto">
+      
+      <!-- Page Header -->
+      <div class="text-center mb-8">
+        <h1 class="text-4xl font-bold text-blue-900 mb-2">Stock Issue History</h1>
+        <p class="text-gray-600 font-semibold">Complete Issue Register Records</p>
+      </div>
+
+      <!-- Issue History Table -->
+      <div class="table-container">
+        <div class="table-header">
+          <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M13 3c-4.97 0-9 4.03-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42C8.27 19.99 10.51 21 13 21c4.97 0 9-4.03 9-9s-4.03-9-9-9zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z"/>
+          </svg>
+          All Issue Records
+        </div>
+        
+        {% if records %}
+        <div class="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th>Entry No</th>
+                <th>Date</th>
+                <th>Time</th>
+                <th>Part No</th>
+                <th>Part Name</th>
+                <th>Vehicle No</th>
+                <th>Vehicle ID</th>
+                <th>Kilometer</th>
+                <th>Issuing Person</th>
+                <th>Driver</th>
+                <th>Mechanic</th>
+                <th>Comments</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for record in records %}
+              <tr>
+                <td><strong>{{ record.entry_no }}</strong></td>
+                <td>{{ record.date or '-' }}</td>
+                <td>{{ record.time or '-' }}</td>
+                <td>{{ record.part_no or '-' }}</td>
+                <td><strong>{{ record.part_name or '-' }}</strong></td>
+                <td>{{ record.vehicle_no or '-' }}</td>
+                <td>{{ record.vehicle_id or '-' }}</td>
+                <td>{{ record.kilometer or '-' }}</td>
+                <td>{{ record.issuing_person_name or '-' }}</td>
+                <td>{{ record.driver_responsible or '-' }}</td>
+                <td>{{ record.mechanic_responsible or '-' }}</td>
+                <td>{{ record.comments or '-' }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        {% else %}
+        <div class="empty-state">
+          <div class="empty-icon">📋</div>
+          <h3 class="text-xl font-bold text-gray-700 mb-2">No Issue Records</h3>
+          <p class="text-gray-500">Issue stock items to see records here.</p>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+<script src="{{ url_for('static', filename='js/uppercase.js') }}"></script>
+{% include 'footer.html' %}
+</body>
+</html>

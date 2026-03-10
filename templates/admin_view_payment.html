@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>View Payment - Drive Logs</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    * { font-family: 'Inter', sans-serif; }
+    body { background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); }
+    
+    .invoice-container {
+      background: white;
+      border-radius: 16px;
+      padding: 40px;
+      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
+      max-width: 1000px;
+      margin: 0 auto;
+    }
+    
+    .header-top {
+      text-align: center;
+      margin-bottom: 40px;
+      padding-bottom: 24px;
+      border-bottom: 3px solid #06b6d4;
+    }
+    
+    .header-title {
+      font-size: 2.5rem;
+      font-weight: 800;
+      color: #0c4a6e;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      margin-bottom: 12px;
+    }
+    
+    .header-ref {
+      font-size: 1rem;
+      color: #475569;
+      font-weight: 600;
+    }
+    
+    .info-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 20px;
+      margin-bottom: 30px;
+    }
+    
+    .info-box {
+      background: #f8fafc;
+      padding: 16px;
+      border-radius: 10px;
+      border-left: 4px solid #06b6d4;
+    }
+    
+    .info-label {
+      font-size: 0.75rem;
+      font-weight: 800;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      margin-bottom: 8px;
+    }
+    
+    .info-value {
+      font-size: 1.1rem;
+      font-weight: 700;
+      color: #0f172a;
+    }
+    
+    .status-badge {
+      display: inline-block;
+      padding: 8px 16px;
+      border-radius: 20px;
+      font-weight: 700;
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    
+    .status-approved {
+      background: #dcfce7;
+      color: #166534;
+    }
+    
+    .status-pending {
+      background: #fef3c7;
+      color: #92400e;
+    }
+    
+    .status-rejected {
+      background: #fee2e2;
+      color: #991b1b;
+    }
+    
+    .table-container {
+      margin: 30px 0;
+      overflow-x: auto;
+    }
+    
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 20px 0;
+      background: white;
+      border: 2px solid #06b6d4;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    
+    thead {
+      background: linear-gradient(135deg, #0891b2 0%, #06b6d4 100%);
+      color: white;
+    }
+    
+    th {
+      padding: 16px 12px;
+      text-align: center;
+      font-weight: 800;
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      border-right: 1px solid rgba(255, 255, 255, 0.3);
+    }
+    
+    td {
+      padding: 12px;
+      border-bottom: 1px solid #e2e8f0;
+      text-align: center;
+      font-size: 0.9rem;
+    }
+    
+    tbody tr:hover {
+      background: linear-gradient(90deg, #f0f9ff 0%, #e0f2fe 100%);
+    }
+    
+    .total-row {
+      background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
+      font-weight: 800;
+    }
+    
+    .total-row td {
+      padding: 16px 12px;
+      border-bottom: none;
+      border-top: 3px solid #06b6d4;
+      font-size: 0.95rem;
+      color: #0c4a6e;
+    }
+    
+    .action-buttons {
+      display: flex;
+      gap: 12px;
+      justify-content: center;
+      margin-top: 30px;
+      padding: 24px;
+      background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+      border-radius: 12px;
+      border: 2px solid #cbd5e1;
+    }
+    
+    .btn {
+      padding: 14px 32px;
+      border-radius: 10px;
+      font-weight: 700;
+      font-size: 1rem;
+      border: none;
+      cursor: pointer;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      transition: all 0.3s ease;
+    }
+    
+    .btn-back {
+      background: linear-gradient(135deg, #64748b 0%, #475569 100%);
+      color: white;
+    }
+    
+    .btn-back:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(100, 116, 139, 0.3);
+    }
+    
+    .btn-approve {
+      background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+      color: white;
+    }
+    
+    .btn-approve:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(16, 185, 129, 0.3);
+    }
+    
+    .column-text-left td {
+      text-align: left;
+    }
+    
+    .voucher-section {
+      background: #f0f9ff;
+      padding: 24px;
+      border-radius: 12px;
+      border: 2px dashed #06b6d4;
+      margin: 24px 0;
+    }
+    
+    .section-title {
+      font-size: 1.25rem;
+      font-weight: 800;
+      color: #0c4a6e;
+      margin-bottom: 16px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col pt-20">
+  
+  <!-- Logo Bar -->
+  <div class="logo-bar w-full flex items-center justify-between px-4 py-3 fixed top-0 left-0 z-50" style="background: #eab308;">
+    <img src="{{ url_for('static', filename='img/drive-logs.png') }}" alt="Drive Logs Logo" class="h-12 md:h-14 w-auto ml-2">
+    <div class="flex items-center gap-4">
+      <a href="{{ url_for('admin_dashboard') }}" class="bg-white text-yellow-700 px-3 py-2 rounded-full text-sm font-semibold transition-colors hover:bg-gray-100 flex items-center gap-1">
+        <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+          <path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z"/>
+        </svg>
+      </a>
+      <a href="{{ url_for('logout') }}" class="bg-white text-yellow-700 px-4 py-2 rounded-full text-sm font-semibold hover:bg-gray-100 transition-colors">
+        Logout
+      </a>
+    </div>
+  </div>
+
+  <!-- College Header -->
+  <div class="w-full flex justify-center items-center border-b border-gray-300 bg-white">
+    <img src="{{ url_for('static', filename='img/pmc-logo.png') }}" alt="College Header" class="w-full max-w-5xl h-auto p-2 md:p-4">
+  </div>
+
+  <!-- Main Content -->
+  <div class="flex-1 py-8 px-4">
+    <div class="max-w-5xl mx-auto">
+      
+      <!-- Flash Messages -->
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          {% for category, message in messages %}
+            <div class="mb-4 p-4 rounded-lg {% if category == 'success' %}bg-green-100 text-green-800 border border-green-300{% elif category == 'danger' %}bg-red-100 text-red-800 border border-red-300{% else %}bg-blue-100 text-blue-800 border border-blue-300{% endif %}">
+              {{ message }}
+            </div>
+          {% endfor %}
+        {% endif %}
+      {% endwith %}
+
+      <!-- Invoice Container -->
+      <div class="invoice-container">
+        
+        <!-- Header -->
+        <div class="header-top">
+          <div class="header-title">
+            {% if payment.payment_type == 'payment_voucher' %}
+            📋 PAYMENT VOUCHER
+            {% else %}
+            💰 PAID DETAILS
+            {% endif %}
+          </div>
+          <p class="header-ref">REF: PMCTECH/LOGI/FORM 11</p>
+          <div style="margin-top: 16px;">
+            <span class="status-badge 
+              {% if payment.approval_status == 'approved' %}status-approved{% elif payment.approval_status == 'rejected' %}status-rejected{% else %}status-pending{% endif %}">
+              {{ payment.approval_status | upper }}
+            </span>
+          </div>
+        </div>
+
+        <!-- Payment Information -->
+        <div class="info-grid">
+          <div class="info-box">
+            <div class="info-label">Entry Number</div>
+            <div class="info-value">{{ payment.entry_no }}</div>
+          </div>
+          
+          <div class="info-box">
+            <div class="info-label">Invoice No</div>
+            <div class="info-value">{{ payment.invoice_no or '-' }}</div>
+          </div>
+          
+          <div class="info-box">
+            <div class="info-label">Payment Date</div>
+            <div class="info-value">{{ payment.payment_date or '-' }}</div>
+          </div>
+          
+          <div class="info-box">
+            <div class="info-label">Payment Mode</div>
+            <div class="info-value">{{ payment.mode_of_payment or '-' }}</div>
+          </div>
+          
+          <div class="info-box">
+            <div class="info-label">Entered By</div>
+            <div class="info-value">{{ payment.entered_by or '-' }}</div>
+          </div>
+          
+          <div class="info-box">
+            <div class="info-label">Created Date</div>
+            <div class="info-value">{{ payment.created_at[:10] if payment.created_at else '-' }}</div>
+          </div>
+        </div>
+
+        <!-- Payment Voucher Details -->
+        {% if payment.payment_type == 'payment_voucher' %}
+        <div class="voucher-section">
+          <h3 class="section-title">💰 Financial Summary</h3>
+          
+          <div class="info-grid">
+            <div class="info-box">
+              <div class="info-label">Total Parts</div>
+              <div class="info-value">₹{{ "%.2f"|format(payment.total_parts or 0) }}</div>
+            </div>
+            
+            <div class="info-box">
+              <div class="info-label">Total Labour</div>
+              <div class="info-value">₹{{ "%.2f"|format(payment.total_labour or 0) }}</div>
+            </div>
+            
+            <div class="info-box">
+              <div class="info-label">Total Taxable</div>
+              <div class="info-value">₹{{ "%.2f"|format(payment.total_taxable or 0) }}</div>
+            </div>
+            
+            <div class="info-box">
+              <div class="info-label">Total GST</div>
+              <div class="info-value">₹{{ "%.2f"|format(payment.total_gst or 0) }}</div>
+            </div>
+            
+            <div class="info-box">
+              <div class="info-label">Total DN</div>
+              <div class="info-value">₹{{ "%.2f"|format(payment.total_dn or 0) }}</div>
+            </div>
+            
+            <div class="info-box" style="border-left-color: #10b981; background: #dcfce7;">
+              <div class="info-label">Total Payable</div>
+              <div class="info-value" style="color: #10b981;">₹{{ "%.2f"|format(payment.total_payable or 0) }}</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Line Items Table -->
+        {% if line_items %}
+        <div class="voucher-section">
+          <h3 class="section-title">📊 Line Items</h3>
+          
+          <div class="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th>Sl. No.</th>
+                  <th>Bus Reg.</th>
+                  <th>Invoice No.</th>
+                  <th>Work Description</th>
+                  <th>Parts Price</th>
+                  <th>Labour</th>
+                  <th>Taxable</th>
+                  <th>GST</th>
+                  <th>DN</th>
+                  <th>Payable</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for item in line_items %}
+                <tr>
+                  <td>{{ item.line_number }}</td>
+                  <td>{{ item.bus_reg_no or '-' }}</td>
+                  <td>{{ item.invoice_no or '-' }}</td>
+                  <td style="text-align: left;">{{ item.work_description or '-' }}</td>
+                  <td>₹{{ "%.2f"|format(item.parts_price or 0) }}</td>
+                  <td>₹{{ "%.2f"|format(item.labour_charge or 0) }}</td>
+                  <td>₹{{ "%.2f"|format(item.taxable_amount or 0) }}</td>
+                  <td>₹{{ "%.2f"|format(item.gst_amount or 0) }}</td>
+                  <td>₹{{ "%.2f"|format(item.dn_amount or 0) }}</td>
+                  <td><strong>₹{{ "%.2f"|format(item.payable_amount or 0) }}</strong></td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </div>
+        {% endif %}
+        {% endif %}
+
+        <!-- Paid Details Section -->
+        {% if payment.payment_type == 'payment_details' %}
+        <div class="voucher-section">
+          <h3 class="section-title">💳 Payment Information</h3>
+          
+          <div class="info-grid">
+            <div class="info-box">
+              <div class="info-label">Type of Payment</div>
+              <div class="info-value">{{ payment.type_of_entry or '-' }}</div>
+            </div>
+            
+            <div class="info-box">
+              <div class="info-label">Payment Amount</div>
+              <div class="info-value" style="color: #10b981;">₹{{ "%.2f"|format(payment.amount or 0) }}</div>
+            </div>
+            
+            <div class="info-box">
+              <div class="info-label">Payment Advice</div>
+              <div class="info-value">{{ payment.payment_advice or '-' }}</div>
+            </div>
+          </div>
+        </div>
+        {% endif %}
+
+        <!-- Additional Notes -->
+        {% if payment.notes %}
+        <div class="voucher-section">
+          <h3 class="section-title">📝 Notes</h3>
+          <p style="color: #334155; line-height: 1.6;">{{ payment.notes }}</p>
+        </div>
+        {% endif %}
+
+        <!-- Action Buttons -->
+        <div class="action-buttons">
+          <a href="{{ url_for('admin_payments') }}" class="btn btn-back">
+            ← Back to Payments
+          </a>
+          
+          {% if payment.approval_status == 'pending' %}
+          <button onclick="approvePayment('{{ payment.entry_no }}')" class="btn btn-approve">
+            ✅ Approve Payment
+          </button>
+          {% endif %}
+        </div>
+
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+    function approvePayment(entryNo) {
+      if (confirm('Are you sure you want to approve this payment?')) {
+        fetch(`/admin/payments/${entryNo}/approve`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        })
+        .then(response => response.json())
+        .then(data => {
+          if (data.success) {
+            alert('Payment approved successfully!');
+            location.reload();
+          } else {
+            alert('Error: ' + data.message);
+          }
+        })
+        .catch(error => {
+          alert('Error approving payment');
+          console.error(error);
+        });
+      }
+    }
+  </script>
+
+{% include 'footer.html' %}
+</body>
+</html>

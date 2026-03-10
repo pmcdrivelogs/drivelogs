@@ -1,0 +1,1188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% if edit_mode %}Edit{% else %}Add{% endif %} Employee - Drive Logs</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    * { font-family: 'Inter', sans-serif; }
+    body { background: #fefce8; }
+    
+    .form-section {
+      background: #eab308;
+      color: #1e293b;
+      padding: 14px 20px;
+      font-weight: 800;
+      font-size: 1rem;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      box-shadow: 0 4px 15px rgba(234, 179, 8, 0.3);
+    }
+    
+    .form-group {
+      margin-bottom: 20px;
+    }
+    
+    .form-label {
+      display: block;
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: #1e293b;
+      margin-bottom: 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    
+    .form-input, .form-select, .form-textarea {
+      width: 100%;
+      padding: 12px 16px;
+      border: 2px solid #e2e8f0;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      transition: all 0.3s ease;
+      background: white;
+      text-transform: uppercase;
+    }
+    
+    .form-input:focus, .form-select:focus, .form-textarea:focus {
+      outline: none;
+      border-color: #eab308;
+      box-shadow: 0 0 0 3px rgba(234, 179, 8, 0.1);
+    }
+    
+    .btn-primary {
+      background: #eab308;
+      color: white;
+      padding: 14px 32px;
+      border-radius: 10px;
+      font-weight: 700;
+      font-size: 1rem;
+      border: none;
+      cursor: pointer;
+      box-shadow: 0 4px 15px rgba(234, 179, 8, 0.3);
+      transition: all 0.3s ease;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(234, 179, 8, 0.4);
+    }
+    
+    .btn-secondary {
+      background: #64748b;
+      color: white;
+      padding: 14px 32px;
+      border-radius: 10px;
+      font-weight: 700;
+      font-size: 1rem;
+      border: none;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    
+    .btn-add-row {
+      background: #10b981;
+      color: white;
+      padding: 10px 20px;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 0.875rem;
+      border: none;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: all 0.3s ease;
+    }
+    
+    .btn-add-row:hover {
+      transform: translateY(-1px);
+    }
+    
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-bottom: 10px;
+      background: white;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+    
+    table th {
+      background: #eab308;
+      color: white;
+      padding: 12px;
+      text-align: left;
+      font-size: 0.8rem;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+    
+    table td {
+      padding: 10px;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    
+    table input, table select {
+      width: 100%;
+      padding: 8px;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      font-size: 0.875rem;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col pt-20">
+
+  <!-- Success Modal Popup -->
+  <div id="successModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[100] hidden">
+    <div class="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full mx-4 text-center transform scale-95 transition-transform" id="modalContent">
+      <div class="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+        <svg class="w-12 h-12 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+        </svg>
+      </div>
+      <h2 class="text-2xl font-bold text-gray-800 mb-2">Employee Added Successfully!</h2>
+      <p class="text-gray-600 mb-2">Employee ID has been auto-generated:</p>
+      <p class="text-3xl font-bold text-blue-600 mb-6" id="generatedEmployeeId">EMP00001</p>
+      <p class="text-gray-600 mb-2" id="experienceYears"></p>
+      <div class="flex flex-col gap-3">
+        <button onclick="viewProfile()" class="flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-full font-semibold transition-colors">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+          </svg>
+          View Profile
+        </button>
+        <button onclick="closeModal()" class="bg-gray-200 hover:bg-gray-300 text-gray-800 px-6 py-3 rounded-full font-semibold transition-colors">
+          Close & View All Employees
+        </button>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Logo Bar -->
+  <div class="logo-bar w-full flex items-center justify-between px-4 py-3 fixed top-0 left-0 z-50" style="background: #eab308;">
+    <img src="{{ url_for('static', filename='img/drive-logs.png') }}" alt="Drive Logs Logo" class="h-12 md:h-14 w-auto ml-2">
+    <div class="flex items-center gap-4">
+      <a href="{{ url_for('hr_employees') }}" class="bg-white text-yellow-700 px-4 py-2 rounded-full text-sm font-semibold hover:bg-gray-100 transition-colors">
+        ← Back
+      </a>
+      <a href="{{ url_for('logout') }}" class="bg-white text-yellow-700 px-4 py-2 rounded-full text-sm font-semibold hover:bg-gray-100 transition-colors">
+        Logout
+      </a>
+    </div>
+  </div>
+
+  <!-- College Header -->
+  <div class="w-full flex justify-center items-center border-b border-gray-300 bg-white">
+    <img src="{{ url_for('static', filename='img/pmc-logo.png') }}" alt="College Header" class="w-full max-w-5xl h-auto p-2 md:p-4">
+  </div>
+
+  <!-- Main Content -->
+  <div class="flex-1 py-8 px-4">
+    <div class="max-w-7xl mx-auto">
+      
+      <!-- Flash Messages -->
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          {% for category, message in messages %}
+            <div class="mb-4 p-4 rounded-lg {% if category == 'success' %}bg-green-100 text-green-800 border border-green-300{% elif category == 'danger' %}bg-red-100 text-red-800 border border-red-300{% else %}bg-blue-100 text-blue-800 border border-blue-300{% endif %}">
+              {{ message }}
+            </div>
+          {% endfor %}
+        {% endif %}
+      {% endwith %}
+
+      <!-- Form Container -->
+      <div class="bg-white rounded-2xl shadow-2xl p-8 md:p-12">
+        
+        <div class="text-center mb-8">
+          <h1 class="text-3xl font-bold text-gray-800 mb-2">
+            {% if edit_mode %}✏️ EDIT EMPLOYEE PROFILE{% else %}➕ ADD NEW EMPLOYEE{% endif %}
+          </h1>
+          <p class="text-gray-600">Complete all sections of the employee profile form</p>
+        </div>
+
+        <form method="POST" action="{% if edit_mode %}{{ url_for('hr_edit_employee', employee_id=employee.employee_id) }}{% else %}{{ url_for('hr_add_employee') }}{% endif %}">
+          
+          <!-- EMPLOYEE PROFILE SECTION -->
+          <div class="form-section">EMPLOYEE PROFILE</div>
+          
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div class="form-group">
+              <label class="form-label">PROFILE FOR THE POST OF</label>
+              <select name="profile_post" id="profilePost" class="form-select" onchange="toggleProfilePostOther()">
+                <option value="">Select</option>
+                <option value="Driver" {% if edit_mode and employee.profile_post == 'Driver' %}selected{% endif %}>Driver</option>
+                <option value="Technician" {% if edit_mode and employee.profile_post == 'Technician' %}selected{% endif %}>Technician</option>
+                <option value="Conductor" {% if edit_mode and employee.profile_post == 'Conductor' %}selected{% endif %}>Conductor</option>
+                <option value="Cleaner" {% if edit_mode and employee.profile_post == 'Cleaner' %}selected{% endif %}>Cleaner</option>
+                <option value="Helper" {% if edit_mode and employee.profile_post == 'Helper' %}selected{% endif %}>Helper</option>
+                <option value="Others" {% if edit_mode and employee.profile_post == 'Others' %}selected{% endif %}>Others</option>
+              </select>
+            </div>
+
+            <div class="form-group md:col-span-1 lg:col-span-1" id="profilePostOtherGroup" style="display: none;">
+              <label class="form-label">OTHER (SPECIFY)</label>
+              <input type="text" name="profile_post_other" class="form-input" value="{{ employee.profile_post_other if edit_mode else '' }}">
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">Name *</label>
+              <input type="text" name="name" class="form-input" required value="{{ employee.name if edit_mode else '' }}">
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">Date of Birth</label>
+              <input type="date" name="date_of_birth" id="dateOfBirth" class="form-input" value="{{ employee.date_of_birth if edit_mode else '' }}">
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">Age</label>
+              <input type="number" name="age" id="age" class="form-input" value="{{ employee.age if edit_mode else '' }}">
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">DL No. (Driving Licence)</label>
+              <input type="text" name="dl_no" class="form-input" value="{{ employee.dl_no if edit_mode else '' }}">
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">Date of Issue</label>
+              <input type="date" name="date_of_issue" class="form-input" value="{{ employee.date_of_issue if edit_mode else '' }}">
+            </div>
+
+            <div class="form-group">
+              <label class="form-label">DATE OF JOINING</label>
+              <input type="date" name="date_of_joining" class="form-input" value="{{ employee.date_of_joining if edit_mode else '' }}">
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">Badge No.</label>
+              <input type="text" name="badge_no" class="form-input" value="{{ employee.badge_no if edit_mode else '' }}">
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">LMV Date of Issue</label>
+              <input type="date" name="lmv_date_of_issue" class="form-input" value="{{ employee.lmv_date_of_issue if edit_mode else '' }}">
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">RTO REF.</label>
+              <input type="text" name="rto_ref" class="form-input" value="{{ employee.rto_ref if edit_mode else '' }}">
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">HMV Date of Issue</label>
+              <input type="date" name="hmv_date_of_issue" class="form-input" value="{{ employee.hmv_date_of_issue if edit_mode else '' }}">
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">VALIDITY (NT)</label>
+              <input type="date" name="validity_nt" class="form-input" value="{{ employee.validity_nt if edit_mode else '' }}">
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">VALIDITY (TR)</label>
+              <input type="date" name="validity_tr" class="form-input" value="{{ employee.validity_tr if edit_mode else '' }}">
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">AADHAR NO.</label>
+              <input type="text" name="aadhar_no" class="form-input" maxlength="12" value="{{ employee.aadhar_no if edit_mode else '' }}">
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">NATIVITY</label>
+              <input type="text" name="nativity" class="form-input" value="{{ employee.nativity if edit_mode else '' }}">
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">BLOOD GROUP</label>
+              <select name="blood_group" class="form-select">
+                <option value="">Select</option>
+                <option value="O+" {% if edit_mode and employee.blood_group == 'O+' %}selected{% endif %}>O+</option>
+                <option value="O-" {% if edit_mode and employee.blood_group == 'O-' %}selected{% endif %}>O-</option>
+                <option value="A+" {% if edit_mode and employee.blood_group == 'A+' %}selected{% endif %}>A+</option>
+                <option value="A-" {% if edit_mode and employee.blood_group == 'A-' %}selected{% endif %}>A-</option>
+                <option value="B+" {% if edit_mode and employee.blood_group == 'B+' %}selected{% endif %}>B+</option>
+                <option value="B-" {% if edit_mode and employee.blood_group == 'B-' %}selected{% endif %}>B-</option>
+                <option value="AB+" {% if edit_mode and employee.blood_group == 'AB+' %}selected{% endif %}>AB+</option>
+                <option value="AB-" {% if edit_mode and employee.blood_group == 'AB-' %}selected{% endif %}>AB-</option>
+              </select>
+            </div>
+          </div>
+
+          {% if edit_mode %}
+          <div class="form-section mt-8">PREVIOUS HEALTH & FITNESS (VIEW ONLY)</div>
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div class="form-group">
+              <label class="form-label">VISION (R/L)</label>
+              <div class="form-input" style="background:#f8fafc;">
+                {{ employee.vision_r or '-' }} / {{ employee.vision_l or '-' }}
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">VISION CHECKUP DATE</label>
+              <div class="form-input" style="background:#f8fafc;">
+                {{ employee.vision_checkup_date or '-' }}
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">HEARING (R/L)</label>
+              <div class="form-input" style="background:#f8fafc;">
+                {{ employee.hearing_r or '-' }} / {{ employee.hearing_l or '-' }}
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">HEARING CHECKUP DATE</label>
+              <div class="form-input" style="background:#f8fafc;">
+                {{ employee.hearing_checkup_date or '-' }}
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">BP</label>
+              <div class="form-input" style="background:#f8fafc;">
+                {{ employee.bp or '-' }}
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">BP CHECKUP DATE</label>
+              <div class="form-input" style="background:#f8fafc;">
+                {{ employee.bp_checkup_date or '-' }}
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">SUGAR</label>
+              <div class="form-input" style="background:#f8fafc;">
+                {{ employee.sugar or '-' }}
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">SUGAR CHECKUP DATE</label>
+              <div class="form-input" style="background:#f8fafc;">
+                {{ employee.sugar_checkup_date or '-' }}
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">FRACTURES</label>
+              <div class="form-input" style="background:#f8fafc;">
+                {{ employee.fractures or '-' }}
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">FRACTURES CHECKUP DATE</label>
+              <div class="form-input" style="background:#f8fafc;">
+                {{ employee.fractures_checkup_date or '-' }}
+              </div>
+            </div>
+          </div>
+          {% endif %}
+
+          <!-- EXPERIENCE SECTION -->
+          <div class="form-section mt-8">EXPERIENCE</div>
+          
+          <div class="overflow-x-auto mb-4">
+            <table id="experienceTable">
+              <thead>
+                <tr>
+                  <th style="width: 15%;">FROM DATE</th>
+                  <th style="width: 15%;">TO DATE</th>
+                  <th style="width: 25%;">DESIGNATION</th>
+                  <th style="width: 25%;">ORGANIZATION NAME</th>
+                  <th style="width: 20%;">VEHICLE TYPE</th>
+                </tr>
+              </thead>
+              <tbody id="experienceBody">
+                {% if edit_mode and employee.experience %}
+                  {% for exp in employee.experience %}
+                  <tr>
+                    <td><input type="date" name="exp_from_date[]" value="{{ exp.from_date }}"></td>
+                    <td><input type="date" name="exp_to_date[]" value="{{ exp.to_date }}"></td>
+                    <td><input type="text" name="exp_designation[]" value="{{ exp.designation }}" placeholder="Designation"></td>
+                    <td><input type="text" name="exp_organization[]" value="{{ exp.organization }}" placeholder="Organization"></td>
+                    <td><input type="text" name="exp_vehicle[]" value="{{ exp.vehicle_type }}" placeholder="Vehicle Type"></td>
+                  </tr>
+                  {% endfor %}
+                {% else %}
+                <tr>
+                  <td><input type="date" name="exp_from_date[]"></td>
+                  <td><input type="date" name="exp_to_date[]"></td>
+                  <td><input type="text" name="exp_designation[]" placeholder="Designation"></td>
+                  <td><input type="text" name="exp_organization[]" placeholder="Organization"></td>
+                  <td><input type="text" name="exp_vehicle[]" placeholder="Vehicle Type"></td>
+                </tr>
+                {% endif %}
+              </tbody>
+            </table>
+          </div>
+          <button type="button" class="btn-add-row" onclick="addExperienceRow()">
+            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+              <path fill-rule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clip-rule="evenodd"/>
+            </svg>
+            ADD ROW
+          </button>
+
+          <!-- AWARDS & APPRECIATION SECTION -->
+          <div class="form-section mt-8">AWARDS & APPRECIATION</div>
+          
+          <div class="overflow-x-auto mb-4">
+            <table id="awardsTable">
+              <thead>
+                <tr>
+                  <th style="width: 20%;">DATE</th>
+                  <th style="width: 35%;">NATURE</th>
+                  <th style="width: 45%;">REMARKS</th>
+                </tr>
+              </thead>
+              <tbody id="awardsBody">
+                {% if edit_mode and employee.awards %}
+                  {% for award in employee.awards %}
+                  <tr>
+                    <td><input type="date" name="award_date[]" value="{{ award.date }}"></td>
+                    <td><input type="text" name="award_nature[]" value="{{ award.nature }}" placeholder="Nature"></td>
+                    <td><input type="text" name="award_remarks[]" value="{{ award.remarks }}" placeholder="Remarks"></td>
+                  </tr>
+                  {% endfor %}
+                {% else %}
+                <tr>
+                  <td><input type="date" name="award_date[]"></td>
+                  <td><input type="text" name="award_nature[]" placeholder="Nature"></td>
+                  <td><input type="text" name="award_remarks[]" placeholder="Remarks"></td>
+                </tr>
+                {% endif %}
+              </tbody>
+            </table>
+          </div>
+          <button type="button" class="btn-add-row" onclick="addAwardRow()">
+            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+              <path fill-rule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clip-rule="evenodd"/>
+            </svg>
+            ADD ROW
+          </button>
+
+          <!-- (Accidents section moved below to sit between EXPERIENCE and EXAMINATION) -->
+
+          <!-- HEALTH & FITNESS SECTION (previous values moved below editable inputs) -->
+
+          <!-- HEALTH & FITNESS SECTION -->
+          <div class="form-section mt-8">HEALTH & FITNESS</div>
+          
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div class="form-group">
+              <label class="form-label">VISION</label>
+              <div class="flex gap-2">
+                <input type="text" name="vision_r" class="form-input" placeholder="R" value="{{ employee.vision_r if edit_mode else '' }}">
+                <input type="text" name="vision_l" class="form-input" placeholder="L" value="{{ employee.vision_l if edit_mode else '' }}">
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">CHECKUP DATE</label>
+              <input type="date" name="vision_checkup_date" class="form-input" value="{{ employee.vision_checkup_date if edit_mode else '' }}">
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">HEARING</label>
+              <div class="flex gap-2">
+                <input type="text" name="hearing_r" class="form-input" placeholder="R" value="{{ employee.hearing_r if edit_mode else '' }}">
+                <input type="text" name="hearing_l" class="form-input" placeholder="L" value="{{ employee.hearing_l if edit_mode else '' }}">
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">CHECKUP DATE</label>
+              <input type="date" name="hearing_checkup_date" class="form-input" value="{{ employee.hearing_checkup_date if edit_mode else '' }}">
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">BP</label>
+              <input type="text" name="bp" class="form-input" value="{{ employee.bp if edit_mode else '' }}">
+            </div>
+            <div class="form-group">
+              <label class="form-label">CHECKUP DATE</label>
+              <input type="date" name="bp_checkup_date" class="form-input" value="{{ employee.bp_checkup_date if edit_mode else '' }}">
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">SUGAR</label>
+              <input type="text" name="sugar" class="form-input" value="{{ employee.sugar if edit_mode else '' }}">
+            </div>
+            <div class="form-group">
+              <label class="form-label">CHECKUP DATE</label>
+              <input type="date" name="sugar_checkup_date" class="form-input" value="{{ employee.sugar_checkup_date if edit_mode else '' }}">
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">FRACTURES</label>
+              <input type="text" name="fractures" class="form-input" value="{{ employee.fractures if edit_mode else '' }}">
+            </div>
+            <div class="form-group">
+              <label class="form-label">CHECKUP DATE</label>
+              <input type="date" name="fractures_checkup_date" class="form-input" value="{{ employee.fractures_checkup_date if edit_mode else '' }}">
+            </div>
+          </div>
+
+          <!-- HABITS/PRACTICES SECTION -->
+          <div class="form-section mt-8">HABITS (PRACTICES)</div>
+          
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div class="form-group">
+              <label class="form-label">ALCOHOL</label>
+              <select name="alcohol" class="form-select">
+                <option value="">Select</option>
+                <option value="No" {% if edit_mode and employee.alcohol == 'No' %}selected{% endif %}>No</option>
+                <option value="Occasionally" {% if edit_mode and employee.alcohol == 'Occasionally' %}selected{% endif %}>Occasionally</option>
+                <option value="Regularly" {% if edit_mode and employee.alcohol == 'Regularly' %}selected{% endif %}>Regularly</option>
+              </select>
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">GUTKHA</label>
+              <select name="gutkha" class="form-select">
+                <option value="">Select</option>
+                <option value="No" {% if edit_mode and employee.gutkha == 'No' %}selected{% endif %}>No</option>
+                <option value="Occasionally" {% if edit_mode and employee.gutkha == 'Occasionally' %}selected{% endif %}>Occasionally</option>
+                <option value="Regularly" {% if edit_mode and employee.gutkha == 'Regularly' %}selected{% endif %}>Regularly</option>
+              </select>
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">SMOKING</label>
+              <select name="smoking" class="form-select">
+                <option value="">Select</option>
+                <option value="No" {% if edit_mode and employee.smoking == 'No' %}selected{% endif %}>No</option>
+                <option value="Occasionally" {% if edit_mode and employee.smoking == 'Occasionally' %}selected{% endif %}>Occasionally</option>
+                <option value="Regularly" {% if edit_mode and employee.smoking == 'Regularly' %}selected{% endif %}>Regularly</option>
+              </select>
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">GAMBLING</label>
+              <select name="gambling" class="form-select">
+                <option value="">Select</option>
+                <option value="No" {% if edit_mode and employee.gambling == 'No' %}selected{% endif %}>No</option>
+                <option value="Occasionally" {% if edit_mode and employee.gambling == 'Occasionally' %}selected{% endif %}>Occasionally</option>
+                <option value="Regularly" {% if edit_mode and employee.gambling == 'Regularly' %}selected{% endif %}>Regularly</option>
+              </select>
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">TOBACCO</label>
+              <select name="tobacco" class="form-select">
+                <option value="">Select</option>
+                <option value="No" {% if edit_mode and employee.tobacco == 'No' %}selected{% endif %}>No</option>
+                <option value="Occasionally" {% if edit_mode and employee.tobacco == 'Occasionally' %}selected{% endif %}>Occasionally</option>
+                <option value="Regularly" {% if edit_mode and employee.tobacco == 'Regularly' %}selected{% endif %}>Regularly</option>
+              </select>
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">ANYTHING</label>
+              <input type="text" name="other_habits" class="form-input" value="{{ employee.other_habits if edit_mode else '' }}">
+            </div>
+          </div>
+
+          <!-- PERSONAL DATA SECTION -->
+          <div class="form-section mt-8">PERSONAL DATA</div>
+          
+          <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
+            <div class="form-group">
+              <label class="form-label">FATHER NAME</label>
+              <input type="text" name="father_name" class="form-input" value="{{ employee.father_name if edit_mode else '' }}">
+            </div>
+            <div class="form-group">
+              <label class="form-label">AGE</label>
+              <input type="number" name="father_age" class="form-input" value="{{ employee.father_age if edit_mode else '' }}">
+            </div>
+            <div class="form-group">
+              <label class="form-label">OCCUPATION</label>
+              <input type="text" name="father_occupation" class="form-input" value="{{ employee.father_occupation if edit_mode else '' }}">
+            </div>
+            <div class="form-group">
+              <label class="form-label">GENDER</label>
+              <select name="father_gender" class="form-select">
+                <option value="">Select</option>
+                <option value="Male" {% if edit_mode and employee.father_gender == 'Male' %}selected{% endif %}>Male</option>
+                <option value="Female" {% if edit_mode and employee.father_gender == 'Female' %}selected{% endif %}>Female</option>
+                <option value="Other" {% if edit_mode and employee.father_gender == 'Other' %}selected{% endif %}>Other</option>
+              </select>
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">MOTHER NAME</label>
+              <input type="text" name="mother_name" class="form-input" value="{{ employee.mother_name if edit_mode else '' }}">
+            </div>
+            <div class="form-group">
+              <label class="form-label">AGE</label>
+              <input type="number" name="mother_age" class="form-input" value="{{ employee.mother_age if edit_mode else '' }}">
+            </div>
+            <div class="form-group">
+              <label class="form-label">OCCUPATION</label>
+              <input type="text" name="mother_occupation" class="form-input" value="{{ employee.mother_occupation if edit_mode else '' }}">
+            </div>
+            <div class="form-group">
+              <label class="form-label">GENDER</label>
+              <select name="mother_gender" class="form-select">
+                <option value="">Select</option>
+                <option value="Male" {% if edit_mode and employee.mother_gender == 'Male' %}selected{% endif %}>Male</option>
+                <option value="Female" {% if edit_mode and employee.mother_gender == 'Female' %}selected{% endif %}>Female</option>
+                <option value="Other" {% if edit_mode and employee.mother_gender == 'Other' %}selected{% endif %}>Other</option>
+              </select>
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">SPOUSE NAME</label>
+              <input type="text" name="spouse_name" class="form-input" value="{{ employee.spouse_name if edit_mode else '' }}">
+            </div>
+            <div class="form-group">
+              <label class="form-label">AGE</label>
+              <input type="number" name="spouse_age" class="form-input" value="{{ employee.spouse_age if edit_mode else '' }}">
+            </div>
+            <div class="form-group">
+              <label class="form-label">OCCUPATION</label>
+              <input type="text" name="spouse_occupation" class="form-input" value="{{ employee.spouse_occupation if edit_mode else '' }}">
+            </div>
+            <div class="form-group">
+              <label class="form-label">GENDER</label>
+              <select name="spouse_gender" class="form-select">
+                <option value="">Select</option>
+                <option value="Male" {% if edit_mode and employee.spouse_gender == 'Male' %}selected{% endif %}>Male</option>
+                <option value="Female" {% if edit_mode and employee.spouse_gender == 'Female' %}selected{% endif %}>Female</option>
+                <option value="Other" {% if edit_mode and employee.spouse_gender == 'Other' %}selected{% endif %}>Other</option>
+              </select>
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">CHILD-1 NAME</label>
+              <input type="text" name="child1_name" class="form-input" value="{{ employee.child1_name if edit_mode else '' }}">
+            </div>
+            <div class="form-group">
+              <label class="form-label">AGE</label>
+              <input type="number" name="child1_age" class="form-input" value="{{ employee.child1_age if edit_mode else '' }}">
+            </div>
+            <div class="form-group">
+              <label class="form-label">OCCUPATION</label>
+              <input type="text" name="child1_occupation" class="form-input" value="{{ employee.child1_occupation if edit_mode else '' }}">
+            </div>
+            <div class="form-group">
+              <label class="form-label">GENDER</label>
+              <select name="child1_gender" class="form-select">
+                <option value="">Select</option>
+                <option value="Male" {% if edit_mode and employee.child1_gender == 'Male' %}selected{% endif %}>Male</option>
+                <option value="Female" {% if edit_mode and employee.child1_gender == 'Female' %}selected{% endif %}>Female</option>
+                <option value="Other" {% if edit_mode and employee.child1_gender == 'Other' %}selected{% endif %}>Other</option>
+              </select>
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">CHILD-2 NAME</label>
+              <input type="text" name="child2_name" class="form-input" value="{{ employee.child2_name if edit_mode else '' }}">
+            </div>
+            <div class="form-group">
+              <label class="form-label">AGE</label>
+              <input type="number" name="child2_age" class="form-input" value="{{ employee.child2_age if edit_mode else '' }}">
+            </div>
+            <div class="form-group">
+              <label class="form-label">OCCUPATION</label>
+              <input type="text" name="child2_occupation" class="form-input" value="{{ employee.child2_occupation if edit_mode else '' }}">
+            </div>
+            <div class="form-group">
+              <label class="form-label">GENDER</label>
+              <select name="child2_gender" class="form-select">
+                <option value="">Select</option>
+                <option value="Male" {% if edit_mode and employee.child2_gender == 'Male' %}selected{% endif %}>Male</option>
+                <option value="Female" {% if edit_mode and employee.child2_gender == 'Female' %}selected{% endif %}>Female</option>
+                <option value="Other" {% if edit_mode and employee.child2_gender == 'Other' %}selected{% endif %}>Other</option>
+              </select>
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">CHILD-3 NAME</label>
+              <input type="text" name="child3_name" class="form-input" value="{{ employee.child3_name if edit_mode else '' }}">
+            </div>
+            <div class="form-group">
+              <label class="form-label">AGE</label>
+              <input type="number" name="child3_age" class="form-input" value="{{ employee.child3_age if edit_mode else '' }}">
+            </div>
+            <div class="form-group">
+              <label class="form-label">OCCUPATION</label>
+              <input type="text" name="child3_occupation" class="form-input" value="{{ employee.child3_occupation if edit_mode else '' }}">
+            </div>
+            <div class="form-group">
+              <label class="form-label">GENDER</label>
+              <select name="child3_gender" class="form-select">
+                <option value="">Select</option>
+                <option value="Male" {% if edit_mode and employee.child3_gender == 'Male' %}selected{% endif %}>Male</option>
+                <option value="Female" {% if edit_mode and employee.child3_gender == 'Female' %}selected{% endif %}>Female</option>
+                <option value="Other" {% if edit_mode and employee.child3_gender == 'Other' %}selected{% endif %}>Other</option>
+              </select>
+            </div>
+          </div>
+          
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-6">
+            <div class="form-group">
+              <label class="form-label">MAX EDUCATION</label>
+              <input type="text" name="max_education" class="form-input" value="{{ employee.max_education if edit_mode else '' }}">
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">SCHOOL</label>
+              <input type="text" name="school" class="form-input" value="{{ employee.school if edit_mode else '' }}">
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">MOTHER TONGUE</label>
+              <input type="text" name="mother_tongue" class="form-input" value="{{ employee.mother_tongue if edit_mode else '' }}">
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">OTHER LANG</label>
+              <input type="text" name="other_lang" class="form-input" value="{{ employee.other_lang if edit_mode else '' }}">
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">NATIONALITY</label>
+              <input type="text" name="nationality" class="form-input" value="{{ employee.nationality if edit_mode else 'Indian' }}">
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">COMMUNITY & CASTE</label>
+              <input type="text" name="community_caste" class="form-input" value="{{ employee.community_caste if edit_mode else '' }}">
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">RELIGION</label>
+              <input type="text" name="religion" class="form-input" value="{{ employee.religion if edit_mode else '' }}">
+            </div>
+          </div>
+          
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
+            <div class="form-group">
+              <label class="form-label">PERMANENT ADDRESS</label>
+              <textarea name="permanent_address" class="form-textarea" rows="4">{{ employee.permanent_address if edit_mode else '' }}</textarea>
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">PRESENT ADDRESS</label>
+              <textarea name="present_address" class="form-textarea" rows="4">{{ employee.present_address if edit_mode else '' }}</textarea>
+            </div>
+          </div>
+          
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
+            <div class="form-group">
+              <label class="form-label">PHONE NO.</label>
+              <input type="tel" name="phone_no" class="form-input" value="{{ employee.phone_no if edit_mode else '' }}">
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">WHATSAPP PHONE NO.</label>
+              <input type="tel" name="whatsapp_phone_no" class="form-input" value="{{ employee.whatsapp_phone_no if edit_mode else '' }}">
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">ALTERNATIVE PHONE NO</label>
+              <input type="tel" name="number_phone_no" class="form-input" value="{{ employee.number_phone_no if edit_mode else '' }}">
+            </div>
+          </div>
+          
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
+            <div class="form-group">
+              <label class="form-label">NOMINEE NAME</label>
+              <input type="text" name="nominee_name" class="form-input" value="{{ employee.nominee_name if edit_mode else '' }}">
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">NOMINEE PHONE NUMBER</label>
+              <input type="tel" name="nominee_phone_no" class="form-input" value="{{ employee.nominee_phone_no if edit_mode else '' }}">
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">NOMINEE RELATION</label>
+              <input type="text" name="nominee_relation" class="form-input" value="{{ employee.nominee_relation if edit_mode else '' }}">
+            </div>
+            <div class="form-group">
+              <label class="form-label">GENDER</label>
+              <select name="nominee_gender" class="form-select">
+                <option value="">Select</option>
+                <option value="Male" {% if edit_mode and employee.nominee_gender == 'Male' %}selected{% endif %}>Male</option>
+                <option value="Female" {% if edit_mode and employee.nominee_gender == 'Female' %}selected{% endif %}>Female</option>
+                <option value="Other" {% if edit_mode and employee.nominee_gender == 'Other' %}selected{% endif %}>Other</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- EXAMINATION OF DRIVING & ELIGIBILITY SECTION -->
+          <!-- ACCIDENTS/INCIDENTS SECTION (moved here) -->
+          <div class="form-section mt-8">ACCIDENTS/INCIDENTS (IF ANY)</div>
+          
+          <div class="overflow-x-auto mb-4">
+            <table id="accidentsTable">
+              <thead>
+                <tr>
+                  <th style="width: 15%;">DATE</th>
+                  <th style="width: 30%;">CASE DESCRIPTION</th>
+                  <th style="width: 15%;">TYPE OF CASE</th>
+                  <th style="width: 20%;">TYPE OF CASE NO.</th>
+                  <th style="width: 20%;">STATUS</th>
+                </tr>
+              </thead>
+              <tbody id="accidentsBody">
+                {% if edit_mode and employee.accidents %}
+                  {% for acc in employee.accidents %}
+                  <tr>
+                    <td><input type="date" name="acc_date[]" value="{{ acc.date }}"></td>
+                    <td><input type="text" name="acc_description[]" value="{{ acc.description }}" placeholder="Description"></td>
+                    <td><input type="text" name="acc_type[]" value="{{ acc.type }}" placeholder="Type"></td>
+                    <td><input type="text" name="acc_case_no[]" value="{{ acc.case_no }}" placeholder="Case No."></td>
+                    <td><input type="text" name="acc_status[]" value="{{ acc.status }}" placeholder="Status"></td>
+                  </tr>
+                  {% endfor %}
+                {% else %}
+                <tr>
+                  <td><input type="date" name="acc_date[]"></td>
+                  <td><input type="text" name="acc_description[]" placeholder="Description"></td>
+                  <td><input type="text" name="acc_type[]" placeholder="Type"></td>
+                  <td><input type="text" name="acc_case_no[]" placeholder="Case No."></td>
+                  <td><input type="text" name="acc_status[]" placeholder="Status"></td>
+                </tr>
+                {% endif %}
+              </tbody>
+            </table>
+          </div>
+          <button type="button" class="btn-add-row" onclick="addAccidentRow()">
+            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+              <path fill-rule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clip-rule="evenodd"/>
+            </svg>
+            ADD ROW
+          </button>
+
+          <div style="height:12px"></div>
+
+          <div class="form-section mt-8">EXAMINATION OF DRIVING & ELIGIBILITY</div>
+          
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="form-group">
+              <label class="form-label">DRIVING NATURE</label>
+              <input type="text" name="driving_nature" class="form-input" value="{{ employee.driving_nature if edit_mode else '' }}">
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">ROUTE</label>
+              <input type="text" name="route" class="form-input" value="{{ employee.route if edit_mode else '' }}">
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">REFERENCE</label>
+              <input type="text" name="reference" class="form-input" value="{{ employee.reference if edit_mode else '' }}">
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">EXPECTED SALARY</label>
+              <input type="text" name="expected_salary" class="form-input" value="{{ employee.expected_salary if edit_mode else '' }}">
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">EXPECTED DATE OF JOINING</label>
+              <input type="date" name="expected_date_of_joining" class="form-input" value="{{ employee.expected_date_of_joining if edit_mode else '' }}">
+            </div>
+            
+            {% if edit_mode %}
+            <div class="form-group">
+              <label class="form-label">STATUS</label>
+              <select name="status" class="form-select">
+                <option value="active" {% if employee.status == 'active' %}selected{% endif %}>Active</option>
+                <option value="inactive" {% if employee.status == 'inactive' %}selected{% endif %}>Inactive</option>
+                <option value="terminated" {% if employee.status == 'terminated' %}selected{% endif %}>Terminated</option>
+              </select>
+            </div>
+            {% endif %}
+          </div>
+
+          <!-- BANK DETAILS SECTION -->
+          <div class="form-section mt-8">BANK DETAILS</div>
+          
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="form-group">
+              <label class="form-label">BANK NAME</label>
+              <input type="text" name="bank_name" class="form-input" value="{{ employee.bank_name if edit_mode else '' }}">
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">ACCOUNT NUMBER</label>
+              <input type="text" name="account_number" class="form-input" value="{{ employee.account_number if edit_mode else '' }}">
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">ACCOUNT HOLDER NAME</label>
+              <input type="text" name="account_holder_name" class="form-input" value="{{ employee.account_holder_name if edit_mode else '' }}">
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">IFSC CODE</label>
+              <input type="text" name="ifsc_code" class="form-input" value="{{ employee.ifsc_code if edit_mode else '' }}">
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">BRANCH</label>
+              <input type="text" name="branch" class="form-input" value="{{ employee.branch if edit_mode else '' }}">
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">ACCOUNT TYPE</label>
+              <select name="account_type" class="form-select">
+                <option value="">Select</option>
+                <option value="Saving" {% if edit_mode and employee.account_type == 'Saving' %}selected{% endif %}>Saving</option>
+                <option value="Current" {% if edit_mode and employee.account_type == 'Current' %}selected{% endif %}>Current</option>
+                <option value="Salary" {% if edit_mode and employee.account_type == 'Salary' %}selected{% endif %}>Salary</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Form Actions -->
+          <div class="flex gap-4 mt-10 justify-center">
+            <button type="submit" class="btn-primary">
+              {% if edit_mode %}💾 UPDATE EMPLOYEE{% else %}✅ SAVE EMPLOYEE{% endif %}
+            </button>
+            <a href="{{ url_for('hr_employees') }}" class="btn-secondary">
+              ❌ CANCEL
+            </a>
+          </div>
+
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function addExperienceRow() {
+      const tbody = document.getElementById('experienceBody');
+      const row = document.createElement('tr');
+      row.innerHTML = `
+        <td><input type="date" name="exp_from_date[]"></td>
+        <td><input type="date" name="exp_to_date[]"></td>
+        <td><input type="text" name="exp_designation[]" placeholder="Designation"></td>
+        <td><input type="text" name="exp_organization[]" placeholder="Organization"></td>
+        <td><input type="text" name="exp_vehicle[]" placeholder="Vehicle Type"></td>
+      `;
+      tbody.appendChild(row);
+    }
+
+    function addAccidentRow() {
+      const tbody = document.getElementById('accidentsBody');
+      const row = document.createElement('tr');
+      row.innerHTML = `
+        <td><input type="date" name="acc_date[]"></td>
+        <td><input type="text" name="acc_description[]" placeholder="Description"></td>
+        <td><input type="text" name="acc_type[]" placeholder="Type"></td>
+        <td><input type="text" name="acc_case_no[]" placeholder="Case No."></td>
+        <td><input type="text" name="acc_status[]" placeholder="Status"></td>
+      `;
+      tbody.appendChild(row);
+    }
+
+    function addAwardRow() {
+      const tbody = document.getElementById('awardsBody');
+      const row = document.createElement('tr');
+      row.innerHTML = `
+        <td><input type="date" name="award_date[]"></td>
+        <td><input type="text" name="award_nature[]" placeholder="Nature"></td>
+        <td><input type="text" name="award_remarks[]" placeholder="Remarks"></td>
+      `;
+      tbody.appendChild(row);
+    }
+
+    // Show success modal on page load if redirected after save
+    document.addEventListener('DOMContentLoaded', function() {
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.get('success') === 'true' && urlParams.get('employee_id')) {
+        const employeeId = urlParams.get('employee_id');
+        const doj = urlParams.get('date_of_joining');
+        sessionStorage.setItem('newEmployeeId', employeeId);
+        if (doj) sessionStorage.setItem('newEmployeeDoJ', doj);
+        showSuccessModal(employeeId, doj);
+      }
+
+      toggleProfilePostOther();
+      bindDobAgeAutoCalc();
+    });
+
+    function showSuccessModal(employeeId, dateOfJoining) {
+      const modal = document.getElementById('successModal');
+      const content = document.getElementById('modalContent');
+      document.getElementById('generatedEmployeeId').textContent = employeeId;
+      const expEl = document.getElementById('experienceYears');
+      if (dateOfJoining) {
+        try {
+          const yrs = computeYearsSince(dateOfJoining);
+          expEl.textContent = `Total experience since joining: ${yrs} year${yrs === 1 ? '' : 's'}`;
+        } catch (e) {
+          expEl.textContent = '';
+        }
+      } else {
+        expEl.textContent = '';
+      }
+      modal.classList.remove('hidden');
+      setTimeout(() => {
+        content.classList.remove('scale-95');
+        content.classList.add('scale-100');
+      }, 10);
+    }
+
+    function computeYearsSince(isoDate) {
+      // isoDate expected as YYYY-MM-DD or ISO string
+      const d = new Date(isoDate);
+      if (Number.isNaN(d.getTime())) return 0;
+      const now = new Date();
+      const msPerYear = 365.25 * 24 * 60 * 60 * 1000;
+      const diff = now - d;
+      const years = Math.floor(diff / msPerYear);
+      return years;
+    }
+
+    function bindDobAgeAutoCalc() {
+      const dobInput = document.getElementById('dateOfBirth');
+      const ageInput = document.getElementById('age');
+      if (!dobInput || !ageInput) return;
+
+      const calculateAge = (dobValue) => {
+        if (!dobValue) {
+          ageInput.value = '';
+          return;
+        }
+        const dob = new Date(dobValue);
+        if (Number.isNaN(dob.getTime())) {
+          ageInput.value = '';
+          return;
+        }
+        const today = new Date();
+        let age = today.getFullYear() - dob.getFullYear();
+        const monthDiff = today.getMonth() - dob.getMonth();
+        if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < dob.getDate())) {
+          age -= 1;
+        }
+        ageInput.value = age >= 0 ? age : '';
+      };
+
+      calculateAge(dobInput.value);
+      dobInput.addEventListener('change', (event) => calculateAge(event.target.value));
+    }
+
+    function toggleProfilePostOther() {
+      const select = document.getElementById('profilePost');
+      const otherGroup = document.getElementById('profilePostOtherGroup');
+      if (!select || !otherGroup) return;
+      if (select.value === 'Others') {
+        otherGroup.style.display = 'block';
+      } else {
+        otherGroup.style.display = 'none';
+      }
+    }
+
+    function closeModal() {
+      const modal = document.getElementById('successModal');
+      const content = document.getElementById('modalContent');
+      content.classList.remove('scale-95');
+      content.classList.add('scale-95');
+      sessionStorage.removeItem('newEmployeeId');
+      setTimeout(() => {
+        modal.classList.add('hidden');
+        window.location.href = '{{ url_for("hr_employees") }}';
+      }, 200);
+    }
+
+    function viewProfile() {
+      const employeeId = sessionStorage.getItem('newEmployeeId');
+      if (employeeId) {
+        window.location.href = `/hr/employees/${employeeId}/profile`;
+      }
+    }
+  </script>
+
+  <script>
+    // Client-side reorder of employee form sections into requested sequence
+    document.addEventListener('DOMContentLoaded', function() {
+      try { reorderEmployeeFormSections(); } catch (e) { console.error('reorderEmployeeFormSections error', e); }
+    });
+
+    function reorderEmployeeFormSections() {
+      const desired = [
+        'EMPLOYEE PROFILE',
+        'PERSONAL DATA',
+        'HEALTH & FITNESS',
+        'EXPERIENCE',
+        'ACCIDENTS/INCIDENTS (IF ANY)',
+        'EXAMINATION OF DRIVING & ELIGIBILITY',
+        'AWARDS & APPRECIATION',
+        'BANK DETAILS',
+        'NOMINEE',
+        'HABITS (PRACTICES)'
+      ];
+
+      const form = document.querySelector('form');
+      if (!form) return;
+
+      // Gather section headers and their following nodes until next header or form actions
+      const nodes = Array.from(form.children);
+      const sections = {};
+      let idx = 0;
+      while (idx < nodes.length) {
+        const n = nodes[idx];
+        if (n.classList && n.classList.contains('form-section')) {
+          const title = n.textContent.trim().toUpperCase();
+          const group = [n];
+          let j = idx + 1;
+          while (j < nodes.length && !(nodes[j].classList && nodes[j].classList.contains('form-section')) && !nodes[j].classList.contains('flex')) {
+            group.push(nodes[j]);
+            j++;
+          }
+          sections[title] = group;
+          idx = j;
+        } else idx++;
+      }
+
+      // Extract nominee row(s) if present (inputs named nominee_*)
+      let nomineeGroup = null;
+      const nomineeInputs = ['nominee_name','nominee_phone_no','nominee_relation'].map(n => form.querySelector(`[name="${n}"]`)).filter(Boolean);
+      if (nomineeInputs.length) {
+        // find top-level container for nominee (nearest child of form)
+        let el = nomineeInputs[0];
+        while (el && el.parentElement !== form) el = el.parentElement;
+        if (el && el.parentElement === form) {
+          const header = document.createElement('div');
+          header.className = 'form-section mt-8';
+          header.textContent = 'NOMINEE';
+          nomineeGroup = [header, el];
+        }
+      }
+
+      // Build new order
+      const insertBefore = Array.from(form.querySelectorAll('.flex')).find(el => el.querySelector('button[type="submit"]')) || null;
+      const orderNodes = [];
+      desired.forEach(title => {
+        if (title === 'NOMINEE') {
+          if (nomineeGroup) orderNodes.push(...nomineeGroup);
+          return;
+        }
+        if (sections[title]) orderNodes.push(...sections[title]);
+      });
+
+      // Remove existing instances of these sections
+      Object.values(sections).forEach(g => g.forEach(n => { try { n.remove(); } catch(e){} }));
+      if (nomineeGroup && nomineeGroup[1]) try { nomineeGroup[1].remove(); } catch(e){}
+
+      // Insert in order before actions
+      orderNodes.forEach(n => form.insertBefore(n, insertBefore));
+    }
+  </script>
+
+{% include 'footer.html' %}
+</body>
+</html>

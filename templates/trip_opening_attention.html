@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Trip Opening Checklist - Drive Logs</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <script>
+    function handleSubmit(event) {
+      const form = event.target;
+      const submitBtn = form.querySelector('button[type="submit"]');
+      
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = '<svg class="animate-spin h-5 w-5 mr-3 inline-block" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Submitting...';
+      submitBtn.classList.add('opacity-75', 'cursor-not-allowed');
+      
+      return true;
+    }
+    
+    function addRow() {
+      const tbody = document.getElementById('checklistBody');
+      const newRow = document.createElement('tr');
+      newRow.className = 'checklist-row';
+      newRow.innerHTML = `
+        <td><input type="date" name="date[]" class="w-full px-2 py-1 border border-gray-300 rounded text-sm"></td>
+        <td><input type="time" name="time[]" class="w-full px-2 py-1 border border-gray-300 rounded text-sm"></td>
+        <td><input type="text" name="driver_name[]" class="w-full px-2 py-1 border border-gray-300 rounded text-sm"></td>
+        <td><input type="text" name="kilometer_reading[]" class="w-full px-2 py-1 border border-gray-300 rounded text-sm"></td>
+        <td><input type="text" name="fuel_level[]" class="w-full px-2 py-1 border border-gray-300 rounded text-sm"></td>
+        <td><input type="text" name="engine_oil_level[]" class="w-full px-2 py-1 border border-gray-300 rounded text-sm"></td>
+        <td><input type="text" name="radiator_water_level[]" class="w-full px-2 py-1 border border-gray-300 rounded text-sm"></td>
+        <td><input type="text" name="vacuum_level[]" class="w-full px-2 py-1 border border-gray-300 rounded text-sm"></td>
+        <td><input type="text" name="tyre_front_left[]" class="w-full px-2 py-1 border border-gray-300 rounded text-sm"></td>
+        <td><input type="text" name="tyre_front_right[]" class="w-full px-2 py-1 border border-gray-300 rounded text-sm"></td>
+        <td><input type="text" name="tyre_rear_lin[]" class="w-full px-2 py-1 border border-gray-300 rounded text-sm"></td>
+        <td><input type="text" name="tyre_rear_lout[]" class="w-full px-2 py-1 border border-gray-300 rounded text-sm"></td>
+        <td><input type="text" name="tyre_rear_rin[]" class="w-full px-2 py-1 border border-gray-300 rounded text-sm"></td>
+        <td><input type="text" name="tyre_rear_rout[]" class="w-full px-2 py-1 border border-gray-300 rounded text-sm"></td>
+        <td><input type="text" name="cleanliness_glass[]" class="w-full px-2 py-1 border border-gray-300 rounded text-sm"></td>
+        <td><input type="text" name="remarks[]" class="w-full px-2 py-1 border border-gray-300 rounded text-sm"></td>
+      `;
+      tbody.appendChild(newRow);
+    }
+    
+    // Convert registration number to uppercase
+    document.addEventListener('DOMContentLoaded', function() {
+      const regInput = document.querySelector('input[name="registration_no"]');
+      if (regInput) {
+        regInput.addEventListener('input', function(e) {
+          this.value = this.value.toUpperCase();
+        });
+      }
+    });
+  </script>
+  <style>
+    .checklist-table {
+      border-collapse: collapse;
+      width: 100%;
+      font-size: 0.75rem;
+    }
+    .checklist-table th {
+      background-color: #1e3a8a;
+      color: white;
+      padding: 8px 4px;
+      font-weight: bold;
+      text-align: center;
+      border: 1px solid #1e40af;
+      font-size: 0.7rem;
+    }
+    .checklist-table td {
+      padding: 4px;
+      border: 1px solid #d1d5db;
+      text-align: center;
+    }
+    .checklist-table input {
+      min-width: 60px;
+    }
+    input[name="registration_no"] {
+      text-transform: uppercase;
+    }
+  </style>
+</head>
+<body class="bg-[#fcfcfc] min-h-screen flex flex-col pt-20">
+  <!-- Logo Bar -->
+  <div class="logo-bar w-full flex items-center justify-between px-4 py-3 fixed top-0 left-0 z-50">
+    <img src="{{ url_for('static', filename='img/drive-logs.png') }}" alt="Drive Logs Logo" class="h-12 md:h-14 w-auto ml-2">
+    <div class="flex items-center gap-4">
+      <a href="{{ url_for('home') }}" class="bg-yellow-500 hover:bg-yellow-600 text-gray-900 px-4 py-2 rounded-full text-sm font-semibold transition-colors">
+        ← Back to Home
+      </a>
+      <a href="{{ url_for('logout') }}" class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-full text-sm font-semibold transition-colors">
+        Logout
+      </a>
+    </div>
+  </div>
+
+  <!-- College Header -->
+  <div class="w-full flex justify-center items-center border-b border-gray-300 bg-white">
+    <img src="{{ url_for('static', filename='img/pmc-logo.png') }}" alt="College Header" class="w-full max-w-5xl h-auto p-2 md:p-4">
+  </div>
+
+  <!-- Main Content -->
+  <div class="flex-1 py-6 px-4">
+    <div class="bg-white rounded-2xl shadow-lg w-full max-w-[95%] mx-auto p-6 md:p-8 border-2 border-gray-200">
+      <!-- Flash Messages -->
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          {% for category, message in messages %}
+            <div class="mb-4 p-4 rounded-lg {% if category == 'success' %}bg-green-100 text-green-800 border border-green-300{% elif category == 'danger' %}bg-red-100 text-red-800 border border-red-300{% else %}bg-blue-100 text-blue-800 border border-blue-300{% endif %}">
+              {{ message }}
+            </div>
+          {% endfor %}
+        {% endif %}
+      {% endwith %}
+      
+      <!-- Header -->
+      <div class="text-center mb-6 pb-4 border-b-2 border-gray-300">
+        <h1 class="text-2xl md:text-3xl font-bold text-blue-900">TRIP OPENING CHECKLIST</h1>
+      </div>
+
+      <!-- Vehicle Selection -->
+      <form method="POST" onsubmit="return handleSubmit(event)">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+          <div class="flex items-center gap-4">
+            <label class="font-bold text-gray-900 whitespace-nowrap">VEHICLE ID:</label>
+            <select name="vehicle_id" class="flex-1 px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200" required>
+              <option value="">Select</option>
+              {% for i in range(1, 101) %}
+              <option value="{{ i }}">{{ i }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="flex items-center gap-4">
+            <label class="font-bold text-gray-900 whitespace-nowrap">REGISTRATION NO:</label>
+            <input type="text" name="registration_no" class="flex-1 px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200" placeholder="Enter registration number">
+          </div>
+        </div>
+
+        <!-- Instructions -->
+        <div class="mb-4 text-center">
+          <p class="text-blue-800 font-semibold text-sm md:text-base">
+            (Ensure the following before starting the Bus. Type <span class="font-bold">Ok</span> if it is good otherwise rectify and start)
+          </p>
+        </div>
+
+        <!-- Checklist Table -->
+        <div class="overflow-x-auto mb-6">
+          <table class="checklist-table">
+            <thead>
+              <tr>
+                <th rowspan="2">DATE</th>
+                <th rowspan="2">TIME</th>
+                <th rowspan="2">DRIVER NAME</th>
+                <th rowspan="2">KILOMETER<br>READING</th>
+                <th rowspan="2">FUEL<br>LEVEL</th>
+                <th rowspan="2">ENGINE<br>OIL LEVEL</th>
+                <th rowspan="2">RADIATOR<br>WATER LEVEL</th>
+                <th rowspan="2">VACUUM<br>LEVEL</th>
+                <th colspan="6">TYRE CONDITION</th>
+                <th rowspan="2">CLEANLINESS OF<br>W/S GLASS</th>
+                <th rowspan="2">REMARKS</th>
+              </tr>
+              <tr>
+                <th colspan="2">FRONT</th>
+                <th colspan="4">REAR</th>
+              </tr>
+              <tr>
+                <th style="height: 30px;"></th>
+                <th></th>
+                <th></th>
+                <th></th>
+                <th></th>
+                <th></th>
+                <th></th>
+                <th></th>
+                <th>LEFT</th>
+                <th>RIGHT</th>
+                <th>L IN</th>
+                <th>L OUT</th>
+                <th>R IN</th>
+                <th>R OUT</th>
+                <th></th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="checklistBody">
+              <tr class="checklist-row">
+                <td><input type="date" name="date[]" class="w-full px-2 py-1 border border-gray-300 rounded text-sm" placeholder="dd/mm/yyyy"></td>
+                <td><input type="time" name="time[]" class="w-full px-2 py-1 border border-gray-300 rounded text-sm"></td>
+                <td><input type="text" name="driver_name[]" class="w-full px-2 py-1 border border-gray-300 rounded text-sm"></td>
+                <td><input type="text" name="kilometer_reading[]" class="w-full px-2 py-1 border border-gray-300 rounded text-sm"></td>
+                <td><input type="text" name="fuel_level[]" class="w-full px-2 py-1 border border-gray-300 rounded text-sm"></td>
+                <td><input type="text" name="engine_oil_level[]" class="w-full px-2 py-1 border border-gray-300 rounded text-sm"></td>
+                <td><input type="text" name="radiator_water_level[]" class="w-full px-2 py-1 border border-gray-300 rounded text-sm"></td>
+                <td><input type="text" name="vacuum_level[]" class="w-full px-2 py-1 border border-gray-300 rounded text-sm"></td>
+                <td><input type="text" name="tyre_front_left[]" class="w-full px-2 py-1 border border-gray-300 rounded text-sm"></td>
+                <td><input type="text" name="tyre_front_right[]" class="w-full px-2 py-1 border border-gray-300 rounded text-sm"></td>
+                <td><input type="text" name="tyre_rear_lin[]" class="w-full px-2 py-1 border border-gray-300 rounded text-sm"></td>
+                <td><input type="text" name="tyre_rear_lout[]" class="w-full px-2 py-1 border border-gray-300 rounded text-sm"></td>
+                <td><input type="text" name="tyre_rear_rin[]" class="w-full px-2 py-1 border border-gray-300 rounded text-sm"></td>
+                <td><input type="text" name="tyre_rear_rout[]" class="w-full px-2 py-1 border border-gray-300 rounded text-sm"></td>
+                <td><input type="text" name="cleanliness_glass[]" class="w-full px-2 py-1 border border-gray-300 rounded text-sm"></td>
+                <td><input type="text" name="remarks[]" class="w-full px-2 py-1 border border-gray-300 rounded text-sm"></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Add Row Button -->
+        <div class="flex justify-end mb-6">
+          <button type="button" onclick="addRow()" class="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded-full font-semibold text-sm transition-colors inline-flex items-center gap-2">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+            </svg>
+            ADD ROW
+          </button>
+        </div>
+
+        <!-- Submit Button -->
+        <div class="flex justify-center mt-8">
+          <button type="submit" class="bg-blue-800 hover:bg-green-600 text-white px-12 py-3 rounded-full font-bold text-lg shadow-lg transition-colors">
+            Submit
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+<script src="{{ url_for('static', filename='js/uppercase.js') }}"></script>
+{% include 'footer.html' %}
+</body>
+</html>

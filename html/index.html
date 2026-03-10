@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Drive Logs - Login</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .logo-bg {
+            background-color: #FFD700;
+        }
+        
+        .login-btn {
+            background-color: #FFD700;
+            transition: all 0.3s ease;
+        }
+        
+        .login-btn:hover {
+            background-color: #FFC700;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(255, 215, 0, 0.3);
+        }
+        
+        .login-btn:active {
+            transform: translateY(0);
+        }
+        
+        input::placeholder {
+            color: #999;
+        }
+        
+        input:focus {
+            outline: none;
+            box-shadow: 0 0 0 3px rgba(255, 215, 0, 0.1);
+        }
+        
+        .password-toggle {
+            cursor: pointer;
+            color: #999;
+            transition: color 0.3s ease;
+        }
+        
+        .password-toggle:hover {
+            color: #666;
+        }
+    </style>
+</head>
+<body class=" from-slate-50 to-slate-100 min-h-screen flex items-center justify-center p-4">
+    <div class="w-full max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-center gap-0 md:gap-8">
+        <!-- Left Side - Bus Image and Logo -->
+        <div class="flex flex-col items-center justify-center w-full md:w-1/2 mb-8 md:mb-0">
+            <div class="mb-6 w-full flex flex-col items-center">
+                <div class="" style=>
+                    <img src="./img/login  bus.png" alt="DRIVE LOGS Logo" class="w-[600px] md:w-[600px] h-auto block">
+                </div>
+            </div>
+          
+        </div>
+
+        <!-- Right Side - Login Form -->
+        <div class="w-full md:w-1/2 flex items-center justify-center">
+            <div class="bg-white rounded-[28px] shadow-2xl p-6 sm:p-8 md:p-10 w-full max-w-md border border-slate-100">
+                <!-- Welcome Header -->
+                <div class="mb-8">
+                    <p class="text-gray-600 text-base md:text-lg font-medium mb-1">HELLO !</p>
+                    <h2 class="text-2xl md:text-3xl lg:text-4xl font-bold text-gray-900 mb-6 leading-tight">WELCOME TO<br>DRIVE LOGS</h2>
+                </div>
+
+                <!-- Login Form -->
+                <form id="loginForm">
+                    <div class="mb-6">
+                        <input 
+                            type="email" 
+                            id="email" 
+                            placeholder="Email address" 
+                            class="w-full px-5 py-3 md:px-6 md:py-4 rounded-full border border-gray-300 text-gray-700 placeholder-gray-400 focus:border-yellow-400 transition-all text-base md:text-lg"
+                            required
+                        >
+                    </div>
+                    <div class="mb-8 relative">
+                        <div class="relative">
+                            <input 
+                                type="password" 
+                                id="password" 
+                                placeholder="Password" 
+                                class="w-full px-5 py-3 md:px-6 md:py-4 pr-14 rounded-full border border-gray-300 text-gray-700 placeholder-gray-400 focus:border-yellow-400 transition-all text-base md:text-lg"
+                                required
+                            >
+                            <button 
+                                type="button" 
+                                class="password-toggle absolute right-4 md:right-5 top-1/2 transform -translate-y-1/2 text-xl md:text-2xl"
+                                onclick="togglePasswordVisibility()"
+                                id="toggleBtn"
+                                title="Toggle password visibility"
+                            >
+                                👁️
+                            </button>
+                        </div>
+                    </div>
+                    <button 
+                        type="submit" 
+                        class="login-btn w-full py-3 md:py-4 rounded-full font-bold text-lg text-gray-900 shadow-lg hover:shadow-xl active:shadow-md tracking-wide"
+                    >
+                        LOGIN
+                    </button>
+                </form>
+
+                <!-- Super Admin Link -->
+                <div class="mt-6 text-center">
+                    <a href="super-admin-login.html" class="text-gray-600 hover:text-yellow-600 text-sm font-semibold transition-colors underline">
+                        Admin Login
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

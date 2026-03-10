@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Edit Vendor - {{ vendor.vendor_id }} - Drive Logs</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    * { font-family: 'Inter', sans-serif; }
+    body { background: #fffbeb; }
+    
+    .form-section {
+      background: #eab308;
+      color: #1e293b;
+      padding: 14px 20px;
+      font-weight: 800;
+      font-size: 1rem;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      box-shadow: 0 4px 15px rgba(234, 179, 8, 0.3);
+    }
+    
+    .form-group { margin-bottom: 20px; }
+    
+    .form-label {
+      display: block;
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: #1e293b;
+      margin-bottom: 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    
+    .form-input, .form-select, .form-textarea {
+      width: 100%;
+      padding: 12px 16px;
+      border: 2px solid #e2e8f0;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      transition: all 0.3s ease;
+      background: white;
+    }
+    
+    .form-input:focus, .form-select:focus, .form-textarea:focus {
+      outline: none;
+      border-color: #3b82f6;
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    }
+    
+    .btn-primary {
+      background: #10b981;
+      color: white;
+      padding: 14px 32px;
+      border-radius: 10px;
+      font-weight: 700;
+      font-size: 1rem;
+      border: none;
+      cursor: pointer;
+      box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);
+      transition: all 0.3s ease;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(16, 185, 129, 0.4);
+    }
+    
+    .btn-secondary {
+      background: #64748b;
+      color: white;
+      padding: 14px 32px;
+      border-radius: 10px;
+      font-weight: 700;
+      font-size: 1rem;
+      border: none;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col pt-20">
+  
+  <!-- Logo Bar -->
+  <div class="logo-bar w-full flex items-center justify-between px-4 py-3 fixed top-0 left-0 z-50" style="background: #eab308;">
+    <img src="{{ url_for('static', filename='img/drive-logs.png') }}" alt="Drive Logs Logo" class="h-12 md:h-14 w-auto ml-2">
+    <div class="flex items-center gap-4">
+      <a href="{{ url_for('admin_view_vendor', vendor_id=vendor.vendor_id) }}" class="bg-white text-yellow-700 px-4 py-2 rounded-full text-sm font-semibold hover:bg-gray-100 transition-colors">
+        ← Back
+      </a>
+      <a href="{{ url_for('logout') }}" class="bg-white text-yellow-700 px-4 py-2 rounded-full text-sm font-semibold hover:bg-gray-100 transition-colors">
+        Logout
+      </a>
+    </div>
+  </div>
+
+  <!-- College Header -->
+  <div class="w-full flex justify-center items-center border-b border-gray-300 bg-white">
+    <img src="{{ url_for('static', filename='img/pmc-logo.png') }}" alt="College Header" class="w-full max-w-5xl h-auto p-2 md:p-4">
+  </div>
+
+  <!-- Main Content -->
+  <div class="flex-1 py-8 px-4">
+    <div class="max-w-4xl mx-auto">
+      
+      <!-- Flash Messages -->
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          {% for category, message in messages %}
+            <div class="mb-4 p-4 rounded-lg {% if category == 'success' %}bg-green-100 text-green-800 border border-green-300{% elif category == 'danger' %}bg-red-100 text-red-800 border border-red-300{% else %}bg-blue-100 text-blue-800 border border-blue-300{% endif %}">
+              {{ message }}
+            </div>
+          {% endfor %}
+        {% endif %}
+      {% endwith %}
+
+      <!-- Form Container -->
+      <div class="bg-white rounded-2xl shadow-2xl p-8 md:p-12">
+        
+        <div class="text-center mb-8">
+          <h1 class="text-3xl font-bold text-gray-800 mb-2">✏️ EDIT VENDOR</h1>
+          <p class="text-gray-600">Vendor ID: <strong class="text-yellow-700">{{ vendor.vendor_id }}</strong></p>
+        </div>
+
+        <form method="POST" action="{{ url_for('admin_edit_vendor', vendor_id=vendor.vendor_id) }}">
+          
+          <!-- ORGANIZATION DETAILS -->
+          <div class="form-section">ORGANIZATION DETAILS</div>
+          
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="form-group md:col-span-2">
+              <label class="form-label">Name of the Organisation *</label>
+              <input type="text" name="organization_name" class="form-input" required value="{{ vendor.organization_name }}">
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">Organisation Type *</label>
+              <select name="organization_type" class="form-select" required>
+                <option value="">Select</option>
+                <option value="Government" {% if vendor.organization_type == 'Government' %}selected{% endif %}>Government</option>
+                <option value="Private Limited" {% if vendor.organization_type == 'Private Limited' %}selected{% endif %}>Private Limited</option>
+                <option value="Public Limited" {% if vendor.organization_type == 'Public Limited' %}selected{% endif %}>Public Limited</option>
+                <option value="Partnership" {% if vendor.organization_type == 'Partnership' %}selected{% endif %}>Partnership</option>
+                <option value="Proprietorship" {% if vendor.organization_type == 'Proprietorship' %}selected{% endif %}>Proprietorship</option>
+                <option value="NGO" {% if vendor.organization_type == 'NGO' %}selected{% endif %}>NGO</option>
+                <option value="Trust" {% if vendor.organization_type == 'Trust' %}selected{% endif %}>Trust</option>
+                <option value="Society" {% if vendor.organization_type == 'Society' %}selected{% endif %}>Society</option>
+                <option value="Other" {% if vendor.organization_type == 'Other' %}selected{% endif %}>Other</option>
+              </select>
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">Contact Number *</label>
+              <input type="tel" name="contact_number" class="form-input" required value="{{ vendor.contact_number }}">
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">Email ID *</label>
+              <input type="email" name="email_id" class="form-input" required value="{{ vendor.email_id }}">
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">Website</label>
+              <input type="url" name="website" class="form-input" value="{{ vendor.website or '' }}">
+            </div>
+          </div>
+
+          <!-- ADDRESS & CONTACT -->
+          <div class="form-section mt-8">ADDRESS & CONTACT</div>
+          
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="form-group md:col-span-2">
+              <label class="form-label">Address *</label>
+              <textarea name="address" class="form-input" rows="3" required>{{ vendor.address }}</textarea>
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">Phone Number</label>
+              <input type="tel" name="phone_number" class="form-input" value="{{ vendor.phone_number or '' }}">
+            </div>
+          </div>
+
+          <!-- PURCHASE DETAILS -->
+          <div class="form-section mt-8">PURCHASE DETAILS</div>
+          
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="form-group">
+              <label class="form-label">Type of Purchase * <span class="text-gray-500 text-xs">(Select Multiple)</span></label>
+              <div id="editPurchaseTypesContainer" class="space-y-3 p-4 bg-gray-50 rounded-lg border-2 border-gray-200">
+                <label class="flex items-center gap-3 cursor-pointer">
+                  <input type="checkbox" name="type_of_purchase" value="Raw Materials" {% if vendor.type_of_purchase and 'Raw Materials' in vendor.type_of_purchase %}checked{% endif %} class="w-5 h-5 text-blue-600 rounded">
+                  <span class="text-gray-700">Raw Materials</span>
+                </label>
+                <label class="flex items-center gap-3 cursor-pointer">
+                  <input type="checkbox" name="type_of_purchase" value="Equipment" {% if vendor.type_of_purchase and 'Equipment' in vendor.type_of_purchase %}checked{% endif %} class="w-5 h-5 text-blue-600 rounded">
+                  <span class="text-gray-700">Equipment</span>
+                </label>
+                <label class="flex items-center gap-3 cursor-pointer">
+                  <input type="checkbox" name="type_of_purchase" value="Services" {% if vendor.type_of_purchase and 'Services' in vendor.type_of_purchase %}checked{% endif %} class="w-5 h-5 text-blue-600 rounded">
+                  <span class="text-gray-700">Services</span>
+                </label>
+                <label class="flex items-center gap-3 cursor-pointer">
+                  <input type="checkbox" name="type_of_purchase" value="Maintenance" {% if vendor.type_of_purchase and 'Maintenance' in vendor.type_of_purchase %}checked{% endif %} class="w-5 h-5 text-blue-600 rounded">
+                  <span class="text-gray-700">Maintenance</span>
+                </label>
+                <label class="flex items-center gap-3 cursor-pointer">
+                  <input type="checkbox" name="type_of_purchase" value="Consumables" {% if vendor.type_of_purchase and 'Consumables' in vendor.type_of_purchase %}checked{% endif %} class="w-5 h-5 text-blue-600 rounded">
+                  <span class="text-gray-700">Consumables</span>
+                </label>
+                <label class="flex items-center gap-3 cursor-pointer">
+                  <input type="checkbox" name="type_of_purchase" value="Software" {% if vendor.type_of_purchase and 'Software' in vendor.type_of_purchase %}checked{% endif %} class="w-5 h-5 text-blue-600 rounded">
+                  <span class="text-gray-700">Software</span>
+                </label>
+                <label class="flex items-center gap-3 cursor-pointer">
+                  <input type="checkbox" name="type_of_purchase" value="Spare Parts" {% if vendor.type_of_purchase and 'Spare Parts' in vendor.type_of_purchase %}checked{% endif %} class="w-5 h-5 text-blue-600 rounded">
+                  <span class="text-gray-700">Spare Parts</span>
+                </label>
+                <label class="flex items-center gap-3 cursor-pointer">
+                  <input type="checkbox" name="type_of_purchase" value="Stationery" {% if vendor.type_of_purchase and 'Stationery' in vendor.type_of_purchase %}checked{% endif %} class="w-5 h-5 text-blue-600 rounded">
+                  <span class="text-gray-700">Stationery</span>
+                </label>
+                <!-- dynamic custom types will be appended here -->
+              </div>
+
+              <div class="mt-3 flex gap-2 items-center">
+                <input id="editNewPurchaseTypeInput" type="text" placeholder="Add custom type (e.g. Catering)" class="form-input w-full md:w-2/3" />
+                <button type="button" id="editAddPurchaseTypeBtn" class="btn-secondary">Add</button>
+              </div>
+              <p class="text-xs text-gray-500 mt-1">Add custom purchase types; they will be submitted as additional selections.</p>
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">Date of Vendorship *</label>
+              <input type="date" name="date_of_vendorship" class="form-input" required value="{{ vendor.date_of_vendorship }}">
+            </div>
+            
+            <div class="form-group md:col-span-2">
+              <label class="form-label">Description *</label>
+              <textarea name="description" class="form-input" rows="3" required maxlength="500">{{ vendor.description }}</textarea>
+              <p class="text-xs text-gray-500 mt-1">Maximum 500 characters</p>
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">Status *</label>
+              <select name="status" class="form-select" required>
+                <option value="active" {% if vendor.status == 'active' %}selected{% endif %}>Active</option>
+                <option value="inactive" {% if vendor.status == 'inactive' %}selected{% endif %}>Inactive</option>
+                <option value="blacklisted" {% if vendor.status == 'blacklisted' %}selected{% endif %}>Blacklisted</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Form Actions -->
+          <div class="flex gap-4 mt-10 justify-center">
+            <button type="submit" class="btn-primary">
+              ✅ Update Vendor
+            </button>
+            <a href="{{ url_for('admin_view_vendor', vendor_id=vendor.vendor_id) }}" class="btn-secondary">
+              ❌ Cancel
+            </a>
+          </div>
+
+        </form>
+      </div>
+    </div>
+  </div>
+
+{% include 'footer.html' %}
+</body>
+</html>
+
+  <script>
+    // Dynamically add/remove custom purchase types in edit form
+    document.addEventListener('DOMContentLoaded', function() {
+      const addBtn = document.getElementById('editAddPurchaseTypeBtn');
+      const input = document.getElementById('editNewPurchaseTypeInput');
+      const container = document.getElementById('editPurchaseTypesContainer');
+
+      function createCustomTypeElement(value, checked = true) {
+        const wrapper = document.createElement('label');
+        wrapper.className = 'flex items-center gap-3 cursor-pointer justify-between';
+
+        const left = document.createElement('div');
+        left.className = 'flex items-center gap-3';
+
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.name = 'type_of_purchase';
+        checkbox.value = value;
+        checkbox.checked = checked;
+        checkbox.className = 'w-5 h-5 text-blue-600 rounded';
+
+        const span = document.createElement('span');
+        span.className = 'text-gray-700';
+        span.textContent = value;
+
+        left.appendChild(checkbox);
+        left.appendChild(span);
+
+        const removeBtn = document.createElement('button');
+        removeBtn.type = 'button';
+        removeBtn.className = 'text-sm text-red-600 hover:underline ml-2';
+        removeBtn.textContent = 'Remove';
+        removeBtn.onclick = function() { container.removeChild(wrapper); };
+
+        wrapper.appendChild(left);
+        wrapper.appendChild(removeBtn);
+        return wrapper;
+      }
+
+      addBtn.addEventListener('click', function() {
+        const val = input.value && input.value.trim();
+        if (!val) return;
+        const elem = createCustomTypeElement(val);
+        container.appendChild(elem);
+        input.value = '';
+      });
+
+      input.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') { e.preventDefault(); addBtn.click(); }
+      });
+
+      // Prepopulate any custom types from vendor.type_of_purchase
+      try {
+        const raw = `{{ vendor.type_of_purchase | default('') | replace("'", "\'") }}`;
+        if (raw && raw.trim() !== '') {
+          // split by comma and trim
+          raw.split(',').map(s => s.trim()).forEach(val => {
+            // skip known types (they are already in DOM)
+            const known = ['Raw Materials','Equipment','Services','Maintenance','Consumables','Software','Spare Parts','Stationery','Labour Charges','Other'];
+            if (!val) return;
+            if (known.includes(val)) return;
+            // append custom checkbox
+            container.appendChild(createCustomTypeElement(val, true));
+          });
+        }
+      } catch (e) {
+        // ignore template rendering issues
+        console.log('prepopulate purchase types error', e);
+      }
+    });
+  </script>

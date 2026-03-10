@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Add Vendor - Drive Logs</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    * { font-family: 'Inter', sans-serif; }
+    body { background: #fffbeb; }
+    
+    .form-section {
+      background: #eab308;
+      color: #1e293b;
+      padding: 14px 20px;
+      font-weight: 800;
+      font-size: 1rem;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      box-shadow: 0 4px 15px rgba(234, 179, 8, 0.3);
+    }
+    
+    .form-group {
+      margin-bottom: 20px;
+    }
+    
+    .form-label {
+      display: block;
+      font-size: 0.875rem;
+      font-weight: 600;
+      color: #1e293b;
+      margin-bottom: 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    
+    .form-input, .form-select, .form-textarea {
+      width: 100%;
+      padding: 12px 16px;
+      border: 2px solid #e2e8f0;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      transition: all 0.3s ease;
+      background: white;
+    }
+    
+    .form-input:focus, .form-select:focus, .form-textarea:focus {
+      outline: none;
+      border-color: #3b82f6;
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    }
+    
+    .btn-primary {
+      background: #10b981;
+      color: white;
+      padding: 14px 32px;
+      border-radius: 10px;
+      font-weight: 700;
+      font-size: 1rem;
+      border: none;
+      cursor: pointer;
+      box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);
+      transition: all 0.3s ease;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(16, 185, 129, 0.4);
+    }
+    
+    .btn-secondary {
+      background: #64748b;
+      color: white;
+      padding: 14px 32px;
+      border-radius: 10px;
+      font-weight: 700;
+      font-size: 1rem;
+      border: none;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col pt-20">
+
+  <!-- Success Modal Popup -->
+  <div id="successModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[100] hidden">
+    <div class="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full mx-4 text-center transform scale-95 transition-transform" id="modalContent">
+      <div class="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+        <svg class="w-12 h-12 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+        </svg>
+      </div>
+      <h2 class="text-2xl font-bold text-gray-800 mb-2">Vendor Added Successfully!</h2>
+      <p class="text-gray-600 mb-2">Vendor ID has been auto-generated:</p>
+      <p class="text-3xl font-bold text-yellow-700 mb-6" id="generatedVendorId">PMC-LOGI-VEN001</p>
+      <div class="flex flex-col gap-3">
+        <button onclick="viewVendor()" class="flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-full font-semibold transition-colors">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+          </svg>
+          View Details
+        </button>
+        <button onclick="closeModal()" class="bg-gray-200 hover:bg-gray-300 text-gray-800 px-6 py-3 rounded-full font-semibold transition-colors">
+          Close & View All Vendors
+        </button>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Logo Bar -->
+  <div class="logo-bar w-full flex items-center justify-between px-4 py-3 fixed top-0 left-0 z-50" style="background: #eab308;">
+    <img src="{{ url_for('static', filename='img/drive-logs.png') }}" alt="Drive Logs Logo" class="h-12 md:h-14 w-auto ml-2">
+    <div class="flex items-center gap-4">
+      <a href="{{ url_for('admin_vendors') }}" class="bg-white text-yellow-700 px-4 py-2 rounded-full text-sm font-semibold hover:bg-gray-100 transition-colors">
+        ← Back
+      </a>
+      <a href="{{ url_for('logout') }}" class="bg-white text-yellow-700 px-4 py-2 rounded-full text-sm font-semibold hover:bg-gray-100 transition-colors">
+        Logout
+      </a>
+    </div>
+  </div>
+
+  <!-- College Header -->
+  <div class="w-full flex justify-center items-center border-b border-gray-300 bg-white">
+    <img src="{{ url_for('static', filename='img/pmc-logo.png') }}" alt="College Header" class="w-full max-w-5xl h-auto p-2 md:p-4">
+  </div>
+
+  <!-- Main Content -->
+  <div class="flex-1 py-8 px-4">
+    <div class="max-w-4xl mx-auto">
+      
+      <!-- Flash Messages -->
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          {% for category, message in messages %}
+            <div class="mb-4 p-4 rounded-lg {% if category == 'success' %}bg-green-100 text-green-800 border border-green-300{% elif category == 'danger' %}bg-red-100 text-red-800 border border-red-300{% else %}bg-blue-100 text-blue-800 border border-blue-300{% endif %}">
+              {{ message }}
+            </div>
+          {% endfor %}
+        {% endif %}
+      {% endwith %}
+
+      <!-- Form Container -->
+      <div class="bg-white rounded-2xl shadow-2xl p-8 md:p-12">
+        
+        <div class="text-center mb-8">
+          <h1 class="text-3xl font-bold text-gray-800 mb-2">🛒 ADD NEW VENDOR</h1>
+          <p class="text-gray-600">REF: PMCTECH/LOGI/FORM 2/001</p>
+        </div>
+
+        <form method="POST" action="{{ url_for('admin_add_vendor') }}">
+          
+          <!-- ORGANIZATION DETAILS -->
+          <div class="form-section">ORGANIZATION DETAILS</div>
+          
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="form-group md:col-span-2">
+              <label class="form-label">Name of the Organisation *</label>
+              <input type="text" name="organization_name" class="form-input" required placeholder="Enter organization name">
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">Organisation Type *</label>
+              <select name="organization_type" class="form-select" required>
+                <option value="">Select</option>
+                <option value="Government">Government</option>
+                <option value="Private Limited">Private Limited</option>
+                <option value="Public Limited">Public Limited</option>
+                <option value="Partnership">Partnership</option>
+                <option value="Proprietorship">Proprietorship</option>
+                <option value="NGO">NGO</option>
+                <option value="Trust">Trust</option>
+                <option value="Society">Society</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">Contact Number *</label>
+              <input type="tel" name="contact_number" class="form-input" required placeholder="+91 XXXXX XXXXX">
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">Email ID </label>
+              <input type="email" name="email_id" class="form-input" placeholder="vendor@example.com">
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">Website</label>
+              <input type="url" name="website" class="form-input" placeholder="https://example.com">
+            </div>
+          </div>
+
+          <!-- ADDRESS & CONTACT -->
+          <div class="form-section mt-8">ADDRESS & CONTACT</div>
+          
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="form-group md:col-span-2">
+              <label class="form-label">Address *</label>
+              <textarea name="address" class="form-input" rows="3" required placeholder="Complete address with pincode"></textarea>
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">Phone Number</label>
+              <input type="tel" name="phone_number" class="form-input" placeholder="Alternate phone">
+            </div>
+          </div>
+
+          <!-- PURCHASE DETAILS -->
+          <div class="form-section mt-8">PURCHASE DETAILS</div>
+          
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="form-group">
+              <label class="form-label">Type of Purchase * <span class="text-gray-500 text-xs">(Select Multiple)</span></label>
+              <div class="space-y-3 p-4 bg-gray-50 rounded-lg border-2 border-gray-200" id="purchaseTypesContainer">
+                <label class="flex items-center gap-3 cursor-pointer">
+                  <input type="checkbox" name="type_of_purchase" value="Raw Materials" class="w-5 h-5 text-blue-600 rounded">
+                  <span class="text-gray-700">Raw Materials</span>
+                </label>
+                <label class="flex items-center gap-3 cursor-pointer">
+                  <input type="checkbox" name="type_of_purchase" value="Equipment" class="w-5 h-5 text-blue-600 rounded">
+                  <span class="text-gray-700">Equipment</span>
+                </label>
+                <label class="flex items-center gap-3 cursor-pointer">
+                  <input type="checkbox" name="type_of_purchase" value="Services" class="w-5 h-5 text-blue-600 rounded">
+                  <span class="text-gray-700">Services</span>
+                </label>
+                <label class="flex items-center gap-3 cursor-pointer">
+                  <input type="checkbox" name="type_of_purchase" value="Maintenance" class="w-5 h-5 text-blue-600 rounded">
+                  <span class="text-gray-700">Maintenance</span>
+                </label>
+                <label class="flex items-center gap-3 cursor-pointer">
+                  <input type="checkbox" name="type_of_purchase" value="Consumables" class="w-5 h-5 text-blue-600 rounded">
+                  <span class="text-gray-700">Consumables</span>
+                </label>
+                <label class="flex items-center gap-3 cursor-pointer">
+                  <input type="checkbox" name="type_of_purchase" value="Software" class="w-5 h-5 text-blue-600 rounded">
+                  <span class="text-gray-700">Software</span>
+                </label>
+                <label class="flex items-center gap-3 cursor-pointer">
+                  <input type="checkbox" name="type_of_purchase" value="Spare Parts" class="w-5 h-5 text-blue-600 rounded">
+                  <span class="text-gray-700">Spare Parts</span>
+                </label>
+                <label class="flex items-center gap-3 cursor-pointer">
+                  <input type="checkbox" name="type_of_purchase" value="Stationery" class="w-5 h-5 text-blue-600 rounded">
+                  <span class="text-gray-700">Stationery</span>
+                </label>
+                <label class="flex items-center gap-3 cursor-pointer">
+                  <input type="checkbox" name="type_of_purchase" value="Labour Charges" class="w-5 h-5 text-blue-600 rounded">
+                  <span class="text-gray-700">Labour Charges</span>
+                </label>
+                <!-- Container for dynamically added custom types -->
+              </div>
+
+              <!-- Add custom purchase type -->
+              <div class="mt-3 flex gap-2 items-center">
+                <input id="newPurchaseTypeInput" type="text" placeholder="Add custom type (e.g. Catering)" class="form-input w-full md:w-2/3" />
+                <button type="button" id="addPurchaseTypeBtn" class="btn-secondary">Add</button>
+              </div>
+              <p class="text-xs text-gray-500 mt-1">Add custom purchase types; they will be submitted as additional selections.</p>
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">Date of Vendorship *</label>
+              <input type="date" name="date_of_vendorship" class="form-input" required>
+            </div>
+            
+            <div class="form-group md:col-span-2">
+              <label class="form-label">Describe in 50 Words *</label>
+              <textarea name="description" class="form-input" rows="3" required maxlength="500" placeholder="Brief description about the vendor and services..."></textarea>
+              <p class="text-xs text-gray-500 mt-1">Maximum 500 characters</p>
+            </div>
+          </div>
+
+          <!-- VENDOR ID DISPLAY (Auto-generated) -->
+          <div class="mt-8 p-4 bg-green-50 border-2 border-green-200 rounded-lg">
+            <div class="flex items-center gap-3">
+              <svg class="w-6 h-6 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
+              </svg>
+              <div>
+                <p class="text-sm font-semibold text-green-800">APPROVAL VENDOR ID</p>
+                <p class="text-lg font-bold text-green-600">Auto-generated upon submission (PMC-LOGI-VENXXX)</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Form Actions -->
+          <div class="flex gap-4 mt-10 justify-center">
+            <button type="submit" class="btn-primary">
+              ✅ Submit Vendor
+            </button>
+            <a href="{{ url_for('admin_vendors') }}" class="btn-secondary">
+              ❌ Cancel
+            </a>
+          </div>
+
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Show success modal on page load if redirected after save
+    document.addEventListener('DOMContentLoaded', function() {
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.get('success') === 'true' && urlParams.get('vendor_id')) {
+        const vendorId = urlParams.get('vendor_id');
+        sessionStorage.setItem('newVendorId', vendorId);
+        showSuccessModal(vendorId);
+      }
+    });
+
+    // Add custom purchase types dynamically
+    document.addEventListener('DOMContentLoaded', function() {
+      const addBtn = document.getElementById('addPurchaseTypeBtn');
+      const input = document.getElementById('newPurchaseTypeInput');
+      const container = document.getElementById('purchaseTypesContainer');
+
+      function createCustomTypeElement(value) {
+        const wrapper = document.createElement('label');
+        wrapper.className = 'flex items-center gap-3 cursor-pointer justify-between';
+
+        const left = document.createElement('div');
+        left.className = 'flex items-center gap-3';
+
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.name = 'type_of_purchase';
+        checkbox.value = value;
+        checkbox.className = 'w-5 h-5 text-blue-600 rounded';
+
+        const span = document.createElement('span');
+        span.className = 'text-gray-700';
+        span.textContent = value;
+
+        left.appendChild(checkbox);
+        left.appendChild(span);
+
+        const removeBtn = document.createElement('button');
+        removeBtn.type = 'button';
+        removeBtn.className = 'text-sm text-red-600 hover:underline ml-2';
+        removeBtn.textContent = 'Remove';
+        removeBtn.onclick = function() { container.removeChild(wrapper); };
+
+        wrapper.appendChild(left);
+        wrapper.appendChild(removeBtn);
+
+        return wrapper;
+      }
+
+      addBtn.addEventListener('click', function() {
+        const val = input.value && input.value.trim();
+        if (!val) return;
+        const elem = createCustomTypeElement(val);
+        container.appendChild(elem);
+        input.value = '';
+      });
+      // allow Enter key to add
+      input.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') { e.preventDefault(); addBtn.click(); }
+      });
+    });
+
+    function showSuccessModal(vendorId) {
+      const modal = document.getElementById('successModal');
+      const content = document.getElementById('modalContent');
+      document.getElementById('generatedVendorId').textContent = vendorId;
+      modal.classList.remove('hidden');
+      setTimeout(() => {
+        content.classList.remove('scale-95');
+        content.classList.add('scale-100');
+      }, 10);
+    }
+
+    function closeModal() {
+      const modal = document.getElementById('successModal');
+      const content = document.getElementById('modalContent');
+      content.classList.remove('scale-95');
+      content.classList.add('scale-95');
+      sessionStorage.removeItem('newVendorId');
+      setTimeout(() => {
+        modal.classList.add('hidden');
+        window.location.href = '{{ url_for("admin_vendors") }}';
+      }, 200);
+    }
+
+    function viewVendor() {
+      const vendorId = sessionStorage.getItem('newVendorId');
+      if (vendorId) {
+        window.location.href = `/admin/vendors/${vendorId}/view`;
+      }
+    }
+  </script>
+
+{% include 'footer.html' %}
+</body>
+</html>

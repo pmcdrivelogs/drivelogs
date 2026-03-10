@@ -1,0 +1,449 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Admin — Internal Audits</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    /* small helper for payload pre */
+    pre.payload{background:#0b1220;color:#e6f0ff;padding:12px;border-radius:8px;overflow:auto;max-height:480px}
+    @media print {
+      body {
+        background: white;
+        color: black;
+      }
+      .no-print {
+        display: none;
+      }
+      .print-only {
+        display: block;
+      }
+    }
+    .print-only {
+      display: none;
+    }
+  </style>
+</head>
+<body class="bg-slate-50 min-h-screen text-slate-800">
+  <div class="max-w-7xl mx-auto p-6">
+    <div class="flex items-center justify-between mb-6">
+      <div>
+        <h1 class="text-2xl font-extrabold">Internal Audits</h1>
+        <p class="text-sm text-slate-500">Recent internal audits from the database and local fallback entries.</p>
+      </div>
+      <div class="flex items-center gap-3">
+        <a href="{{ url_for('admin_dashboard') }}" class="inline-flex items-center px-4 py-2 bg-white border rounded-lg shadow-sm text-sm font-semibold text-slate-700 hover:bg-slate-50">Back to Dashboard</a>
+      </div>
+    </div>
+
+    <!-- Summary cards -->
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+      <div class="bg-white p-4 rounded-lg shadow flex items-center justify-between">
+        <div>
+          <div class="text-sm text-slate-500">Database Audits</div>
+          <div class="text-lg font-bold text-slate-900">{{ audits_db|length if audits_db else 0 }}</div>
+        </div>
+        <div class="text-2xl text-amber-500">�️</div>
+      </div>
+      <div class="bg-white p-4 rounded-lg shadow flex items-center justify-between">
+        <div>
+          <div class="text-sm text-slate-500">Fallback Saved</div>
+          <div class="text-lg font-bold text-slate-900">{{ audits_fallback|length if audits_fallback else 0 }}</div>
+        </div>
+        <div class="text-2xl text-orange-500">💾</div>
+      </div>
+      <div class="bg-white p-4 rounded-lg shadow flex items-center justify-between">
+        <div>
+          <div class="text-sm text-slate-500">Showing</div>
+          <div class="text-lg font-bold text-slate-900">Latest 200</div>
+        </div>
+        <div class="text-2xl text-sky-500">📋</div>
+      </div>
+    </div>
+
+    <!-- Controls -->
+    <div class="bg-white p-4 rounded-lg shadow mb-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+      <div class="flex items-center gap-3 w-full md:w-1/2">
+        <input id="globalSearch" type="search" placeholder="Search by vehicle, auditor, auditee..." class="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-sky-300" />
+      </div>
+      <div class="flex items-center gap-3">
+        <span class="text-sm text-slate-500">Filter:</span>
+        <button data-src="all" class="filter-btn px-3 py-1 rounded-md bg-slate-100 text-sm">All</button>
+        <button data-src="db" class="filter-btn px-3 py-1 rounded-md bg-amber-50 text-sm">DB</button>
+        <button data-src="fallback" class="filter-btn px-3 py-1 rounded-md bg-orange-50 text-sm">Fallback</button>
+      </div>
+    </div>
+
+    <!-- Table -->
+    <div class="bg-white rounded-lg shadow overflow-hidden">
+      <table class="min-w-full divide-y divide-slate-100">
+        <thead class="bg-slate-50">
+          <tr>
+            <th class="px-4 py-3 text-left text-sm font-semibold text-slate-600">S.No</th>
+            <th class="px-4 py-3 text-left text-sm font-semibold text-slate-600">Vehicle ID</th>
+            <th class="px-4 py-3 text-left text-sm font-semibold text-slate-600">Vehicle No</th>
+            <th class="px-4 py-3 text-left text-sm font-semibold text-slate-600">Month</th>
+            <th class="px-4 py-3 text-left text-sm font-semibold text-slate-600">Date of Audit</th>
+            <th class="px-4 py-3 text-right text-sm font-semibold text-slate-600">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="auditsTableBody" class="bg-white divide-y divide-slate-100">
+          {# Render DB audits first (newest) #}
+          {% if audits_db %}
+            {% for a in audits_db %}
+              <tr class="audit-row" data-source="db">
+                <td class="px-4 py-3 text-sm text-slate-700">{{ loop.index }}</td>
+                <td class="px-4 py-3 text-sm text-slate-900 font-medium">{{ a.vehicle_id }}</td>
+                <td class="px-4 py-3 text-sm text-slate-700">{{ a.registration_no }}</td>
+                <td class="px-4 py-3 text-sm text-slate-700">{{ a.month }}</td>
+                <td class="px-4 py-3 text-sm text-slate-700">{{ a.audit_date|fmt_dt }}</td>
+                <td class="px-4 py-3 text-right text-sm">
+                  <a href="#" onclick="showPayloadDB({{ loop.index0 }});return false;" class="text-sky-600 hover:underline mr-2">View</a>
+                  <a href="#" onclick="downloadPayload('db',{{ loop.index0 }});return false;" class="text-green-600 hover:underline mr-2">Download</a>
+                  <a href="#" onclick="printPayload('db',{{ loop.index0 }});return false;" class="text-orange-600 hover:underline">Print</a>
+                </td>
+              </tr>
+            {% endfor %}
+          {% endif %}
+
+          {# Fallback records after DB entries #}
+          {% if audits_fallback %}
+            {% for f in audits_fallback %}
+              <tr class="audit-row" data-source="fallback">
+                <td class="px-4 py-3 text-sm text-slate-700">{{ loop.index }}</td>
+                <td class="px-4 py-3 text-sm text-slate-900 font-medium">{{ f.payload.vehicle_id }}</td>
+                <td class="px-4 py-3 text-sm text-slate-700">{{ f.payload.registration_no }}</td>
+                <td class="px-4 py-3 text-sm text-slate-700">{{ f.payload.month }}</td>
+                <td class="px-4 py-3 text-sm text-slate-700">{{ f.payload.audit_date }}</td>
+                <td class="px-4 py-3 text-right text-sm">
+                  <a href="#" onclick="showPayloadFB({{ loop.index0 }});return false;" class="text-sky-600 hover:underline mr-2">View</a>
+                  <a href="#" onclick="downloadPayload('fallback',{{ loop.index0 }});return false;" class="text-green-600 hover:underline mr-2">Download</a>
+                  <a href="#" onclick="printPayload('fallback',{{ loop.index0 }});return false;" class="text-orange-600 hover:underline">Print</a>
+                </td>
+              </tr>
+            {% endfor %}
+          {% endif %}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Payload Modal (now renders formatted HTML) -->
+    <div id="payloadModal" class="fixed inset-0 z-50 hidden items-start justify-center bg-black/50 p-4 overflow-auto">
+      <div class="bg-white rounded-lg max-w-4xl w-full p-6" style="max-height:calc(100vh - 80px);overflow:auto;">
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="text-lg font-bold">Audit Report Preview</h2>
+          <button onclick="hideModal()" class="px-3 py-1 rounded bg-slate-100">Close</button>
+        </div>
+        <div id="payloadContent" class="payload"></div>
+      </div>
+    </div>
+
+    <!-- Print & Download Buttons -->
+    <div class="flex items-center gap-3">
+      <button onclick="printPage()" class="inline-flex items-center px-4 py-2 bg-blue-500 text-white rounded-lg shadow-sm text-sm font-semibold hover:bg-blue-600">Print</button>
+      <button onclick="downloadAsPDF()" class="inline-flex items-center px-4 py-2 bg-green-500 text-white rounded-lg shadow-sm text-sm font-semibold hover:bg-green-600">Download as PDF</button>
+    </div>
+  
+    <!-- html2pdf to generate PDF from rendered HTML -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+
+    <script>
+      const auditsDb = {{ audits_db|tojson|safe if audits_db else '[]' }};
+      const auditsFallback = {{ audits_fallback|tojson|safe if audits_fallback else '[]' }};
+
+      // Build a formatted HTML page from the payload that matches internal_audit layout.
+      function buildHTMLFromPayload(payload){
+        const esc = v => (v === null || v === undefined) ? '' : String(v);
+        function starHtml(val){
+          let s='';
+          for(let i=1;i<=5;i++){
+            const filled = i<=val;
+            const cls = filled ? 'fa-solid fa-star' : 'fa-regular fa-star';
+            s += `<i class="${cls}" style="font-size:20px;margin-left:6px;color:${filled?getStarColor(val):'#bfc3c8'}"></i>`;
+          }
+          return s;
+        }
+        function getStarColor(v){ switch(v){case 1:return '#FF0000';case 2:return '#FFA500';case 3:return '#FFD700';case 4:return '#1E90FF';case 5:return '#008000';default:return '#bfc3c8';}}
+
+        // Build rows like the original form (two-column with label left and stars right)
+        const rowsHtml = (payload.ratings || []).map(r=>{
+          return `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid rgba(0,0,0,0.03)">
+                    <div style="width:52%;font-weight:600">${esc(r.label)}</div>
+                    <div style="width:46%;text-align:right">${starHtml(Number(r.value||0))}</div>
+                  </div>`;
+        }).join('\n');
+
+        const overallStars = starHtml(Number(payload.overall_rating||0));
+
+        // helper: produce human-friendly month name from numeric or text payload
+        function monthName(m){
+          if(m === null || m === undefined || m === '') return '';
+          // if numeric string or number
+          const months = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+          try{
+            if(typeof m === 'number'){
+              return months[m-1] || String(m);
+            }
+            const s = String(m).trim();
+            if(/^\d+$/.test(s)){
+              const n = parseInt(s,10);
+              return months[n-1] || s;
+            }
+            // try parse month name variants (first-letter uppercase)
+            const cap = s.charAt(0).toUpperCase() + s.slice(1).toLowerCase();
+            if(months.indexOf(cap) !== -1) return cap;
+            // fallback: return raw string
+            return s;
+          }catch(e){ return String(m); }
+        }
+
+        // human-friendly month label for header
+        const monthLabel = monthName(payload.month || payload.month_name || payload.monthName || '');
+
+        // helper to read employee name/designation from payload using multiple possible keys
+        function empInfo(prefix){
+          const id = payload[prefix] || payload[`${prefix}_id`] || '';
+          const name = payload[`${prefix}_name`] || payload[`${prefix}Name`] || payload[`${prefix}_fullname`] || payload[`${prefix}_full_name`] || '';
+          const desig = payload[`${prefix}_designation`] || payload[`${prefix}_desig`] || payload[`${prefix}_designation_name`] || payload[`${prefix}_role`] || '';
+          return { id, name, desig };
+        }
+
+        const a1 = empInfo('auditor_1');
+        const a2 = empInfo('auditor_2');
+        const aud = empInfo('auditee');
+
+        const html = `<!doctype html>
+        <html>
+        <head>
+          <meta charset="utf-8" />
+          <meta name="viewport" content="width=device-width,initial-scale=1" />
+          <title>Internal Audit Report</title>
+          <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+          <style>
+            :root{--yellow:#FFD400;--navy:#0B3C6D;--card-bg:#F2F2F2;--pill-border:#0b0b0b;--green:#1E9E63}
+            body{font-family:Inter, system-ui, -apple-system, 'Segoe UI', Roboto, Arial;margin:0;color:#111;background:#fff}
+            .container{max-width:900px;margin:18px auto;padding:18px}
+            .top-strip{background:var(--yellow);padding:8px}
+            .banner{margin:12px 0}
+            .card{background:var(--card-bg);border-radius:12px;padding:16px}
+            .title{background:var(--navy);color:#fff;padding:10px;border-radius:8px;font-weight:800}
+            .form-grid{padding:12px}
+            .row{display:flex;gap:12px;align-items:center;margin-bottom:12px}
+            .label{width:220px;font-weight:700}
+            .input{flex:1;padding:10px;border-radius:20px;border:2px solid var(--pill-border);background:#fff}
+            .ratings{margin-top:8px}
+            .overall{margin-top:14px;border:3px solid #2E7D32;padding:10px;border-radius:8px;background:#E8F5E9}
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="top-strip"></div>
+            <div class="banner"><img src="/static/img/header_full.png" style="width:100%;height:auto;display:block"/></div>
+            <div class="card">
+              <div class="title">INTERNAL AUDIT REPORT FOR THE MONTH${monthLabel ? ' - ' + esc(monthLabel) : ''}</div>
+              <div class="form-grid">
+                <div class="row"><div class="label">Date of Audit</div><div class="input">${esc(payload.audit_date||'')}</div></div>
+                <div class="row"><div class="label">Internal Auditor 1 (Employee ID)</div><div style="flex:1"><div class="input">${esc(a1.id || payload.auditor_1 || '')}</div><div style="display:flex;gap:8px;margin-top:8px"><input class="input" style="flex:1;border-radius:14px;padding:8px" value="${esc(a1.name)}" readonly placeholder="Name"><input class="input" style="width:180px;border-radius:14px;padding:8px" value="${esc(a1.desig)}" readonly placeholder="Designation"></div></div></div>
+                <div class="row"><div class="label">Internal Auditor 2 (Employee ID)</div><div style="flex:1"><div class="input">${esc(a2.id || payload.auditor_2 || '')}</div><div style="display:flex;gap:8px;margin-top:8px"><input class="input" style="flex:1;border-radius:14px;padding:8px" value="${esc(a2.name)}" readonly placeholder="Name"><input class="input" style="width:180px;border-radius:14px;padding:8px" value="${esc(a2.desig)}" readonly placeholder="Designation"></div></div></div>
+                <div class="row"><div class="label">Internal Auditee (Employee ID)</div><div style="flex:1"><div class="input">${esc(aud.id || payload.auditee || '')}</div><div style="display:flex;gap:8px;margin-top:8px"><input class="input" style="flex:1;border-radius:14px;padding:8px" value="${esc(aud.name)}" readonly placeholder="Name"><input class="input" style="width:180px;border-radius:14px;padding:8px" value="${esc(aud.desig)}" readonly placeholder="Designation"></div></div></div>
+                <div class="row"><div class="label">Vehicle ID</div><div class="input">${esc(payload.vehicle_id||'')}</div></div>
+                <div class="row"><div class="label">Registration Number</div><div class="input">${esc(payload.registration_no||'')}</div></div>
+                <div class="row"><div class="label">Km Reading</div><div class="input">${esc(payload.km_reading||'')}</div></div>
+
+                <div class="ratings">
+                  ${rowsHtml}
+                </div>
+
+                <div class="overall"><div style="display:flex;align-items:center;justify-content:space-between"><div style="font-weight:700">Overall Rating of the Bus Condition</div><div>${overallStars}<span style="margin-left:12px;font-weight:700">${esc(payload.overall_percent||0)}%</span></div></div></div>
+                
+                <!-- Signatures block for print/download -->
+                <div style="margin-top:28px;margin-bottom:6px"></div>
+                <div style="display:flex;justify-content:space-between;gap:12px;margin-top:22px">
+                  <div style="flex:1;text-align:center">
+                    <div style="font-weight:700">Signature of the Coordinator</div>
+                    <div style="height:48px"></div>
+                    <div style="font-weight:600">Mr. Ramachandran</div>
+                    <div style="font-size:12px;color:#333">(Coordinator)</div>
+                  </div>
+                  <div style="flex:1;text-align:center">
+                    <div style="font-weight:700">Signature of the Director</div>
+                    <div style="height:48px"></div>
+                    <div style="font-weight:600">Mr. N. Sudhakaran</div>
+                    <div style="font-size:12px;color:#333">(Director)</div>
+                  </div>
+                  <div style="flex:1;text-align:center">
+                    <div style="font-weight:700">Signature of the ISO Auditor</div>
+                    <div style="height:48px"></div>
+                    <div style="font-weight:600">ISO Auditor</div>
+                    <div style="font-size:12px;color:#333"></div>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+          </div>
+        </body>
+        </html>`;
+
+        return html;
+      }
+
+      function showRenderedModal(html){
+        const container = document.getElementById('payloadContent');
+        container.innerHTML = html;
+        const modal = document.getElementById('payloadModal');
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+        // align modal to top so tall content can scroll inside
+        modal.style.alignItems = 'flex-start';
+        modal.style.paddingTop = '32px';
+        // lock background scroll: store current scroll and fix body
+        try{
+          window._modalScrollY = window.scrollY || document.documentElement.scrollTop || 0;
+          document.body.style.position = 'fixed';
+          document.body.style.top = `-${window._modalScrollY}px`;
+          document.body.style.left = '0';
+          document.body.style.right = '0';
+          document.body.style.width = '100%';
+        }catch(e){ /* ignore if not allowed */ }
+      }
+
+      function showPayloadDB(idx){
+        const obj = auditsDb[idx];
+        const html = buildHTMLFromPayload(obj);
+        showRenderedModal(html);
+      }
+      function showPayloadFB(idx){
+        const obj = auditsFallback[idx];
+        const html = buildHTMLFromPayload(obj.payload || obj);
+        showRenderedModal(html);
+      }
+      function hideModal(){
+        document.getElementById('payloadModal').classList.add('hidden');
+        document.getElementById('payloadModal').classList.remove('flex');
+        document.getElementById('payloadContent').innerHTML = '';
+        // restore background scroll
+        try{
+          const scrollY = window._modalScrollY || 0;
+          document.body.style.position = '';
+          document.body.style.top = '';
+          document.body.style.left = '';
+          document.body.style.right = '';
+          document.body.style.width = '';
+          window.scrollTo(0, scrollY);
+          window._modalScrollY = null;
+        }catch(e){ /* ignore */ }
+      }
+
+      // Close modal on Escape key and restore styles
+      document.addEventListener('keydown', function(e){
+        if(e.key === 'Escape'){
+          const modal = document.getElementById('payloadModal');
+          if(modal && !modal.classList.contains('hidden')){
+            hideModal();
+          }
+        }
+      });
+
+      function downloadPayload(source, idx){
+        const obj = source === 'db' ? auditsDb[idx] : (auditsFallback[idx] && auditsFallback[idx].payload) ? auditsFallback[idx].payload : auditsFallback[idx];
+        const html = buildHTMLFromPayload(obj);
+        // create temp container
+        const tmp = document.createElement('div');
+        tmp.style.position = 'fixed'; tmp.style.left='-9999px'; tmp.style.top='-9999px';
+        tmp.innerHTML = html;
+        document.body.appendChild(tmp);
+        // use html2pdf to save
+        html2pdf().from(tmp).set({margin:0.4, filename: `internal_audit_${source}_${idx}.pdf`, html2canvas:{scale:2}}).save().then(()=>{ document.body.removeChild(tmp); }).catch(()=>{ document.body.removeChild(tmp); });
+      }
+
+      function printPayload(source, idx){
+        const obj = source === 'db' ? auditsDb[idx] : (auditsFallback[idx] && auditsFallback[idx].payload) ? auditsFallback[idx].payload : auditsFallback[idx];
+        const html = buildHTMLFromPayload(obj);
+        const win = window.open('', '_blank');
+        win.document.write(html);
+        win.document.close();
+        // Wait a bit for resources then print
+        setTimeout(()=>{ win.focus(); win.print(); /* do not close to allow user to save */ }, 600);
+      }
+
+      function downloadAsPDF() {
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF();
+
+        // Capture the content of the page
+        const content = document.body;
+
+        // Use html2canvas or similar to render the page into the PDF
+        doc.html(content, {
+          callback: function (doc) {
+            doc.save('internal_audit_report.pdf');
+          },
+          x: 10,
+          y: 10
+        });
+      }
+
+      function printPage() {
+        window.print();
+      }
+
+      // Simple client-side filter/search
+      const searchEl = document.getElementById('globalSearch');
+      const filterButtons = Array.from(document.querySelectorAll('.filter-btn'));
+      const rows = Array.from(document.querySelectorAll('.audit-row'));
+
+      function applyFilter(){
+        const q = (searchEl.value || '').toLowerCase().trim();
+        const active = document.querySelector('.filter-btn[aria-pressed="true"]')?.dataset?.src || 'all';
+        rows.forEach(r => {
+          const text = r.textContent.toLowerCase();
+          const matchesQuery = !q || text.indexOf(q) !== -1;
+          const matchesSource = (active === 'all') || (r.dataset.source === active);
+          r.style.display = (matchesQuery && matchesSource) ? '' : 'none';
+        });
+      }
+
+      // init filter buttons
+      filterButtons.forEach(b => {
+        b.setAttribute('aria-pressed', 'false');
+        b.addEventListener('click', (e) => {
+          filterButtons.forEach(x => x.setAttribute('aria-pressed','false'));
+          b.setAttribute('aria-pressed','true');
+          // visual
+          filterButtons.forEach(x => x.classList.remove('ring-2','ring-slate-300'));
+          b.classList.add('ring-2','ring-slate-300');
+          applyFilter();
+        });
+      });
+      // set 'all' as default
+      const defaultBtn = document.querySelector('.filter-btn[data-src="all"]');
+      if(defaultBtn) defaultBtn.click();
+
+      searchEl.addEventListener('input', () => { applyFilter(); });
+    </script>
+  </div>
+
+  <style>
+    @media print {
+      body {
+        background: white;
+        color: black;
+      }
+      .no-print {
+        display: none;
+      }
+      .print-only {
+        display: block;
+      }
+    }
+    .print-only {
+      display: none;
+    }
+  </style>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.4.0/jspdf.umd.min.js"></script>
+{% include 'footer.html' %}
+</body>
+</html>

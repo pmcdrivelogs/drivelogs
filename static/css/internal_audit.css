@@ -1,0 +1,115 @@
+/* Styles for Internal Audit form to match provided design */
+:root{
+  --blue:#0b4f83;
+  --yellow:#ffd400;
+  --muted:#f3f4f6;
+  --input-bg:#fff;
+}
+body{font-family:Inter, 'Helvetica Neue', Arial, sans-serif;color:#111}
+
+/* Top banner */
+.audit-top-banner{background:var(--yellow);padding:18px 0}
+.audit-top-banner img{height:52px}
+
+/* top yellow small logo box */
+.top-logo-box{background:var(--yellow);padding:12px 0}
+.top-logo-inner{max-width:1100px;margin:0 auto;display:flex;align-items:center;gap:12px}
+.drive-logo{background:#fff;padding:6px 12px;border-radius:8px;height:44px;display:flex;align-items:center;margin-left:18px}
+
+/* header banner image */
+.header-image{max-width:1100px;margin:12px auto;display:block}
+.header-image img{width:100%;height:auto;border-radius:6px}
+
+.header-row{background:transparent;max-width:1100px;margin:6px auto;padding:0 18px;display:block}
+.institution-banner{background:#fff;border-radius:6px;padding:8px 18px;display:flex;align-items:center;justify-content:space-between;box-shadow:0 2px 6px rgba(2,6,23,0.06)}
+.header-left img{height:80px}
+.header-right img{height:64px}
+.header-center{flex:1;text-align:center;margin:0 12px}
+.institution-title{color:#5d2a8a;text-align:center;font-weight:900;font-size:20px;line-height:1.05;letter-spacing:0.6px}
+.institution-sub{color:#5d2a8a;text-align:center;font-size:11px;margin-top:4px}
+
+/* Card container */
+.audit-card{background:#fff;border-radius:10px;overflow:hidden;border:1px solid #e6e6e6}
+.audit-card .audit-header{background:var(--blue);color:#fff;padding:8px 12px;display:flex;align-items:center;justify-content:space-between;border-radius:8px}
+.audit-card .audit-header .title{font-weight:700;font-size:15px}
+
+.audit-month-pill{background:#fff;border-radius:24px;padding:6px 12px;border:3px solid #000000;min-width:160px;text-align:center}
+.audit-icon-btn{background:#fff;border-radius:8px;padding:8px;border:none}
+.audit-card .audit-body{padding:12px}
+
+.form-row{display:flex;align-items:center;gap:12px;margin-bottom:14px}
+.form-row .label-text{width:200px;font-weight:700}
+.form-row .label-sep{width:14px;display:inline-block;text-align:center;color:#111;font-weight:900}
+.form-input, select[name], input[type="text"], input[type="number"], input[type="date"]{flex:1;padding:10px 14px;border-radius:20px;border:1px solid #d1d5db;background:#fff}
+.form-input::placeholder{color:#9ca3af}
+
+/* compact pill input to match image */
+.form-input.pill{border-radius:24px;padding:8px 14px}
+
+/* Table checklist */
+.audit-table{width:100%;border-collapse:collapse;margin-top:8px}
+.audit-table th{padding:10px 6px;font-weight:700}
+.audit-table td{padding:12px 6px;vertical-align:middle}
+.audit-table tbody tr td:first-child{padding-left:18px}
+
+/* Column header colours */
+.col-worst{color:#e11d48}
+.col-poor{color:#f97316}
+.col-avg{color:#f59e0b}
+.col-good{color:#0ea5e9}
+.col-excellent{color:#16a34a}
+
+/* Legend colors */
+.legend{display:flex;gap:18px;align-items:center}
+.legend .item{display:flex;flex-direction:column;align-items:flex-start;padding:8px;border-radius:8px}
+.legend .worst{color:#e11d48}
+.legend .poor{color:#f97316}
+.legend .avg{color:#f59e0b}
+.legend .good{color:#0ea5e9}
+.legend .excellent{color:#16a34a}
+
+/* Star radio styling */
+.star-label{display:inline-block;cursor:pointer}
+.star-label input{display:none}
+.star-label span{display:inline-block;font-size:26px;line-height:1}
+.star-label span::before{content:'☆';color:transparent;-webkit-text-stroke:1px #111;font-size:34px}
+.star-label input:checked + span::before{content:'★';color:inherit;-webkit-text-stroke:0}
+
+/* Colors per level when checked */
+.star-label span.level-1::before{color:#e11d48}
+.star-label input:checked + span.level-1::before{color:#e11d48}
+.star-label span.level-2::before{color:#f97316}
+.star-label input:checked + span.level-2::before{color:#f97316}
+.star-label span.level-3::before{color:#f59e0b}
+.star-label input:checked + span.level-3::before{color:#f59e0b}
+.star-label span.level-4::before{color:#0ea5e9}
+.star-label input:checked + span.level-4::before{color:#0ea5e9}
+.star-label span.level-5::before{color:#16a34a}
+.star-label input:checked + span.level-5::before{color:#16a34a}
+
+/* Overall rating box */
+.overall-box{border:3px solid #1f8f4a;border-radius:8px;padding:10px;display:flex;align-items:center;justify-content:space-between;background:#fff}
+.overall-box .stars{display:flex;gap:8px}
+.overall-box .stars .star-label span::before{font-size:34px}
+.overall-box .stars .star-label input:checked + span.level-3::before{color:#f59e0b}
+.overall-box .stars .star-label input:checked + span.level-4::before{color:#f59e0b}
+.overall-box .stars .star-label input:checked + span.level-5::before{color:#f59e0b}
+
+/* Submit button */
+.create-btn{background:linear-gradient(180deg,#10b981,#047857);color:#fff;padding:12px 28px;border-radius:30px;border:none;font-weight:700}
+.create-btn:disabled{opacity:0.6}
+
+/* Responsive tweaks */
+@media (max-width:900px){
+  .form-row{flex-direction:column;align-items:flex-start}
+  .form-row label{width:100%}
+}
+
+/* Institution centered header */
+.institution-title{color:#5d2a8a;text-align:center;font-weight:800;font-size:22px;margin:12px 0}
+.institution-sub{color:#5d2a8a;text-align:center;font-size:12px;margin-bottom:10px}
+
+/* Legend styles */
+.legend-box{border:1px solid #e5e7eb;border-radius:8px;padding:12px;width:200px}
+.legend-row{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.legend-star{font-size:16px}

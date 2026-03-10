@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Drive Logs - Home</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body class="bg-[#fcfcfc] min-h-screen flex flex-col pt-20">
+  <!-- Logo Bar -->
+  <div class="logo-bar w-full flex items-center justify-between px-2 py-1 fixed top-0 left-0 z-50">
+    <img src="{{ url_for('static', filename='img/drive-logs.png') }}" alt="Drive Logs Logo" class="h-12 md:h-14 w-auto ml-2">
+    <div class="flex items-center gap-4">
+      <a href="{{ url_for('dashboard') }}" class="bg-yellow-500 hover:bg-yellow-600 text-gray-900 px-4 py-2 rounded-full text-sm font-semibold transition-colors">
+        ← Dashboard
+      </a>
+      <div class="flex items-center gap-2 hidden md:flex">
+        <svg class="w-6 h-6 text-gray-900" fill="currentColor" viewBox="0 0 20 20">
+          <path fill-rule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clip-rule="evenodd"/>
+        </svg>
+        <span class="text-gray-900 text-base md:text-lg font-bold">{{ user_role }}</span>
+      </div>
+      <a href="{{ url_for('logout') }}" class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-full text-sm font-semibold transition-colors">
+        Logout
+      </a>
+    </div>
+  </div>
+
+  <!-- College Header -->
+  <div class="w-full flex justify-center items-center border-b border-gray-300 bg-white">
+    <img src="{{ url_for('static', filename='img/pmc-logo.png') }}" alt="College Header" class="w-full max-w-5xl h-auto p-2 md:p-4">
+  </div>
+
+  <!-- Main Content -->
+  <div class="flex-1 flex justify-center items-start md:items-center py-4 md:py-8 px-2 md:px-0">
+    <div class="main-box bg-white w-full max-w-3xl mx-auto p-2 md:p-8 mt-2 md:mt-0">
+      <div class="flex flex-col gap-4 md:gap-6">
+        <a href="{{ url_for('vehicle_profile') }}" class="menu-btn py-3 md:py-4 px-4 md:px-8">1. VEHICLE PROFILE</a>
+        <a href="{{ url_for('trip_opening_attention') }}" class="menu-btn py-3 md:py-4 px-4 md:px-8">2. TRIP OPENEING ATTENTION CHECK LIST</a>
+        <a href="{{ url_for('utilization_record') }}" class="menu-btn py-3 md:py-4 px-4 md:px-8">3. UTILIZATION RECORD</a>
+        <a href="{{ url_for('fuel_consumption') }}" class="menu-btn py-3 md:py-4 px-4 md:px-8">4. FUEL CONSUMPTION STATEMENT</a>
+        <a href="{{ url_for('daily_technical_remarks') }}" class="menu-btn py-3 md:py-4 px-4 md:px-8">5. DAILY TECHNICAL REMARKS</a>
+        <a href="{{ url_for('weekly_attention') }}" class="menu-btn py-3 md:py-4 px-4 md:px-8">6. WEEKLY/FORTHNIGHT ATTENTION CHECKLIST</a>
+        <a href="{{ url_for('job_card') }}" class="menu-btn py-3 md:py-4 px-4 md:px-8">7. JOB CARD</a>
+        <a href="{{ url_for('monthly_maintenance') }}" class="menu-btn py-3 md:py-4 px-4 md:px-8">8. MONTHLY PERIODICAL MAINTENANCE</a>
+        <a href="{{ url_for('halfyearly_maintenance') }}" class="menu-btn py-3 md:py-4 px-4 md:px-8">9. HALFYEARLY PERIODICAL MAINTENANCE</a>
+        <a href="{{ url_for('annual_maintenance') }}" class="menu-btn py-3 md:py-4 px-4 md:px-8">10. ANNUAL PERIODICAL MAINTENANCE</a>
+        <a href="{{ url_for('annual_summary') }}" class="menu-btn py-3 md:py-4 px-4 md:px-8">11. ANNUAL SUMMARY & RECOMMENDATIONS</a>
+        <a href="{{ url_for('incidents_reports') }}" class="menu-btn py-3 md:py-4 px-4 md:px-8">12. INCIDENTS & REPORTS RECORD</a>
+        <a href="{{ url_for('feedback') }}" class="menu-btn py-3 md:py-4 px-4 md:px-8">13. FEEDBACK</a> 
+      </div>
+    </div>
+  </div>
+
+<script src="{{ url_for('static', filename='js/uppercase.js') }}"></script>
+</body>
+</html>

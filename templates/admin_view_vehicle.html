@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>View Vehicle - Drive Logs Admin</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body class="bg-gray-100 min-h-screen">
+  <!-- Header -->
+  <div class="bg-yellow-600 text-white p-4 shadow-lg">
+    <div class="container mx-auto flex justify-between items-center">
+      <div>
+        <h1 class="text-2xl font-bold">👁️ View Vehicle Details</h1>
+        <p class="text-sm">Vehicle ID: {{ vehicle.vehicle_id }}</p>
+      </div>
+      <div class="flex items-center gap-4">
+        <a href="{{ url_for('admin_vehicles') }}" class="bg-yellow-500 hover:bg-yellow-600 text-gray-900 px-4 py-2 rounded-full font-semibold transition-colors">
+          ← Back to Vehicles
+        </a>
+        <a href="{{ url_for('logout') }}" class="bg-white text-yellow-700 px-4 py-2 rounded-full font-semibold hover:bg-gray-100 transition-colors">
+          Logout
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Flash Messages -->
+  <div class="container mx-auto px-4 mt-4">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div class="mb-4 p-4 rounded-lg {% if category == 'success' %}bg-green-100 text-green-800 border border-green-300{% elif category == 'danger' %}bg-red-100 text-red-800 border border-red-300{% else %}bg-blue-100 text-blue-800 border border-blue-300{% endif %}">
+            {{ message }}
+          </div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+  </div>
+
+  <!-- Main Content -->
+  <div class="container mx-auto p-4 md:p-8">
+    <div class="max-w-6xl mx-auto bg-white rounded-lg shadow-md overflow-hidden">
+      <!-- Action Buttons -->
+      <div class="bg-gray-100 border-b border-gray-300 p-6 flex gap-4">
+        <a href="{{ url_for('admin_edit_vehicle', vehicle_id=vehicle.id) }}" class="bg-blue-500 hover:bg-blue-600 text-white px-6 py-2 rounded-lg font-semibold transition-colors">
+          ✏️ Edit Vehicle
+        </a>
+        <a href="{{ url_for('admin_vehicles') }}" class="bg-gray-500 hover:bg-gray-600 text-white px-6 py-2 rounded-lg font-semibold transition-colors">
+          ← Back
+        </a>
+      </div>
+
+      <!-- Content -->
+      <div class="p-6 md:p-8">
+        <!-- Basic Information -->
+        <div class="mb-8">
+          <h2 class="text-2xl font-bold text-gray-800 mb-4 pb-2 border-b-2 border-yellow-600">Basic Information</h2>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="bg-gray-50 p-4 rounded-lg">
+              <p class="text-sm text-gray-600 font-semibold">Vehicle ID</p>
+              <p class="text-lg font-bold text-blue-600">{{ vehicle.vehicle_id }}</p>
+            </div>
+            <div class="bg-gray-50 p-4 rounded-lg">
+              <p class="text-sm text-gray-600 font-semibold">Registration Number</p>
+              <p class="text-lg font-bold">{{ vehicle.registration_no or '-' }}</p>
+            </div>
+            <div class="bg-gray-50 p-4 rounded-lg">
+              <p class="text-sm text-gray-600 font-semibold">Date of Registration</p>
+              <p class="text-lg font-bold">{{ vehicle.date_of_registration or '-' }}</p>
+            </div>
+            <div class="bg-gray-50 p-4 rounded-lg">
+              <p class="text-sm text-gray-600 font-semibold">Vehicle Class</p>
+              <p class="text-lg font-bold">{{ vehicle.vehicle_class or '-' }}</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Identification -->
+        <div class="mb-8">
+          <h2 class="text-2xl font-bold text-gray-800 mb-4 pb-2 border-b-2 border-yellow-600">Vehicle Identification</h2>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="bg-gray-50 p-4 rounded-lg">
+              <p class="text-sm text-gray-600 font-semibold">Chassis Number</p>
+              <p class="text-lg font-bold">{{ vehicle.chassis_number or '-' }}</p>
+            </div>
+            <div class="bg-gray-50 p-4 rounded-lg">
+              <p class="text-sm text-gray-600 font-semibold">Engine/Motor Number</p>
+              <p class="text-lg font-bold">{{ vehicle.engine_number or '-' }}</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Vehicle Details -->
+        <div class="mb-8">
+          <h2 class="text-2xl font-bold text-gray-800 mb-4 pb-2 border-b-2 border-yellow-600">Vehicle Details</h2>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="bg-gray-50 p-4 rounded-lg">
+              <p class="text-sm text-gray-600 font-semibold">Make</p>
+              <p class="text-lg font-bold">{{ vehicle.make or '-' }}</p>
+            </div>
+            <div class="bg-gray-50 p-4 rounded-lg">
+              <p class="text-sm text-gray-600 font-semibold">Model</p>
+              <p class="text-lg font-bold">{{ vehicle.model or '-' }}</p>
+            </div>
+            <div class="bg-gray-50 p-4 rounded-lg">
+              <p class="text-sm text-gray-600 font-semibold">Color</p>
+              <p class="text-lg font-bold">{{ vehicle.color or '-' }}</p>
+            </div>
+            <div class="bg-gray-50 p-4 rounded-lg">
+              <p class="text-sm text-gray-600 font-semibold">Body Type</p>
+              <p class="text-lg font-bold">{{ vehicle.body_type or '-' }}</p>
+            </div>
+            <div class="bg-gray-50 p-4 rounded-lg">
+              <p class="text-sm text-gray-600 font-semibold">Fuel Type</p>
+              <p class="text-lg font-bold">{{ vehicle.fuel_type or '-' }}</p>
+            </div>
+            <div class="bg-gray-50 p-4 rounded-lg">
+              <p class="text-sm text-gray-600 font-semibold">Emission Norms</p>
+              <p class="text-lg font-bold">{{ vehicle.emission_norms or '-' }}</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Specifications -->
+        <div class="mb-8">
+          <h2 class="text-2xl font-bold text-gray-800 mb-4 pb-2 border-b-2 border-yellow-600">Specifications</h2>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="bg-gray-50 p-4 rounded-lg">
+              <p class="text-sm text-gray-600 font-semibold">Seating Capacity</p>
+              <p class="text-lg font-bold">{{ vehicle.seating_capacity or '-' }}</p>
+            </div>
+            <div class="bg-gray-50 p-4 rounded-lg">
+              <p class="text-sm text-gray-600 font-semibold">Unladen Weight</p>
+              <p class="text-lg font-bold">{{ vehicle.unladen_weight or '-' }} kg</p>
+            </div>
+            <div class="bg-gray-50 p-4 rounded-lg">
+              <p class="text-sm text-gray-600 font-semibold">Laden Weight</p>
+              <p class="text-lg font-bold">{{ vehicle.laden_weight or '-' }} kg</p>
+            </div>
+            <div class="bg-gray-50 p-4 rounded-lg">
+              <p class="text-sm text-gray-600 font-semibold">Horse Power</p>
+              <p class="text-lg font-bold">{{ vehicle.horse_power or '-' }}</p>
+            </div>
+            <div class="bg-gray-50 p-4 rounded-lg">
+              <p class="text-sm text-gray-600 font-semibold">Cubic Capacity</p>
+              <p class="text-lg font-bold">{{ vehicle.cubic_capacity or '-' }} cc</p>
+            </div>
+            <div class="bg-gray-50 p-4 rounded-lg">
+              <p class="text-sm text-gray-600 font-semibold">Number of Axles</p>
+              <p class="text-lg font-bold">{{ vehicle.number_of_axles or '-' }}</p>
+            </div>
+            <div class="bg-gray-50 p-4 rounded-lg">
+              <p class="text-sm text-gray-600 font-semibold">No of Cylinders</p>
+              <p class="text-lg font-bold">{{ vehicle.no_of_cylinders or '-' }}</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Manufacturing & Ownership -->
+        <div class="mb-8">
+          <h2 class="text-2xl font-bold text-gray-800 mb-4 pb-2 border-b-2 border-yellow-600">Manufacturing & Ownership</h2>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="bg-gray-50 p-4 rounded-lg">
+              <p class="text-sm text-gray-600 font-semibold">Month & Year of Manufacturing</p>
+              <p class="text-lg font-bold">{{ vehicle.month_year_manufacturing or '-' }}</p>
+            </div>
+            <div class="bg-gray-50 p-4 rounded-lg">
+              <p class="text-sm text-gray-600 font-semibold">Financier</p>
+              <p class="text-lg font-bold">{{ vehicle.financier or '-' }}</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Validity Dates -->
+        <div class="mb-8">
+          <h2 class="text-2xl font-bold text-gray-800 mb-4 pb-2 border-b-2 border-yellow-600">Validity Dates</h2>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="bg-blue-50 p-4 rounded-lg border-l-4 border-blue-500">
+              <p class="text-sm text-gray-600 font-semibold">Fitness Validity</p>
+              <p class="text-lg font-bold text-blue-600">{{ vehicle.fitness_validity or '-' }}</p>
+            </div>
+            <div class="bg-green-50 p-4 rounded-lg border-l-4 border-green-500">
+              <p class="text-sm text-gray-600 font-semibold">Insurance Validity</p>
+              <p class="text-lg font-bold text-green-600">{{ vehicle.insurance_validity or '-' }}</p>
+            </div>
+            <div class="bg-gray-50 p-4 rounded-lg">
+              <p class="text-sm text-gray-600 font-semibold">Insurance Company</p>
+              <p class="text-lg font-bold">{{ vehicle.insurance_company or '-' }}</p>
+            </div>
+            <div class="bg-purple-50 p-4 rounded-lg border-l-4 border-purple-500">
+              <p class="text-sm text-gray-600 font-semibold">Permit Validity</p>
+              <p class="text-lg font-bold text-purple-600">{{ vehicle.permit_validity or '-' }}</p>
+            </div>
+            <div class="bg-gray-50 p-4 rounded-lg">
+              <p class="text-sm text-gray-600 font-semibold">Permit District</p>
+              <p class="text-lg font-bold">{{ vehicle.permit_district or '-' }}</p>
+            </div>
+            <div class="bg-orange-50 p-4 rounded-lg border-l-4 border-orange-500">
+              <p class="text-sm text-gray-600 font-semibold">PUCC Validity</p>
+              <p class="text-lg font-bold text-orange-600">{{ vehicle.pucc_validity or '-' }}</p>
+            </div>
+            <div class="bg-red-50 p-4 rounded-lg border-l-4 border-red-500">
+              <p class="text-sm text-gray-600 font-semibold">Tax Validity</p>
+              <p class="text-lg font-bold text-red-600">{{ vehicle.tax_validity or '-' }}</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Timestamps -->
+        <div class="mb-8">
+          <h2 class="text-2xl font-bold text-gray-800 mb-4 pb-2 border-b-2 border-yellow-600">System Information</h2>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="bg-gray-50 p-4 rounded-lg">
+              <p class="text-sm text-gray-600 font-semibold">Created At</p>
+              <p class="text-lg font-bold">{{ vehicle.created_at[:10] if vehicle.created_at else '-' }}</p>
+            </div>
+            <div class="bg-gray-50 p-4 rounded-lg">
+              <p class="text-sm text-gray-600 font-semibold">Updated At</p>
+              <p class="text-lg font-bold">{{ vehicle.updated_at[:10] if vehicle.updated_at else '-' }}</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script src="{{ url_for('static', filename='js/uppercase.js') }}"></script>
+{% include 'footer.html' %}
+</body>
+</html>

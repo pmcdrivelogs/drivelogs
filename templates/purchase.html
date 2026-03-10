@@ -1,0 +1,876 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Purchase - Drive Logs</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <script>
+    function parsePurchaseTypes(rawTypeValue) {
+      if (!rawTypeValue) return [];
+
+      const raw = String(rawTypeValue).trim();
+      if (!raw) return [];
+
+      // Handle JSON array values like ["Spare Parts", "Consumables"].
+      if (raw.startsWith('[') && raw.endsWith(']')) {
+        try {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) {
+            return parsed.map(item => String(item).trim()).filter(Boolean);
+          }
+        } catch (e) {
+          // Fall through to delimiter-based parsing.
+        }
+      }
+
+      // Handle comma/semicolon/pipe separated text values.
+      return raw
+        .split(/[,;|]/)
+        .map(item => item.replace(/^['\s\[]+|['\s\]]+$/g, '').trim())
+        .filter(Boolean);
+    }
+
+    function populateTypeOfPurchaseOptions(types) {
+      const typeSelect = document.getElementById('typeOfPurchaseSelect');
+      const uniqueTypes = [...new Set(types.filter(Boolean))];
+
+      typeSelect.innerHTML = '';
+
+      const placeholder = document.createElement('option');
+      placeholder.value = '';
+      placeholder.textContent = '-- Select Purchase Type --';
+      typeSelect.appendChild(placeholder);
+
+      uniqueTypes.forEach(type => {
+        const option = document.createElement('option');
+        option.value = type;
+        option.textContent = type;
+        typeSelect.appendChild(option);
+      });
+
+      typeSelect.disabled = uniqueTypes.length === 0;
+      if (uniqueTypes.length === 0) {
+        placeholder.textContent = '-- No Purchase Type Configured --';
+      }
+    }
+
+    // Vendor search functions
+    function showVendorDropdown() {
+      document.getElementById('vendorDropdown').style.display = 'block';
+    }
+
+    function filterVendors() {
+      const searchInput = document.getElementById('vendorSearch');
+      const dropdown = document.getElementById('vendorDropdown');
+      const filter = searchInput.value.toLowerCase();
+      const options = dropdown.getElementsByClassName('vendor-option');
+      
+      let hasVisible = false;
+      for (let i = 0; i < options.length; i++) {
+        const txtValue = options[i].textContent || options[i].innerText;
+        if (txtValue.toLowerCase().indexOf(filter) > -1) {
+          options[i].style.display = '';
+          hasVisible = true;
+        } else {
+          options[i].style.display = 'none';
+        }
+      }
+      dropdown.style.display = hasVisible ? 'block' : 'none';
+    }
+
+    function selectVendor(element) {
+      const vendorValue = element.getAttribute('data-value');
+      const typeOfPurchaseStr = element.getAttribute('data-type') || '';
+      
+      document.getElementById('vendorSearch').value = vendorValue;
+      document.getElementById('vendorValue').value = vendorValue;
+      document.getElementById('vendorDropdown').style.display = 'none';
+      
+      // Update type of purchase dropdown.
+      const vendorPurchaseTypes = parsePurchaseTypes(typeOfPurchaseStr);
+      populateTypeOfPurchaseOptions(vendorPurchaseTypes);
+    }
+
+    // Part search functions
+    function showPartDropdown() {
+      document.getElementById('partDropdown').style.display = 'block';
+    }
+
+    function filterParts() {
+      const searchInput = document.getElementById('partSearch');
+      const dropdown = document.getElementById('partDropdown');
+      const filter = searchInput.value.toLowerCase();
+      const options = dropdown.getElementsByClassName('part-option');
+      
+      let hasVisible = false;
+      for (let i = 0; i < options.length; i++) {
+        const txtValue = options[i].textContent || options[i].innerText;
+        if (txtValue.toLowerCase().indexOf(filter) > -1) {
+          options[i].style.display = '';
+          hasVisible = true;
+        } else {
+          options[i].style.display = 'none';
+        }
+      }
+      dropdown.style.display = hasVisible ? 'block' : 'none';
+    }
+
+    function selectPart(element) {
+      const partId = element.getAttribute('data-value');
+      const partName = element.getAttribute('data-name');
+      
+      document.getElementById('partSearch').value = partId + ' - ' + partName;
+      document.getElementById('partValue').value = partId;
+      document.getElementById('partDropdown').style.display = 'none';
+      
+      // Fill part name
+      document.querySelector('input[name="part_name"]').value = partName;
+    }
+
+    // Hide dropdowns when clicking outside
+    document.addEventListener('click', function(e) {
+      const vendorSearch = document.getElementById('vendorSearch');
+      const vendorDropdown = document.getElementById('vendorDropdown');
+      const partSearch = document.getElementById('partSearch');
+      const partDropdown = document.getElementById('partDropdown');
+      
+      if (e.target !== vendorSearch && !vendorDropdown.contains(e.target)) {
+        vendorDropdown.style.display = 'none';
+      }
+      if (e.target !== partSearch && !partDropdown.contains(e.target)) {
+        partDropdown.style.display = 'none';
+      }
+    });
+    
+    // Parts data from server
+    const partsData = {{ parts|tojson|safe if parts else '[]' }};
+
+    function handleSubmit(event) {
+      const form = event.target;
+      const submitBtn = form.querySelector('button[type="submit"]');
+      
+      // Store form data in sessionStorage before submitting
+      const formData = {
+        date: document.querySelector('input[name="date"]').value,
+        time: document.querySelector('input[name="time"]').value,
+        entry_no: document.querySelector('input[name="entry_no"]').value,
+        invoice_no: document.querySelector('input[name="invoice_no"]').value,
+        invoice_date: document.querySelector('input[name="invoice_date"]').value,
+        vendor: document.querySelector('select[name="vendor"]').value,
+        type_of_purchase: document.querySelector('select[name="type_of_purchase"]').value,
+        part_number: document.querySelector('select[name="part_number"]').value,
+        part_name: document.querySelector('input[name="part_name"]').value,
+        quantity: document.querySelector('input[name="quantity"]').value,
+        batch_number: document.querySelector('input[name="batch_number"]').value,
+        rate: document.querySelector('input[name="rate"]').value,
+        discount_percent: document.querySelector('input[name="discount_percent"]').value,
+        discount_amount: document.querySelector('input[name="discount_amount"]').value,
+        taxable_amount: document.querySelector('input[name="taxable_amount"]').value,
+        sgst_percent: document.querySelector('input[name="sgst_percent"]').value,
+        sgst_amount: document.querySelector('input[name="sgst_amount"]').value,
+        cgst_percent: document.querySelector('input[name="cgst_percent"]').value,
+        cgst_amount: document.querySelector('input[name="cgst_amount"]').value,
+        igst_percent: document.querySelector('input[name="igst_percent"]').value,
+        igst_amount: document.querySelector('input[name="igst_amount"]').value,
+        total_payment: document.querySelector('input[name="total_payment"]').value,
+        dn: document.querySelector('input[name="dn"]').value,
+        less_tds: document.querySelector('input[name="less_tds"]').value,
+        net_payable: document.querySelector('input[name="net_payable"]').value
+      };
+      sessionStorage.setItem('submittedPurchaseData', JSON.stringify(formData));
+      
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = '<svg class="animate-spin h-5 w-5 mr-3 inline-block" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Submitting...';
+      submitBtn.classList.add('opacity-75', 'cursor-not-allowed');
+      
+      return true;
+    }
+
+    // Main calculation function - recalculates everything
+    function calculateAll() {
+      // Get input values
+      const rate = parseFloat(document.querySelector('input[name="rate"]').value) || 0;
+      const quantity = parseFloat(document.querySelector('input[name="quantity"]').value) || 0;
+      const discountPercent = parseFloat(document.querySelector('input[name="discount_percent"]').value) || 0;
+      const sgstPercent = parseFloat(document.querySelector('input[name="sgst_percent"]').value) || 0;
+      const cgstPercent = parseFloat(document.querySelector('input[name="cgst_percent"]').value) || 0;
+      const igstPercent = parseFloat(document.querySelector('input[name="igst_percent"]').value) || 0;
+      const dn = parseFloat(document.querySelector('input[name="dn"]').value) || 0;
+      const lessTds = parseFloat(document.querySelector('input[name="less_tds"]').value) || 0;
+      
+      // Calculate subtotal (Rate × Quantity)
+      const subtotal = rate * quantity;
+      
+      // Calculate Discount Amount (Subtotal × Discount% / 100)
+      const discountAmount = (subtotal * discountPercent) / 100;
+      document.querySelector('input[name="discount_amount"]').value = discountAmount.toFixed(2);
+      
+      // Calculate Taxable Amount (Subtotal - Discount Amount)
+      const taxableAmount = subtotal - discountAmount;
+      document.querySelector('input[name="taxable_amount"]').value = taxableAmount.toFixed(2);
+      
+      // Calculate GST Amounts
+      const sgstAmount = (taxableAmount * sgstPercent) / 100;
+      const cgstAmount = (taxableAmount * cgstPercent) / 100;
+      const igstAmount = (taxableAmount * igstPercent) / 100;
+      
+      document.querySelector('input[name="sgst_amount"]').value = sgstAmount.toFixed(2);
+      document.querySelector('input[name="cgst_amount"]').value = cgstAmount.toFixed(2);
+      document.querySelector('input[name="igst_amount"]').value = igstAmount.toFixed(2);
+      
+      // Calculate Total Payment (Taxable + All GST)
+      const totalPayment = taxableAmount + sgstAmount + cgstAmount + igstAmount;
+      document.querySelector('input[name="total_payment"]').value = totalPayment.toFixed(2);
+      
+      // Calculate Net Payable (Total - DN - Less TDS)
+      const netPayable = totalPayment - dn - lessTds;
+      document.querySelector('input[name="net_payable"]').value = netPayable.toFixed(2);
+    }
+
+    // Set current date and time on load and attach event listeners
+    document.addEventListener('DOMContentLoaded', function() {
+      const now = new Date();
+      const dateStr = now.toISOString().split('T')[0];
+      const timeStr = now.toTimeString().slice(0, 5);
+      
+      // Update datetime display
+      const dateTimeDisplay = document.getElementById('datetime-display');
+      if (dateTimeDisplay) {
+        const options = { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' };
+        dateTimeDisplay.textContent = now.toLocaleDateString('en-US', options);
+      }
+      
+      document.querySelector('input[name="date"]').value = dateStr;
+      document.querySelector('input[name="time"]').value = timeStr;
+      
+      // Attach calculateAll to all numeric input fields
+      const calcFields = ['rate', 'quantity', 'discount_percent', 'sgst_percent', 'cgst_percent', 'igst_percent', 'dn', 'less_tds'];
+      calcFields.forEach(function(fieldName) {
+        const field = document.querySelector('input[name="' + fieldName + '"]');
+        if (field) {
+          field.addEventListener('input', calculateAll);
+          field.addEventListener('change', calculateAll);
+        }
+      });
+      
+      // Check if we should show success modal (from URL parameter)
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.get('success') === 'true') {
+        showSuccessModal();
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
+    });
+    
+    // Show success modal
+    function showSuccessModal() {
+      const modal = document.getElementById('successModal');
+      const content = document.getElementById('modalContent');
+      modal.classList.remove('hidden');
+      setTimeout(() => {
+        content.classList.remove('scale-95');
+        content.classList.add('scale-100');
+      }, 10);
+    }
+    
+    // Close modal
+    function closeModal() {
+      const modal = document.getElementById('successModal');
+      const content = document.getElementById('modalContent');
+      content.classList.remove('scale-100');
+      content.classList.add('scale-95');
+      sessionStorage.removeItem('submittedPurchaseData');
+      setTimeout(() => {
+        modal.classList.add('hidden');
+        window.location.href = window.location.pathname;
+      }, 200);
+    }
+    
+    // Get submitted data from sessionStorage
+    function getSubmittedData() {
+      const storedData = sessionStorage.getItem('submittedPurchaseData');
+      if (storedData) {
+        return JSON.parse(storedData);
+      }
+      return null;
+    }
+    
+    // Download/Print form
+    function downloadForm() {
+      const formData = getSubmittedData();
+      if (!formData) return;
+      
+      const headerImg = document.querySelector('.college-header img').src;
+      
+      const printWindow = window.open('', '_blank');
+      printWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>Purchase Record - ${formData.entry_no}</title>
+          <style>
+            * { margin: 0; padding: 0; box-sizing: border-box; }
+            body { font-family: Arial, sans-serif; padding: 20px; color: #1f2937; }
+            .header { text-align: center; border-bottom: 3px solid #1e40af; padding-bottom: 15px; margin-bottom: 15px; }
+            .header img { width: 100%; max-width: 100%; height: auto; }
+            .title-row { display: flex; justify-content: space-between; align-items: center; margin: 15px 0; padding-bottom: 10px; border-bottom: 2px solid #ccc; }
+            .title { font-size: 24px; font-weight: bold; color: #ca8a04; text-decoration: underline; }
+            .ref { font-size: 14px; font-weight: 600; color: #374151; }
+            .data-table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+            .data-table td { padding: 12px 15px; border: 2px solid #374151; font-size: 14px; }
+            .data-table .label { font-weight: bold; background-color: #fef3c7; width: 22%; color: #92400e; }
+            .data-table .value { background-color: #fff; width: 28%; }
+            .section-title { background-color: #1e3a8a; color: white; font-weight: bold; text-align: center; padding: 10px; font-size: 16px; }
+            .highlight { background-color: #fef3c7 !important; font-weight: bold; }
+            .amount { text-align: right; font-family: monospace; font-weight: 600; }
+            @media print { @page { margin: 10mm; size: A4; } }
+          </style>
+        </head>
+        <body>
+          <div class="header"><img src="${headerImg}" alt="PMC Header"></div>
+          <div class="title-row">
+            <div class="title">PURCHASE</div>
+            <div class="ref">REF: PMCTECH/LOGI/FORM 3/${formData.entry_no}</div>
+          </div>
+          <table class="data-table">
+            <tr><td class="label">Date & Time</td><td class="value">${formData.date} ${formData.time}</td><td class="label">Entry No.</td><td class="value"><strong>${formData.entry_no}</strong></td></tr>
+            <tr><td class="label">Invoice No</td><td class="value">${formData.invoice_no || '-'}</td><td class="label">Invoice Date</td><td class="value">${formData.invoice_date || '-'}</td></tr>
+            <tr><td class="label">Vendor</td><td class="value">${formData.vendor || '-'}</td><td class="label">Type of Purchase</td><td class="value">${formData.type_of_purchase || '-'}</td></tr>
+            <tr><td class="label">Part Number</td><td class="value">${formData.part_number || '-'}</td><td class="label">Part Name</td><td class="value">${formData.part_name || '-'}</td></tr>
+            <tr><td class="label">Quantity</td><td class="value">${formData.quantity || '-'}</td><td class="label">Batch Number</td><td class="value">${formData.batch_number || '-'}</td></tr>
+            <tr><td class="label">Rate</td><td class="value amount">₹ ${formData.rate || '0.00'}</td><td class="label">Discount %</td><td class="value amount">${formData.discount_percent || '0'}%</td></tr>
+            <tr><td class="label">Discount Amount</td><td class="value amount">₹ ${formData.discount_amount || '0.00'}</td><td class="label">Taxable Amount</td><td class="value amount">₹ ${formData.taxable_amount || '0.00'}</td></tr>
+          </table>
+          <table class="data-table" style="margin-top: 15px;">
+            <tr><td colspan="4" class="section-title">GST DETAILS</td></tr>
+            <tr><td class="label">SGST %</td><td class="value amount">${formData.sgst_percent || '0'}%</td><td class="label">SGST Amount</td><td class="value amount">₹ ${formData.sgst_amount || '0.00'}</td></tr>
+            <tr><td class="label">CGST %</td><td class="value amount">${formData.cgst_percent || '0'}%</td><td class="label">CGST Amount</td><td class="value amount">₹ ${formData.cgst_amount || '0.00'}</td></tr>
+            <tr><td class="label">IGST %</td><td class="value amount">${formData.igst_percent || '0'}%</td><td class="label">IGST Amount</td><td class="value amount">₹ ${formData.igst_amount || '0.00'}</td></tr>
+          </table>
+          <table class="data-table" style="margin-top: 15px;">
+            <tr><td colspan="4" class="section-title">PAYMENT SUMMARY</td></tr>
+            <tr><td class="label">Total Payment</td><td class="value amount">₹ ${formData.total_payment || '0.00'}</td><td class="label">DN</td><td class="value amount">₹ ${formData.dn || '0.00'}</td></tr>
+            <tr><td class="label">Less TDS</td><td class="value amount">₹ ${formData.less_tds || '0.00'}</td><td class="label highlight">Net Payable</td><td class="value amount highlight">₹ ${formData.net_payable || '0.00'}</td></tr>
+          </table>
+        
+</body>
+        </html>
+      `);
+      printWindow.document.close();
+      setTimeout(() => { printWindow.print(); }, 500);
+    }
+    
+    function printForm() { downloadForm(); }
+  </script>
+  <style>
+    * { font-family: 'Inter', sans-serif; }
+    
+    body {
+      background: linear-gradient(135deg, #fefce8 0%, #fef9c3 50%, #fefce8 100%);
+    }
+    
+    .form-container {
+      background: white;
+      border-radius: 16px;
+      padding: 32px 40px;
+      box-shadow: 0 4px 25px rgba(0, 0, 0, 0.1);
+      border: 2px solid #d1d5db;
+    }
+    
+    .form-row {
+      display: flex;
+      align-items: center;
+      margin-bottom: 18px;
+    }
+    
+    .form-label {
+      font-weight: 700;
+      color: #1f2937;
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+      min-width: 180px;
+    }
+    
+    .colon {
+      font-weight: bold;
+      color: #1f2937;
+      margin: 0 16px;
+      font-size: 1.1rem;
+    }
+    
+    .form-input, .form-select {
+      flex: 1;
+      padding: 12px 18px;
+      border: 2px solid #1e3a8a;
+      border-radius: 30px;
+      font-size: 0.95rem;
+      transition: all 0.3s ease;
+      background: white;
+    }
+    
+    .form-input:focus, .form-select:focus {
+      outline: none;
+      border-color: #3b82f6;
+      box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.15);
+    }
+    
+    .form-input[readonly] {
+      background-color: #f9fafb;
+      cursor: not-allowed;
+      color: #374151;
+    }
+    
+    .form-select {
+      cursor: pointer;
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%231e3a8a'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 16px center;
+      background-size: 20px;
+      padding-right: 48px;
+    }
+    
+    .gst-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 32px;
+      margin-bottom: 18px;
+    }
+    
+    .gst-group {
+      display: flex;
+      align-items: center;
+    }
+    
+    .gst-label {
+      font-weight: 700;
+      color: #1f2937;
+      font-size: 0.85rem;
+      min-width: 90px;
+      text-transform: uppercase;
+    }
+    
+    .gst-input {
+      width: 100px;
+      padding: 12px 14px;
+      border: 2px solid #1e3a8a;
+      border-radius: 30px;
+      font-size: 0.95rem;
+      text-align: center;
+    }
+    
+    .gst-input:focus {
+      outline: none;
+      border-color: #3b82f6;
+      box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.15);
+    }
+    
+    .gst-amount-label {
+      font-weight: 700;
+      color: #1f2937;
+      font-size: 0.85rem;
+      margin-left: 16px;
+      min-width: 130px;
+      text-transform: uppercase;
+    }
+    
+    .gst-amount-input {
+      flex: 1;
+      padding: 12px 14px;
+      border: 2px solid #1e3a8a;
+      border-radius: 30px;
+      font-size: 0.95rem;
+      background-color: #f9fafb;
+    }
+    
+    .submit-btn {
+      background: linear-gradient(135deg, #1e3a8a 0%, #1e40af 100%);
+      color: white;
+      padding: 16px 56px;
+      border-radius: 50px;
+      font-weight: 700;
+      font-size: 1.1rem;
+      box-shadow: 0 6px 20px rgba(30, 58, 138, 0.35);
+      transition: all 0.3s ease;
+      border: none;
+      cursor: pointer;
+    }
+    
+    .submit-btn:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 8px 25px rgba(30, 58, 138, 0.45);
+      background: linear-gradient(135deg, #1e40af 0%, #2563eb 100%);
+    }
+    
+    .form-title {
+      color: #ca8a04;
+      font-size: 1.75rem;
+      font-weight: 800;
+      text-decoration: underline;
+      text-underline-offset: 6px;
+      text-decoration-thickness: 3px;
+    }
+    
+    .form-ref {
+      color: #374151;
+      font-weight: 700;
+      font-size: 0.9rem;
+    }
+    
+    .datetime-label {
+      font-weight: 700;
+      color: #1f2937;
+      font-size: 0.85rem;
+      text-transform: uppercase;
+    }
+    
+    .datetime-value {
+      color: #4b5563;
+      font-weight: 500;
+      font-size: 0.95rem;
+    }
+    
+    @media (max-width: 768px) {
+      .form-container {
+        padding: 24px 20px;
+      }
+      
+      .form-row {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+      }
+      
+      .form-label {
+        min-width: auto;
+      }
+      
+      .colon {
+        display: none;
+      }
+      
+      .form-input, .form-select {
+        width: 100%;
+      }
+      
+      .gst-row {
+        grid-template-columns: 1fr;
+        gap: 16px;
+      }
+      
+      .gst-group {
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+      
+      .gst-amount-label {
+        margin-left: 0;
+      }
+    }
+    
+    @media print {
+      .logo-bar { display: none !important; }
+      #successModal { display: none !important; }
+      body { padding-top: 0 !important; }
+      button[type="submit"] { display: none !important; }
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col pt-20">
+  
+  <!-- Success Modal Popup -->
+  <div id="successModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[100] hidden">
+    <div class="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full mx-4 text-center transform scale-95 transition-transform" id="modalContent">
+      <div class="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+        <svg class="w-12 h-12 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+        </svg>
+      </div>
+      <h2 class="text-2xl font-bold text-gray-800 mb-2">Successfully Submitted!</h2>
+      <p class="text-gray-600 mb-6">Your purchase record has been saved.</p>
+      <div class="flex flex-col gap-3">
+        <div class="flex gap-3 justify-center">
+          <button onclick="printForm()" class="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-full font-semibold transition-colors">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path>
+            </svg>
+            Print
+          </button>
+          <button onclick="downloadForm()" class="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-full font-semibold transition-colors">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+            </svg>
+            Download
+          </button>
+        </div>
+        <button onclick="closeModal()" class="bg-gray-200 hover:bg-gray-300 text-gray-800 px-6 py-3 rounded-full font-semibold transition-colors mt-2">
+          Close & Add New Entry
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Logo Bar -->
+  <div class="logo-bar w-full flex items-center justify-between px-4 py-3 fixed top-0 left-0 z-50">
+    <img src="{{ url_for('static', filename='img/drive-logs.png') }}" alt="Drive Logs Logo" class="h-12 md:h-14 w-auto ml-2">
+    <div class="flex items-center gap-4">
+      <a href="{{ url_for('admin_dashboard') }}" class="bg-white text-red-600 px-3 py-2 rounded-full text-sm font-semibold transition-colors hover:bg-gray-100 flex items-center gap-1">
+        <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+          <path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z"/>
+        </svg>
+      </a>
+      <a href="{{ url_for('logout') }}" class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-full text-sm font-semibold transition-colors">
+        Logout
+      </a>
+    </div>
+  </div>
+
+  <!-- College Header -->
+  <div class="college-header w-full flex justify-center items-center border-b border-gray-300 bg-white">
+    <img src="{{ url_for('static', filename='img/pmc-logo.png') }}" alt="College Header" class="w-full max-w-5xl h-auto p-2 md:p-4">
+  </div>
+
+  <!-- Main Content -->
+  <div class="flex-1 py-8 px-4">
+    <div class="form-container w-full max-w-3xl mx-auto">
+      
+      <!-- Flash Messages -->
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          {% for category, message in messages %}
+            <div class="mb-4 p-4 rounded-lg {% if category == 'success' %}bg-green-100 text-green-800 border border-green-300{% elif category == 'danger' %}bg-red-100 text-red-800 border border-red-300{% else %}bg-blue-100 text-blue-800 border border-blue-300{% endif %}">
+              {{ message }}
+            </div>
+          {% endfor %}
+        {% endif %}
+      {% endwith %}
+      
+      <!-- Header -->
+      <div class="text-center mb-2">
+        <h1 class="form-title">PURCHASE</h1>
+      </div>
+      <div class="text-right mb-6">
+        <span class="form-ref">REF: PMCTECH/LOGI/FORM 3/{{ entry_no }}</span>
+      </div>
+      
+      <!-- Date & Time Display -->
+      <div class="mb-8 pb-4 border-b-2 border-gray-200">
+        <span class="datetime-label">DATE & TIME</span>
+        <span id="datetime-display" class="ml-4 datetime-value"></span>
+      </div>
+
+      <!-- Form -->
+      <form method="POST" onsubmit="return handleSubmit(event)">
+        <!-- Hidden fields for date/time -->
+        <input type="hidden" name="date">
+        <input type="hidden" name="time">
+        
+        <!-- Entry No -->
+        <div class="form-row">
+          <label class="form-label">ENTRY NO.</label>
+          <span class="colon">:</span>
+          <input type="text" name="entry_no" class="form-input" value="{{ entry_no }}" readonly>
+        </div>
+
+        <!-- Invoice No -->
+        <div class="form-row">
+          <label class="form-label">INVOICE NO</label>
+          <span class="colon">:</span>
+          <input type="text" name="invoice_no" class="form-input" placeholder="Enter invoice number">
+        </div>
+
+        <!-- Invoice Date -->
+        <div class="form-row">
+          <label class="form-label">INVOICE DATE</label>
+          <span class="colon">:</span>
+          <input type="date" name="invoice_date" class="form-input">
+        </div>
+        <!-- Reference Number -->
+        <div class="form-row">
+          <label class="form-label">REFERENCE NUMBER</label>
+          <span class="colon">:</span>
+          <input type="text" name="reference_number" class="form-input" placeholder="Enter reference number (optional)">
+        </div>
+        <!-- Vendor with Search -->
+        <div class="form-row">
+          <label class="form-label">VENDOR</label>
+          <span class="colon">:</span>
+          <div style="flex: 1; position: relative;">
+            <input type="text" id="vendorSearch" class="form-input" placeholder="Type to search vendor..." onkeyup="filterVendors()" onfocus="showVendorDropdown()" autocomplete="off" required>
+            <input type="hidden" name="vendor" id="vendorValue">
+            <div id="vendorDropdown" style="position: absolute; top: 100%; left: 0; width: 100%; max-height: 250px; overflow-y: auto; background: white; border: 2px solid #1e3a8a; border-radius: 12px; margin-top: 4px; z-index: 1000; display: none; box-shadow: 0 4px 15px rgba(0,0,0,0.15);">
+              {% for vendor in vendors %}
+              <div class="vendor-option" data-value="{{ vendor.vendor_id }} - {{ vendor.organization_name }}" data-type="{{ vendor.type_of_purchase or '' }}" onclick="selectVendor(this)" style="padding: 12px 16px; cursor: pointer; border-bottom: 1px solid #e5e7eb; transition: background 0.2s;" onmouseover="this.style.background='#eff6ff'" onmouseout="this.style.background='white'">
+                <strong>{{ vendor.vendor_id }}</strong> - {{ vendor.organization_name }}
+              </div>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+
+        <!-- Type of Purchase -->
+        <div class="form-row">
+          <label class="form-label">TYPE OF PURCHASE</label>
+          <span class="colon">:</span>
+          <select name="type_of_purchase" id="typeOfPurchaseSelect" class="form-select" required disabled>
+            <option value="">-- Select Vendor First --</option>
+          </select>
+        </div>
+
+        <!-- Part Number with Search -->
+        <div class="form-row">
+          <label class="form-label">PART NUMBER</label>
+          <span class="colon">:</span>
+          <div style="flex: 1; position: relative;">
+            <input type="text" id="partSearch" class="form-input" placeholder="Type to search part..." onkeyup="filterParts()" onfocus="showPartDropdown()" autocomplete="off">
+            <input type="hidden" name="part_number" id="partValue">
+            <div id="partDropdown" style="position: absolute; top: 100%; left: 0; width: 100%; max-height: 250px; overflow-y: auto; background: white; border: 2px solid #1e3a8a; border-radius: 12px; margin-top: 4px; z-index: 1000; display: none; box-shadow: 0 4px 15px rgba(0,0,0,0.15);">
+              {% for part in parts %}
+              <div class="part-option" data-value="{{ part.part_id }}" data-name="{{ part.part_name }}" onclick="selectPart(this)" style="padding: 12px 16px; cursor: pointer; border-bottom: 1px solid #e5e7eb; transition: background 0.2s;" onmouseover="this.style.background='#eff6ff'" onmouseout="this.style.background='white'">
+                <strong>{{ part.part_id }}</strong> - {{ part.part_name }}
+              </div>
+              {% endfor %}
+            </div>
+          </div>
+        </div>
+
+        <!-- Part Name -->
+        <div class="form-row">
+          <label class="form-label">PART NAME</label>
+          <span class="colon">:</span>
+          <input type="text" name="part_name" class="form-input" readonly style="background-color: #f3f4f6;">
+        </div>
+
+        <!-- Quantity -->
+        <div class="form-row">
+          <label class="form-label">QUANTITY</label>
+          <span class="colon">:</span>
+          <input type="number" step="0.01" name="quantity" class="form-input" placeholder="Enter quantity">
+        </div>
+
+        <!-- Batch Number -->
+        <div class="form-row">
+          <label class="form-label">BATCH NUMBER</label>
+          <span class="colon">:</span>
+          <input type="text" name="batch_number" class="form-input">
+        </div>
+
+        <!-- Rate -->
+        <div class="form-row">
+          <label class="form-label">RATE</label>
+          <span class="colon">:</span>
+          <input type="number" step="0.01" name="rate" class="form-input" placeholder="Enter rate">
+        </div>
+
+        <!-- Discount % and Discount Amount -->
+        <div class="gst-row">
+          <div class="gst-group">
+            <label class="gst-label">DISCOUNT %</label>
+            <span class="colon">:</span>
+            <input type="number" step="0.01" name="discount_percent" class="gst-input" placeholder="0">
+          </div>
+          <div class="gst-group">
+            <label class="gst-amount-label">DISCOUNT AMOUNT:</label>
+            <input type="number" step="0.01" name="discount_amount" class="gst-amount-input" readonly>
+          </div>
+        </div>
+
+        <!-- Taxable Amount -->
+        <div class="form-row">
+          <label class="form-label">TAXABLE AMOUNT</label>
+          <span class="colon">:</span>
+          <input type="number" step="0.01" name="taxable_amount" class="form-input" readonly>
+        </div>
+
+        <!-- SGST -->
+        <div class="gst-row">
+          <div class="gst-group">
+            <label class="gst-label">SGST %</label>
+            <span class="colon">:</span>
+            <input type="number" step="0.01" name="sgst_percent" class="gst-input" placeholder="0">
+          </div>
+          <div class="gst-group">
+            <label class="gst-amount-label">SGST AMOUNT</label>
+            <span class="colon">:</span>
+            <input type="number" step="0.01" name="sgst_amount" class="gst-amount-input" readonly>
+          </div>
+        </div>
+
+        <!-- CGST -->
+        <div class="gst-row">
+          <div class="gst-group">
+            <label class="gst-label">CGST %</label>
+            <span class="colon">:</span>
+            <input type="number" step="0.01" name="cgst_percent" class="gst-input" placeholder="0">
+          </div>
+          <div class="gst-group">
+            <label class="gst-amount-label">CGST AMOUNT</label>
+            <span class="colon">:</span>
+            <input type="number" step="0.01" name="cgst_amount" class="gst-amount-input" readonly>
+          </div>
+        </div>
+
+        <!-- IGST -->
+        <div class="gst-row">
+          <div class="gst-group">
+            <label class="gst-label">IGST %</label>
+            <span class="colon">:</span>
+            <input type="number" step="0.01" name="igst_percent" class="gst-input" placeholder="0">
+          </div>
+          <div class="gst-group">
+            <label class="gst-amount-label">IGST AMOUNT</label>
+            <span class="colon">:</span>
+            <input type="number" step="0.01" name="igst_amount" class="gst-amount-input" readonly>
+          </div>
+        </div>
+
+        <!-- Total Payment -->
+        <div class="form-row">
+          <label class="form-label">TOTAL PAYMENT</label>
+          <span class="colon">:</span>
+          <input type="number" step="0.01" name="total_payment" class="form-input" readonly>
+        </div>
+
+        <!-- DN (Debit Note) -->
+        <div class="form-row">
+          <label class="form-label">DN</label>
+          <span class="colon">:</span>
+          <input type="number" step="0.01" name="dn" class="form-input" placeholder="Enter DN">
+        </div>
+
+        <!-- Less TDS -->
+        <div class="form-row">
+          <label class="form-label">LESS TDS</label>
+          <span class="colon">:</span>
+          <input type="number" step="0.01" name="less_tds" class="form-input" placeholder="Enter TDS">
+        </div>
+
+        <!-- Net Payable -->
+        <div class="form-row">
+          <label class="form-label">NET PAYABLE</label>
+          <span class="colon">:</span>
+          <input type="number" step="0.01" name="net_payable" class="form-input" readonly style="font-weight: 700; background-color: #fef3c7;">
+        </div>
+        <!-- Comments -->
+        <div class="form-row">
+          <label class="form-label">COMMENTS</label>
+          <span class="colon">:</span>
+          <textarea name="comments" class="form-input" rows="3" placeholder="Enter any comments or notes (optional)" style="border-radius: 16px; padding: 12px 18px;"></textarea>
+        </div>
+        <!-- Submit Button -->
+        <div class="flex justify-center mt-10">
+          <button type="submit" class="submit-btn">
+            Submit
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+<script src="{{ url_for('static', filename='js/uppercase.js') }}"></script>
+{% include 'footer.html' %}
+</body>
+</html>

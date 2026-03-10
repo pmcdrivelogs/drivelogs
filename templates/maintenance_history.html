@@ -1,0 +1,1302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Maintenance History - Drive Logs</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <style>
+    body{font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial; background: linear-gradient(180deg,#fbfdff,#eef2ff);}
+    /* Card header */
+    .card-header { display:flex; align-items:center; gap:.75rem }
+
+    /* Badges */
+    .badge { background: linear-gradient(90deg,#fff7ed,#ffedd5); color:#92400e; padding:.35rem .6rem; border-radius:9999px; font-weight:700; font-size:.9rem; box-shadow: 0 6px 18px rgba(234,179,8,0.06); }
+
+    /* Table container (soft card) */
+    .table-wrap { border-radius:12px; overflow:hidden; border:1px solid rgba(2,6,23,0.04); box-shadow: 0 8px 30px rgba(2,6,23,0.04); }
+
+    /* Table header / body styling */
+    table.min-w-full { width:100%; border-collapse:collapse; }
+    table.min-w-full thead th { background: linear-gradient(90deg,#f1f5f9,#e0f2fe); color:#0f172a; font-weight:700; padding:.9rem .75rem; text-transform:uppercase; font-size:.75rem; letter-spacing:0.4px; }
+    table.min-w-full tbody td { padding:.75rem; vertical-align: middle; color:#334155; }
+
+    /* Row effects */
+    .table-row-hover { transition: background .14s, transform .08s; }
+    .table-row-hover:hover { background: linear-gradient(90deg,#ffffff,#f8fafc); transform: translateY(-2px); }
+    tbody tr:nth-child(even) td { background: rgba(15,23,42,0.02); }
+
+    /* Stars */
+    .rating-star { font-size:1.6rem; cursor:pointer; background:transparent; border:none; transition: transform .12s; }
+    .rating-star:hover { transform: scale(1.12); }
+    .star-red { color:#ef4444; text-shadow:0 1px 0 rgba(0,0,0,0.04); }
+    .star-yellow { color:#f59e0b; text-shadow:0 1px 0 rgba(0,0,0,0.03); }
+    .star-green { color:#10b981; text-shadow:0 1px 0 rgba(0,0,0,0.03); }
+    .star-blue { color:#2563eb; text-shadow:0 1px 0 rgba(0,0,0,0.03); }
+
+    /* Hidden states for filter vs pagination */
+    .manual-hidden { display:none !important; opacity:0; height:0; padding:0; margin:0; }
+    .paged-hidden { display:none !important; }
+
+    /* Modals and overlays */
+    .modal-overlay { backdrop-filter: blur(6px); background: rgba(2,6,23,0.45); }
+
+    /* Button helpers */
+    .btn-gradient { background: linear-gradient(90deg,#06b6d4,#0891b2); color:white; padding:.5rem .75rem; border-radius:.65rem; box-shadow:0 8px 24px rgba(8,145,178,0.12); border:none; }
+    .btn-soft { background: #f8fafc; border:1px solid rgba(2,6,23,0.04); padding:.45rem .7rem; border-radius:.5rem; color:#0f172a; }
+
+    @media (max-width:640px){ .badge{font-size:.8rem} table.min-w-full thead th{font-size:.7rem} }
+  </style>
+</head>
+<body class="bg-white min-h-screen p-6 pt-20 text-slate-800">
+  <!-- Logo Bar -->
+  <div class="logo-bar w-full flex items-center justify-between px-4 py-3 fixed top-0 left-0 z-50 bg-gradient-to-r from-yellow-400 to-yellow-300">
+    <img src="{{ url_for('static', filename='img/drive-logs.png') }}" alt="Drive Logs Logo" class="h-12 md:h-14 w-auto ml-2">
+    <div class="flex items-center gap-4">
+      <a href="{{ url_for('dashboard') }}" class="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-full text-sm font-semibold shadow-sm transition">← Dashboard</a>
+      <a href="{{ url_for('logout') }}" class="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-full text-sm font-semibold shadow-sm transition">Logout</a>
+    </div>
+  </div>
+
+  <!-- College Header -->
+  <div class="w-full flex justify-center items-center border-b border-gray-300 bg-white mt-0">
+    <img src="{{ url_for('static', filename='img/pmc-logo.png') }}" alt="College Header" class="w-full max-w-5xl h-auto p-2 md:p-4">
+  </div>
+  <div class="max-w-6xl mx-auto bg-white rounded-lg shadow-lg px-6 py-6">
+    <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-3 mb-4">
+      <div>
+        <h2 class="text-2xl font-extrabold text-slate-800">Maintenance Job Card History</h2>
+        <p class="text-sm text-gray-600">Quickly review, mark corrected, or set pending job cards.</p>
+      </div>
+      <div class="flex items-center gap-3 w-full md:w-auto">
+        <input id="jobSearch" placeholder="Search by entry, vehicle, or driver" class="flex-1 md:flex-none w-full md:w-80 px-3 py-2 border rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-yellow-300" />
+        <a href="{{ url_for('maintenance_image') }}" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-full shadow-md text-sm font-semibold transition">Create Job Card</a>
+      </div>
+    </div>
+    <style>
+      .rating-star { font-size: 1.6rem; cursor: pointer; background: transparent; border: none; transition: transform .12s; }
+      .rating-star:hover { transform: scale(1.08); }
+      .star-red { color: #ef4444; }
+      .star-yellow { color: #f59e0b; }
+      .star-green { color: #10b981; }
+      .star-blue { color: #2563eb; }
+      /* keep hidden states separate for filter vs pagination */
+      .manual-hidden { display: none !important; }
+      .paged-hidden { display: none !important; }
+    </style>
+    <script>
+      // Driver Rating filter: count and toggle showing only low-rated rows (1 or 2)
+      function updateDriverRatingCount(){
+        const rows = Array.from(document.querySelectorAll('tr[data-rating]'));
+        let count = 0;
+        for(const r of rows){
+          const v = r.dataset.rating;
+          if(v === '1' || v === '2') count++;
+        }
+        const el = document.getElementById('driverRatingCount'); if(el) el.textContent = String(count);
+        // hide the button if no items
+        const btn = document.getElementById('driverRatingBtn'); if(btn) btn.style.display = (count>0? 'inline-flex' : 'none');
+      }
+
+      let _driverFilterActive = false;
+      function toggleDriverRatingFilter(){
+        _driverFilterActive = !_driverFilterActive;
+        const btn = document.getElementById('driverRatingBtn');
+        if(btn) btn.classList.toggle('bg-yellow-100', _driverFilterActive);
+        const tbodies = ['jobcardsTbody','pendingTbody','correctedTbody'];
+        for(const id of tbodies){
+          const tb = document.getElementById(id); if(!tb) continue;
+          const rows = Array.from(tb.querySelectorAll('tr'));
+          for(const r of rows){
+            const v = (r.dataset.rating || '').trim();
+            const show = !_driverFilterActive || v === '1' || v === '2';
+            // use manual-hidden class so pager can manage paged-hidden separately
+            if(show) r.classList.remove('manual-hidden'); else r.classList.add('manual-hidden');
+          }
+          // hide pager while filtered to avoid mismatch
+          const pager = document.getElementById(id.replace('Tbody','Pager'));
+          if(pager) pager.style.display = _driverFilterActive ? 'none' : '';
+        }
+      }
+
+      document.addEventListener('DOMContentLoaded', function(){
+        try{ updateDriverRatingCount(); }catch(e){}
+        const drBtn = document.getElementById('driverRatingBtn'); if(drBtn) drBtn.addEventListener('click', openDriverRatingList);
+        // Mark any pre-rated rows and hide only low-rated entries (1 or 2)
+        try{
+          // mark rows that already have a rating so modal cannot re-open
+          Array.from(document.querySelectorAll('tr[data-rating]')).forEach(r => { if((r.dataset.rating||'').trim() !== '') r.dataset.rated = '1'; });
+          hideLowRatedFromTables();
+        }catch(e){}
+      });
+
+      // Build and show the Driver Rating list modal (low ratings 1 or 2)
+      async function openDriverRatingList(){
+        const tbody = document.getElementById('driverRatingTbody');
+        if(!tbody) return;
+        tbody.innerHTML = '';
+
+        // First try to fetch latest low-rated entries from server (preferred)
+        try{
+          const resp = await fetch('/api/maintenance/low_ratings', { credentials: 'same-origin' });
+          if(resp && resp.ok){
+            const j = await resp.json();
+            const rows = (j && j.rows) || [];
+            if(rows.length > 0){
+              for(const row of rows){
+                const id = row.id || '';
+                const entry = row.entry_no || '';
+                const dateTime = row.date_time || row.created_at || '';
+                const vehicle = (row.vehicle_id || '') + (row.registration_no ? (' — ' + row.registration_no) : '');
+                const driver = row.driver_incharge || row.driver || '';
+                const createdAt = row.created_at || row.date_time || '';
+                const utilized = (row.utilized_qty || row.utilization_qty || row.utilized || '') || '-';
+                const processed = row.processed_by || '';
+                const rating = row.rating || '';
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                  <td class="px-3 py-2">${entry || id}</td>
+                  <td class="px-3 py-2">${dateTime}</td>
+                  <td class="px-3 py-2">${vehicle}</td>
+                  <td class="px-3 py-2">${driver}</td>
+                  <td class="px-3 py-2">${createdAt}</td>
+                  <td class="px-3 py-2 text-right">${utilized}</td>
+                  <td class="px-3 py-2">${processed || '-'}</td>
+                  <td class="px-3 py-2 text-center">
+                    <div><span class="${getColorClassForScore(Number(rating))} font-semibold">${rating} ★</span></div>
+                    <div class="mt-2"><button type="button" class="px-2 py-1 bg-yellow-400 hover:bg-yellow-500 text-sm rounded" onclick="openRatingModal('${id}', ${rating}, true)">Rate</button></div>
+                  </td>
+                  <td class="px-3 py-2">
+                    <a href="/maintenance/${id}/edit" class="px-2 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded text-sm mr-2 border">Edit</a>
+                    <a href="/maintenance/${id}" class="px-2 py-1 bg-gray-100 rounded text-sm mr-2">View</a>
+                    <a href="/maintenance/${id}?print=1" target="_blank" class="inline-flex items-center p-1 hover:bg-gray-100 rounded mr-2"><svg xmlns=\"http://www.w3.org/2000/svg\" class=\"h-5 w-5 text-gray-700\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\"><path d=\"M6 9V3h12v6\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/><rect x=\"6\" y=\"13\" width=\"12\" height=\"8\" rx=\"2\" ry=\"2\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg></a>
+                    <button type="button" class="px-2 py-1 bg-yellow-500 hover:bg-yellow-600 text-white rounded text-sm mr-2" onclick="openEstimateModal('${id}', '${entry}')">Set Pending</button>
+                    <button type="button" class="px-2 py-1 bg-green-600 hover:bg-green-700 text-white rounded text-sm" onclick="openCorrectedModal('${id}', '${entry}')">Mark Corrected</button>
+                  </td>`;
+                tbody.appendChild(tr);
+              }
+              const modal = document.getElementById('driverRatingModal');
+              if(modal){ modal.classList.remove('hidden'); modal.classList.add('flex'); document.body.classList.add('overflow-hidden'); }
+              return;
+            }
+          }
+        }catch(err){ console.warn('Failed fetching low ratings, falling back to DOM:', err); }
+
+        // Fallback: build list from DOM rows if server fetch failed or returned none
+        const rows = Array.from(document.querySelectorAll('tr[data-rating]'));
+        let found = 0;
+        for(const r of rows){
+          const v = (r.dataset.rating || '').trim();
+          if(v !== '1' && v !== '2') continue;
+          const id = r.dataset.id || '';
+          const cells = Array.from(r.querySelectorAll('td'));
+          const cellText = idx => (cells[idx] ? (cells[idx].textContent || '').trim() : '');
+          const entry = (r.dataset.entry || '').trim() || cellText(0) || id || '';
+          const dateTime = (r.dataset.created_at || r.dataset.createdAt || '').trim() || cellText(1) || '';
+          const vehicle = (r.dataset.vehicle || '').trim() || cellText(2) || '';
+          const driver = (r.dataset.driver || '').trim() || cellText(3) || '';
+          const createdAt = (r.dataset.created_at || r.dataset.createdAt || '').trim() || cellText(4) || dateTime || '';
+          const utilized = (r.dataset.utilized_qty || r.dataset.utilizedQty || '').trim() || cellText(5) || '';
+          const processed = (r.dataset.processed_by || r.dataset.processedBy || '').trim() || cellText(6) || '';
+          const rating = v;
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td class="px-3 py-2">${entry || id}</td>
+            <td class="px-3 py-2">${dateTime}</td>
+            <td class="px-3 py-2">${vehicle}</td>
+            <td class="px-3 py-2">${driver}</td>
+            <td class="px-3 py-2">${createdAt}</td>
+            <td class="px-3 py-2 text-right">${utilized || '-'}</td>
+            <td class="px-3 py-2">${processed || '-'}</td>
+            <td class="px-3 py-2 text-center">
+              <div><span class="${getColorClassForScore(Number(rating))} font-semibold">${rating} ★</span></div>
+              <div class="mt-2"><button type="button" class="px-2 py-1 bg-yellow-400 hover:bg-yellow-500 text-sm rounded" onclick="openRatingModal('${id}', ${rating}, true)">Rate</button></div>
+            </td>
+            <td class="px-3 py-2">
+              <a href="/maintenance/${id}/edit" class="px-2 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded text-sm mr-2 border">Edit</a>
+              <a href="/maintenance/${id}" class="px-2 py-1 bg-gray-100 rounded text-sm mr-2">View</a>
+              <a href="/maintenance/${id}?print=1" target="_blank" class="inline-flex items-center p-1 hover:bg-gray-100 rounded mr-2"><svg xmlns=\"http://www.w3.org/2000/svg\" class=\"h-5 w-5 text-gray-700\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\"><path d=\"M6 9V3h12v6\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/><rect x=\"6\" y=\"13\" width=\"12\" height=\"8\" rx=\"2\" ry=\"2\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg></a>
+              <button type="button" class="px-2 py-1 bg-yellow-500 hover:bg-yellow-600 text-white rounded text-sm mr-2" onclick="openEstimateModal('${id}', '${entry}')">Set Pending</button>
+              <button type="button" class="px-2 py-1 bg-green-600 hover:bg-green-700 text-white rounded text-sm" onclick="openCorrectedModal('${id}', '${entry}')">Mark Corrected</button>
+            </td>`;
+          tbody.appendChild(tr);
+          found++;
+        }
+        const modal = document.getElementById('driverRatingModal');
+        if(found === 0){
+          tbody.innerHTML = '<tr><td class="px-4 py-6 text-center text-gray-500" colspan="9">No driver ratings with score 1 or 2 found.</td></tr>';
+        }
+        if(modal){ modal.classList.remove('hidden'); modal.classList.add('flex'); document.body.classList.add('overflow-hidden'); }
+      }
+
+      function closeDriverRatingList(){
+        const modal = document.getElementById('driverRatingModal');
+        if(modal){ modal.classList.add('hidden'); modal.classList.remove('flex'); document.body.classList.remove('overflow-hidden'); }
+      }
+
+      // Hide any rated rows from the main Job Card tables so they only appear in Driver Rating modal
+      function hideLowRatedFromTables(){
+        const tbIds = ['jobcardsTbody','pendingTbody','correctedTbody'];
+        for(const id of tbIds){
+          const tb = document.getElementById(id);
+          if(!tb) continue;
+          const rows = Array.from(tb.querySelectorAll('tr'));
+          let visible = 0;
+          for(const r of rows){
+            const v = (r.dataset.rating || '').trim();
+            // hide only low ratings (1 or 2); keep ratings >=3 visible but mark as rated
+            if(v === '1' || v === '2'){
+              r.classList.add('manual-hidden');
+            } else {
+              // show unrated rows and ratings >=3
+              r.classList.remove('manual-hidden');
+              if(v !== '') r.dataset.rated = '1';
+              // count only rows that are not manually hidden
+              if(!r.classList.contains('manual-hidden')) visible++;
+            }
+          }
+          // update badge for this table
+          try{
+            if(id === 'jobcardsTbody'){
+              const b = document.getElementById('jobcardsBadge'); if(b) b.textContent = visible + ' items';
+            }else if(id === 'pendingTbody'){
+              const b = document.getElementById('pendingBadge'); if(b) b.textContent = visible + ' items';
+            }else if(id === 'correctedTbody'){
+              const b = document.getElementById('correctedBadge'); if(b) b.textContent = visible + ' items';
+            }
+          }catch(e){ }
+        }
+        // refresh pagers so they page only visible rows
+        try{ if(window.refreshAllPagers) window.refreshAllPagers(); }catch(e){}
+      }
+
+      let _ratingCurrentEntry = null;
+      let _ratingSelectedScore = null;
+      // Open centered rating modal and optionally preselect current rating
+      function openRatingModal(entryId, currentRating, allowReRate){
+        // allowReRate: when true, permit opening even if row is marked rated (used from Driver Rating modal)
+        allowReRate = !!allowReRate;
+        // prevent opening if already rated and rerate not explicitly allowed
+        const existingRow = document.querySelector('tr[data-id="' + entryId + '"]');
+        if(existingRow && (existingRow.dataset.rated === '1') && !allowReRate){
+          alert('Rating already submitted for this job card.');
+          return;
+        }
+        // If the Driver Rating modal is open, close it so rating modal appears above
+        try{ closeDriverRatingList(); }catch(e){}
+        _ratingCurrentEntry = entryId;
+        const modal = document.getElementById('ratingModal');
+        const overlay = document.getElementById('ratingOverlay');
+        const stars = document.querySelectorAll('#ratingStars button[data-score]');
+        stars.forEach(s => { s.classList.remove('star-red','star-yellow','star-green','star-blue'); s.classList.remove('selected'); });
+        if(currentRating){
+          highlightStars(currentRating);
+          // set selected score so Submit will use it
+          _ratingSelectedScore = Number(currentRating) || null;
+        }
+
+        // show reason box when rating is 1 or 2
+        try{
+          const wrap = document.getElementById('ratingDescriptionWrap');
+          const desc = document.getElementById('rating_description');
+          if(wrap){
+            if(_ratingSelectedScore && Number(_ratingSelectedScore) <= 2){
+              wrap.classList.remove('hidden');
+              // try to prefill from row data if available
+              try{ const row = document.querySelector('tr[data-id="' + entryId + '"]'); if(row && row.dataset && row.dataset.ratingReason) desc && (desc.value = row.dataset.ratingReason || ''); }catch(e){}
+            } else {
+              wrap.classList.add('hidden'); if(desc) desc.value = '';
+            }
+          }
+        }catch(e){/* ignore */}
+
+        modal.classList.remove('hidden'); modal.classList.add('flex'); document.body.classList.add('overflow-hidden');
+      }
+
+      function closeRatingModal(){
+        const modal = document.getElementById('ratingModal');
+        modal.classList.add('hidden'); modal.classList.remove('flex'); document.body.classList.remove('overflow-hidden');
+      }
+
+      function highlightStars(score){
+        const stars = document.querySelectorAll('#ratingStars button[data-score]');
+        stars.forEach(s => {
+          const sc = Number(s.dataset.score);
+          s.classList.remove('star-red','star-yellow','star-green','star-blue','selected');
+          if(sc <= score){
+            s.classList.add(getColorClassForScore(score));
+            s.classList.add('selected');
+          }
+        });
+      }
+
+      function setSelectedScore(score){
+        _ratingSelectedScore = Number(score) || null;
+        highlightStars(_ratingSelectedScore || 0);
+        // show/hide reason box for low ratings
+        try{
+          const wrap = document.getElementById('ratingDescriptionWrap');
+          const desc = document.getElementById('rating_description');
+          if(wrap){ if(_ratingSelectedScore && _ratingSelectedScore <= 2){ wrap.classList.remove('hidden'); } else { wrap.classList.add('hidden'); if(desc) desc.value = ''; } }
+        }catch(e){}
+      }
+
+      function getColorClassForScore(score){
+        if(score === 1) return 'star-red';
+        if(score === 2) return 'star-yellow';
+        if(score === 3) return 'star-green';
+        if(score === 4) return 'star-blue';
+        return 'star-blue';
+      }
+
+      // Move a row element to the Corrected Job Cards table (client-side promotion)
+      // Move an entry into the Corrected Job Cards table.
+      // This version looks up any existing rows with the same entry id, removes them,
+      // and inserts a single canonical row into #correctedTbody to avoid duplicates
+      // or accidental placement into other tables.
+      function promoteToCorrected(entryId, rating){
+        try{
+          const correctedTbody = document.getElementById('correctedTbody');
+          if(!correctedTbody) return;
+
+          // try removing any existing instance from jobcards and pending tables
+          const tbIds = ['jobcardsTbody','pendingTbody','correctedTbody'];
+          let src = null;
+          for(const tbId of tbIds){
+            const tb = document.getElementById(tbId);
+            if(!tb) continue;
+            const existing = tb.querySelector('tr[data-id="' + entryId + '"]');
+            if(existing){
+              // capture first existing as data source
+              if(!src) src = existing;
+              existing.remove();
+              // decrement visible badge for that table if present
+              try{
+                const badgeId = tbId === 'jobcardsTbody' ? 'jobcardsBadge' : (tbId === 'pendingTbody' ? 'pendingBadge' : 'correctedBadge');
+                const b = document.getElementById(badgeId);
+                if(b){ const num = Number((b.textContent||'').split(' ')[0]||0); b.textContent = Math.max(0, num-1) + ' items'; }
+              }catch(e){}
+            }
+          }
+
+          const id = entryId || (src && src.dataset.id) || '';
+          const entry = src ? (src.dataset.entry || '') : '';
+          const dateTime = src ? (src.dataset.created_at || src.dataset.createdAt || '') : '';
+          const vehicle = src ? (src.dataset.vehicle || '') : '';
+          const currentKm = src ? (src.dataset.currentKm || '') : '';
+          const driver = src ? (src.dataset.driver || '') : '';
+          const createdAt = src ? (src.dataset.created_at || '') : '';
+          const utilized = src ? (src.dataset.utilized_qty || '') : '';
+          const processed = src ? (src.dataset.processed_by || '') : '';
+
+          const tr = document.createElement('tr');
+          tr.dataset.id = id;
+          tr.dataset.rating = String(rating);
+          tr.dataset.utilized_qty = utilized;
+          tr.dataset.rated = '1';
+
+          const actionsHtml = `<a href="/maintenance/${id}" class="px-3 py-1 bg-gray-100 text-gray-800 rounded text-sm mr-2">View</a>`;
+          const printHtml = `<a href="/maintenance/${id}?print=1" target="_blank" class="inline-flex items-center p-1 hover:bg-gray-100 rounded"><svg xmlns=\"http://www.w3.org/2000/svg\" class=\"h-5 w-5 text-gray-700\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\"><path d=\"M6 9V3h12v6\" stroke-width=\"1.5\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg></a>`;
+
+          // build rating cell: show colored star when rating present, otherwise show Rate button
+          let ratingHtml = '';
+          if(rating){ ratingHtml = `<div class="${getColorClassForScore(Number(rating))} font-semibold">${rating} ★</div>`; }
+          else { ratingHtml = `<div>-</div><div class="mt-2"><button type=\"button\" class=\"px-3 py-1 bg-yellow-400 hover:bg-yellow-500 text-sm rounded\" onclick=\"openRatingModal('${id}', ${rating || 'null'})\">Rate</button></div>`; }
+
+          tr.innerHTML = `
+            <td class="px-3 py-2">${entry || id}</td>
+            <td class="px-3 py-2">${dateTime}</td>
+            <td class="px-3 py-2">${vehicle}</td>
+            <td class="px-3 py-2">${currentKm || '-'}</td>
+            <td class="px-3 py-2">${driver}</td>
+            <td class="px-3 py-2">${createdAt}</td>
+            <td class="px-3 py-2 text-right">${utilized || '-'}</td>
+            <td class="px-3 py-2">${processed || '-'}</td>
+            <td class="px-3 py-2 text-center">${ratingHtml}</td>
+            <td class="px-3 py-2 text-center">${actionsHtml}</td>
+            <td class="px-3 py-2 text-center">${printHtml}</td>
+          `;
+
+          // Insert as first row in corrected tbody
+          correctedTbody.insertBefore(tr, correctedTbody.firstChild);
+
+          // update corrected badge (best-effort)
+          try{ const b = document.getElementById('correctedBadge'); if(b) { const n = Number((b.textContent||'').split(' ')[0]||0); b.textContent = (n+1) + ' items'; } }catch(e){}
+          try{ if(window.refreshAllPagers) window.refreshAllPagers(); }catch(e){}
+        }catch(err){ console.error('promoteToCorrected error', err); }
+      }
+
+      // Submit the selected rating (called by Submit button)
+      async function saveRatingModal(score){
+        if(!_ratingCurrentEntry) return; const entryId = _ratingCurrentEntry;
+        // allow explicit score param, otherwise use selected score
+        const chosen = (typeof score === 'number' && score) ? score : _ratingSelectedScore;
+        if(!chosen){ alert('Please select a rating before submitting.'); return; }
+        try{
+          const fd = new FormData(); fd.append('rating', String(chosen));
+          // include rating description when provided (required for 1 or 2)
+          try{ const desc = document.getElementById('rating_description'); if(desc && desc.value && String(chosen)){ fd.append('rating_description', desc.value.trim()); } }catch(e){}
+
+          // validation: require description for low ratings
+          if(Number(chosen) <= 2){ const descEl = document.getElementById('rating_description'); if(!descEl || !descEl.value.trim()){ alert('Please enter a reason for low ratings (1 or 2 stars).'); return; } }
+
+          const res = await fetch('/maintenance/' + entryId + '/rate', { method: 'POST', body: fd, credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+          const json = await (res.ok ? res.json() : res.text().then(t=>({error: t})) ).catch(()=>({}));
+          if(res.ok && json){
+            // show brief saved indicator
+            const saved = document.getElementById('ratingSaved');
+            if(saved){ saved.classList.remove('hidden'); setTimeout(()=>{ saved.classList.add('hidden'); }, 1200); }
+
+            // mark the row as rated in DOM and hide it from main tables
+            try{
+              const row = document.querySelector('tr[data-id="' + entryId + '"]');
+              if(row){
+                row.dataset.rating = String(chosen);
+                // mark as rated so main UI treats it as submitted
+                row.dataset.rated = '1';
+                // hide low-rated rows from main lists (only 1 or 2)
+                hideLowRatedFromTables();
+                // update low-rating count
+                try{ updateDriverRatingCount(); }catch(e){}
+                // refresh pagers after hiding
+                try{ if(window.refreshAllPagers) window.refreshAllPagers(); }catch(e){}
+                // if driver rating modal is open, close it so caller can re-open/refetch
+                try{ closeDriverRatingList(); }catch(e){}
+                // if rating is 3 or more, promote to Corrected Job Cards table
+                try{ if(Number(chosen) >= 3){ promoteToCorrected(entryId, Number(chosen)); } }catch(e){}
+              }
+            }catch(domErr){ console.error('Failed updating DOM after rating', domErr); }
+
+            closeRatingModal();
+          }else{
+            const txt = (json && json.error) ? json.error : (json && json.message) ? json.message : (typeof json === 'string' ? json : res.status);
+            alert('Failed to save rating: ' + (txt || res.status));
+          }
+        }catch(err){ console.error(err); alert('Network error saving rating.'); }
+      }
+    </script>
+
+    {# Split entries by status: new (job card history), pending, corrected #}
+    {% set jobcards = entries | selectattr('status','equalto','new') | list %}
+    {% set pending = entries | selectattr('status','equalto','pending') | list %}
+    {% set corrected = entries | selectattr('status','equalto','corrected') | list %}
+
+          <div class="flex flex-col gap-6">
+            <!-- Job Card History (new items) -->
+            <div class="bg-white rounded-lg p-4 shadow">
+              <div class="flex items-center justify-between mb-3 card-header">
+                <div class="flex items-center gap-3">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-yellow-500" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 7v13h18V7" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 3h8v4H8z" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                  <h3 class="font-bold text-lg">Job Card History</h3>
+                  <span id="jobcardsBadge" class="badge">{{ jobcards | length }} items</span>
+                  <button id="driverRatingBtn" type="button" class="ml-3 px-3 py-1 bg-white border rounded text-sm flex items-center gap-2" title="Show entries rated 1 or 2">
+                    Driver Rating
+                    <span id="driverRatingCount" class="ml-1 inline-flex items-center justify-center bg-red-500 text-white text-xs font-semibold rounded-full px-2 py-0.5">0</span>
+                  </button>
+                </div>
+                <div class="text-sm text-gray-500">Showing recent job cards</div>
+              </div>
+              <div class="overflow-auto mb-4">
+                <table class="min-w-full text-left divide-y divide-gray-200">
+                  <thead class="bg-blue-50">
+                    <tr>
+                      <th class="px-3 py-2 text-sm font-semibold text-blue-700"><svg xmlns="http://www.w3.org/2000/svg" class="inline-block w-4 h-4 mr-2 align-text-bottom text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6M12 8v8"/></svg>Entry No</th>
+                      <th class="px-3 py-2 text-sm font-semibold text-blue-700">Date/Time</th>
+                      <th class="px-3 py-2 text-sm font-semibold text-blue-700">Vehicle</th>
+                      <th class="px-3 py-2 text-sm font-semibold text-blue-700">Current KM</th>
+                      <th class="px-3 py-2 text-sm font-semibold text-blue-700">Driver</th>
+                      <th class="px-3 py-2 text-sm font-semibold text-blue-700">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody id="jobcardsTbody" class="divide-y divide-gray-100">
+                    {% for e in jobcards %}
+                    <tr class="table-row-hover" data-id="{{ e.id }}" data-rating="{{ e.rating or '' }}" data-utilized_qty="{{ e.utilized_qty or e.utilization_qty or e.utilized or '' }}" data-entry="{{ e.entry_no or '' }}" data-vehicle="{{ e.vehicle_id or '' }}" data-driver="{{ e.driver_incharge or '' }}" data-created_at="{{ e.created_at or e.date_time or '' }}" data-processed_by="{{ e.processed_by or '' }}" data-day_end_description="{{ e.day_end_description or '' }}" data-current-km="{{ e.current_km or e.current_kilometer or e.km_reading or e.odometer or '' }}">
+                      <td class="px-3 py-2">{{ e.entry_no or '-' }}</td>
+                      <td class="px-3 py-2">{{ e.date_time|fmt_dt }}</td>
+                      <td class="px-3 py-2">
+                        {{ e.vehicle_id or '-' }}
+                        {% if e.registration_no %} — {{ e.registration_no }}{% endif %}
+                      </td>
+                      <td class="px-3 py-2">
+                        {% set km = e.current_km or e.current_kilometer or e.km_reading or e.odometer %}
+                        {% if km %}<span class="text-sm text-gray-500">{{ km }}</span>{% else %}-{% endif %}
+                      </td>
+                      <td class="px-3 py-2">{{ e.driver_incharge or '-' }}</td>
+                      <td class="px-3 py-2">
+                        <a href="/maintenance/{{ e.id }}/edit" class="px-3 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded text-sm mr-2 border">Edit</a>
+                        <a href="{{ url_for('maintenance_view', entry_id=e.id) }}" class="px-3 py-1 bg-gray-50 hover:bg-gray-100 text-gray-800 rounded text-sm mr-2 border">View</a>
+                        <button type="button" class="px-3 py-1 bg-yellow-500 hover:bg-yellow-600 text-white rounded text-sm mr-2 shadow-sm" onclick="openEstimateModal({{ e.id }}, '{{ e.entry_no }}')">Set Pending</button>
+                        <button type="button" class="px-3 py-1 bg-green-600 hover:bg-green-700 text-white rounded text-sm shadow-md" onclick="openCorrectedModal({{ e.id }}, '{{ e.entry_no }}')">Mark Corrected</button>
+                      </td>
+                    </tr>
+                    {% else %}
+                    <tr><td class="px-4 py-6" colspan="5">No job cards in history.</td></tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+                <div id="jobcardsPager" class="mt-3 flex items-center justify-end gap-2 text-sm"></div>
+              </div>
+            </div>
+            <!-- Pending Job Cards -->
+            <div class="bg-white rounded-lg p-4 shadow">
+              <div class="flex items-center justify-between mb-3 card-header">
+                <div class="flex items-center gap-3">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-yellow-500" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M9 12h6M12 8v8" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                  <h3 class="font-bold text-lg text-gray-800">Pending Job Cards</h3>
+                  <span id="pendingBadge" class="badge">{{ pending | length }} items</span>
+                </div>
+                <div class="text-sm text-gray-500">Awaiting processing</div>
+              </div>
+              <div class="overflow-auto">
+                <table class="min-w-full text-left divide-y divide-gray-200">
+                  <thead class="bg-yellow-50">
+                    <tr>
+                      <th class="px-3 py-2 text-sm font-semibold text-yellow-800"><svg xmlns="http://www.w3.org/2000/svg" class="inline-block w-4 h-4 mr-2 align-text-bottom text-yellow-700" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 8v4l3 3"/></svg>Entry No</th>
+                      <th class="px-3 py-2 text-sm font-semibold text-yellow-800">Date/Time</th>
+                      <th class="px-3 py-2 text-sm font-semibold text-yellow-800">Vehicle</th>
+                      <th class="px-3 py-2 text-sm font-semibold text-yellow-800">Current KM</th>
+                      <th class="px-3 py-2 text-sm font-semibold text-yellow-800">Driver</th>
+                      <th class="px-3 py-2 text-sm font-semibold text-yellow-800">Day End Description</th>
+                      <th class="px-3 py-2 text-sm font-semibold text-yellow-800">Processed By</th>
+                      <th class="px-3 py-2 text-sm font-semibold text-yellow-800">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody id="pendingTbody" class="divide-y divide-gray-100 text-sm text-gray-600">
+                    {% for e in pending %}
+                    <tr class="table-row-hover" data-id="{{ e.id }}" data-rating="{{ e.rating or '' }}" data-utilized_qty="{{ e.utilized_qty or e.utilization_qty or e.utilized or '' }}" data-entry="{{ e.entry_no or '' }}" data-vehicle="{{ e.vehicle_id or '' }}" data-driver="{{ e.driver_incharge or '' }}" data-created_at="{{ e.created_at or e.date_time or '' }}" data-processed_by="{{ e.processed_by or '' }}" data-day_end_description="{{ e.day_end_description or '' }}" data-current-km="{{ e.current_km or e.current_kilometer or e.km_reading or e.odometer or '' }}">
+                      <td class="px-3 py-2">{{ e.entry_no or '-' }}</td>
+                      <td class="px-3 py-2">{{ e.date_time|fmt_dt }}</td>
+                      <td class="px-3 py-2">{{ e.vehicle_id or '-' }}{% if e.registration_no %} — {{ e.registration_no }}{% endif %}</td>
+                      <td class="px-3 py-2">{% set km = e.current_km or e.current_kilometer or e.km_reading or e.odometer %}{% if km %}<span class="text-sm text-gray-500">{{ km }}</span>{% else %}-{% endif %}</td>
+                      <td class="px-3 py-2">{{ e.driver_incharge or '-' }}</td>
+                      <td class="px-3 py-2">{{ e.day_end_description or '-' }}</td>
+                      <td class="px-3 py-2">
+                        <div class="font-semibold text-gray-800">{{ e.processed_by or '-' }}</div>
+                        <div class="text-sm text-gray-500">{{ e.estimated_date or '-' }}</div>
+                      </td>
+                      <td class="px-3 py-2">
+                        <a href="{{ url_for('maintenance_view', entry_id=e.id) }}" class="px-3 py-1 bg-gray-50 hover:bg-gray-100 text-gray-800 rounded text-sm mr-2 border">View</a>
+                        <button type="button" class="px-3 py-1 bg-green-600 hover:bg-green-700 text-white rounded text-sm shadow-md" onclick="openCorrectedModal({{ e.id }}, '{{ e.entry_no }}')">Mark Corrected</button>
+                      </td>
+                    </tr>
+                    {% else %}
+                  <tr><td class="px-4 py-8 text-center text-gray-500" colspan="8">No pending job cards.</td></tr>
+                  {% endfor %}
+                  </tbody>
+                </table>
+                <div id="pendingPager" class="mt-3 flex items-center justify-end gap-2 text-sm"></div>
+              </div>
+            </div>
+
+            <!-- Corrected / Approved Job Cards -->
+            <div class="bg-white rounded-lg p-4 shadow">
+              <div class="flex items-center justify-between mb-3 card-header">
+                <div class="flex items-center gap-3">
+                  <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-green-500" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M20 6L9 17l-5-5" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                  <h3 class="font-bold text-lg text-gray-800">Corrected Job Cards</h3>
+                  <span id="correctedBadge" class="badge">{{ corrected | length }} items</span>
+                </div>
+                <div class="text-sm text-gray-500">Completed</div>
+              </div>
+              <div class="overflow-auto">
+                <table class="min-w-full text-left divide-y divide-gray-200">
+                  <thead class="bg-green-50">
+                    <tr>
+                      <th class="px-3 py-2 text-sm font-semibold text-green-800"><svg xmlns="http://www.w3.org/2000/svg" class="inline-block w-4 h-4 mr-2 align-text-bottom text-green-700" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M5 13l4 4L19 7"/></svg>Entry No</th>
+                      <th class="px-3 py-2 text-sm font-semibold text-green-800">Date/Time</th>
+                      <th class="px-3 py-2 text-sm font-semibold text-green-800">Vehicle</th>
+                      <th class="px-3 py-2 text-sm font-semibold text-green-800">Current KM</th>
+                      <th class="px-3 py-2 text-sm font-semibold text-green-800">Driver</th>
+                      <th class="px-3 py-2 text-sm font-semibold text-green-800">Created At</th>
+                      <th class="px-3 py-2 text-sm font-semibold text-green-800">Utilized Qty</th>
+                      <th class="px-3 py-2 text-sm font-semibold text-green-800">Processed By</th>
+                      <th class="px-3 py-2 text-sm font-semibold text-green-800">Rating</th>
+                      <th class="px-3 py-2 text-sm font-semibold text-green-800">Actions</th>
+                      <th class="px-3 py-2 text-sm font-semibold text-green-800">Print</th>
+                    </tr>
+                  </thead>
+                  <tbody id="correctedTbody" class="divide-y divide-gray-100 text-sm text-gray-600">
+                    {% for e in corrected %}
+                    <tr data-id="{{ e.id }}" data-rating="{{ e.rating or '' }}" data-utilized_qty="{{ e.utilized_qty or e.utilization_qty or e.utilized or '' }}" data-rated="{{ '1' if e.rating else '0' }}" data-current-km="{{ e.current_km or e.current_kilometer or e.km_reading or e.odometer or '' }}">
+                      <td class="px-3 py-2">{{ e.entry_no or '-' }}</td>
+                      <td class="px-3 py-2">{{ e.date_time|fmt_dt }}</td>
+                      <td class="px-3 py-2">
+                        {{ e.vehicle_id or '-' }}
+                        {% if e.registration_no %} — {{ e.registration_no }}{% endif %}
+                      </td>
+                      <td class="px-3 py-2">{% set km = e.current_km or e.current_kilometer or e.km_reading or e.odometer %}{% if km %}<span class="text-sm text-gray-500">{{ km }}</span>{% else %}-{% endif %}</td>
+                      <td class="px-3 py-2">{{ e.driver_incharge or '-' }}</td>
+                      <td class="px-3 py-2">{{ (e.created_at or e.date_time)|fmt_dt }}</td>
+                      <td class="px-3 py-2 text-right">{{ e.utilized_qty or e.utilization_qty or e.utilized or '-' }}</td>
+                      <td class="px-3 py-2">{{ e.processed_by or '-' }}</td>
+                      <td class="px-3 py-2 text-center">
+                        {% if e.rating %}
+                          <div class="mt-2 font-semibold {% if e.rating == 1 %}star-red{% elif e.rating == 2 %}star-yellow{% elif e.rating == 3 %}star-green{% else %}star-blue{% endif %}">{{ e.rating }} ★</div>
+                        {% else %}
+                          <div>-</div>
+                          <div class="mt-2"><button type="button" class="px-3 py-1 bg-yellow-400 hover:bg-yellow-500 text-sm rounded" onclick="openRatingModal({{ e.id }}, {{ e.rating or 'null' }})">Rate</button></div>
+                        {% endif %}
+                      </td>
+                      <td class="px-3 py-2 text-center">
+                        <a href="{{ url_for('maintenance_view', entry_id=e.id) }}" class="px-3 py-1 bg-gray-100 text-gray-800 rounded text-sm mr-2">View</a>
+                      </td>
+                      <td class="px-3 py-2 text-center">
+                        <a href="{{ url_for('maintenance_view', entry_id=e.id) }}?print=1" target="_blank" class="inline-flex items-center p-1 hover:bg-gray-100 rounded">
+                          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-gray-700" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 9V3h12v6" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                        </a>
+                      </td>
+                    </tr>
+                    {% else %}
+                    <tr><td class="px-4 py-8 text-center text-gray-500" colspan="10">No corrected job cards.</td></tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+                <div id="correctedPager" class="mt-3 flex items-center justify-end gap-2 text-sm"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      <!-- Rating modal -->
+      <div id="ratingModal" class="fixed inset-0 z-60 hidden items-center justify-center overflow-auto">
+        <div id="ratingOverlay" class="absolute inset-0 bg-black/50" onclick="closeRatingModal()"></div>
+        <div class="relative bg-white rounded-xl shadow-xl max-w-sm w-full mx-4 p-6 z-70">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="text-lg font-bold">Rate Job Card</h3>
+            <button class="text-gray-500 hover:text-gray-700" onclick="closeRatingModal()">✕</button>
+          </div>
+          <p class="text-sm text-gray-600 mb-3">Click a star to submit your rating.</p>
+          <div id="ratingStars" class="flex items-center gap-3 justify-center mb-4">
+            {% for s in range(1,6) %}
+              <button type="button" data-score="{{ s }}" class="rating-star" onmouseover="highlightStars({{ s }})" onclick="setSelectedScore({{ s }})">★</button>
+            {% endfor %}
+          </div>
+          <div id="ratingSaved" class="hidden text-center text-sm text-green-600">Rating saved</div>
+
+          <!-- Reason box for low ratings (1 or 2) -->
+          <div id="ratingDescriptionWrap" class="hidden mt-3">
+            <label class="block text-sm font-medium text-gray-700 mb-1">Reason (required for 1 or 2 stars)</label>
+            <textarea id="rating_description" name="rating_description" rows="3" class="w-full rounded border-gray-300 p-2" placeholder="Enter reason for low rating..."></textarea>
+          </div>
+
+          <div class="mt-4 flex justify-end gap-2">
+            <button class="px-4 py-2 rounded border" onclick="closeRatingModal()">Cancel</button>
+            <button class="px-4 py-2 bg-yellow-500 text-white rounded" onclick="saveRatingModal()">Submit</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Driver Rating List modal -->
+      <div id="driverRatingModal" class="fixed inset-0 z-60 hidden items-center justify-center overflow-auto">
+        <div id="driverRatingOverlay" class="absolute inset-0 bg-black/50" onclick="closeDriverRatingList()"></div>
+        <div class="relative bg-white rounded-xl shadow-xl max-w-4xl w-full mx-4 p-6 z-70">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="text-lg font-bold">Driver Rating — Low Ratings (1 & 2)</h3>
+            <button class="text-gray-500 hover:text-gray-700" onclick="closeDriverRatingList()">✕</button>
+          </div>
+          <div class="overflow-auto">
+            <table class="min-w-full text-left divide-y divide-gray-200">
+              <thead class="bg-gray-50">
+                <tr>
+                  <th class="px-3 py-2">Entry No</th>
+                  <th class="px-3 py-2">Date/Time</th>
+                  <th class="px-3 py-2">Vehicle</th>
+                  <th class="px-3 py-2">Driver</th>
+                  <th class="px-3 py-2">Created At</th>
+                  <th class="px-3 py-2">Utilized Qty</th>
+                  <th class="px-3 py-2">Processed By</th>
+                  <th class="px-3 py-2">Rating</th>
+                  <th class="px-3 py-2">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="driverRatingTbody" class="divide-y divide-gray-100 text-sm text-gray-600"></tbody>
+            </table>
+          </div>
+          <div class="mt-4 text-right">
+            <button class="px-4 py-2 rounded border" onclick="closeDriverRatingList()">Close</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Estimate modal -->
+      <div id="estimateModal" class="fixed inset-0 z-60 hidden items-center justify-center overflow-auto">
+        <div id="estimateOverlay" class="absolute inset-0 bg-black/40 modal-overlay"></div>
+        <div class="relative bg-white rounded-xl shadow-xl max-w-md w-full mx-4 p-6 z-70 max-h-[90vh] overflow-auto">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="text-lg font-bold">Set Estimated Date</h3>
+            <button id="estimateClose" class="text-gray-500 hover:text-gray-700">✕</button>
+          </div>
+          <form id="estimateForm" method="POST" action="">
+            <div class="mb-3">
+              <label class="block text-sm font-medium text-gray-700">Entry</label>
+              <div id="estimateEntry" class="text-sm text-gray-800 mb-2"></div>
+            </div>
+            <div class="mb-3">
+              <label class="block text-sm font-medium text-gray-700">Created At</label>
+              <div id="estimateCreatedAt" class="text-sm text-gray-700 mb-2">—</div>
+            </div>
+            <div class="mb-4">
+              <label class="block text-sm font-medium text-gray-700">Estimated Date</label>
+              <input name="estimated_date" type="date" class="mt-1 block w-full rounded border-gray-300 p-2" required>
+            </div>
+            <div class="mb-4">
+              <label class="block text-sm font-medium text-gray-700">Processed By (enter name)</label>
+              <input name="processed_by" id="estimate_processed_by" type="text" class="mt-1 block w-full rounded border-gray-300 p-2" placeholder="e.g. John Doe">
+            </div>
+            <div class="mb-4">
+              <label class="block text-sm font-medium text-gray-700">Day End Description</label>
+              <textarea name="day_end_description" id="estimate_day_end_description" rows="3" class="mt-1 block w-full rounded border-gray-300 p-2" placeholder="Optional: add notes for day-end"></textarea>
+            </div>
+            <div class="flex justify-end gap-2">
+              <button type="button" id="estimateCancel" class="px-4 py-2 rounded border">Cancel</button>
+              <button type="submit" class="px-4 py-2 bg-yellow-500 text-white rounded">Set Pending</button>
+            </div>
+          </form>
+        </div>
+        </div>
+
+        <!-- Corrected modal (Parts Issued + Driver Feedback) -->
+        <div id="correctedModal" class="fixed inset-0 z-60 hidden items-center justify-center overflow-auto">
+          <div id="correctedOverlay" class="absolute inset-0 bg-black/40 modal-overlay"></div>
+
+    <script>
+      // Simple client-side pagination for each table that pages only visible rows
+      (function(){
+        window._PAGERS = window._PAGERS || {};
+        function setupPager(tbodyId, pagerId, perPage){
+          const tbody = document.getElementById(tbodyId);
+          const pager = document.getElementById(pagerId);
+          if(!tbody || !pager) return;
+          let currentPage = 1;
+          let totalPages = 1;
+
+          function render(){
+            // compute visible rows each render
+            const allRows = Array.from(tbody.querySelectorAll('tr'));
+            // visible rows are those not manually hidden by driver filter
+            const rows = allRows.filter(r => !r.classList.contains('manual-hidden'));
+            const totalRows = rows.length;
+            totalPages = Math.max(1, Math.ceil(totalRows / perPage));
+            if(currentPage > totalPages) currentPage = totalPages;
+
+            const start = (currentPage - 1) * perPage;
+            const end = start + perPage;
+            // hide all rows via paged-hidden class, keep manual-hidden intact
+            allRows.forEach(r => r.classList.add('paged-hidden'));
+            // show only the slice of visible rows for this page (remove paged-hidden)
+            rows.forEach((r, idx) => { if(idx >= start && idx < end) r.classList.remove('paged-hidden'); });
+            renderPager();
+          }
+
+          function gotoPage(n){ if(n < 1) n = 1; if(n > totalPages) n = totalPages; currentPage = n; render(); }
+
+          function renderPager(){
+            pager.innerHTML = '';
+            if(totalPages <= 1) return;
+            const prev = document.createElement('button'); prev.className = 'px-2 py-1 border rounded'; prev.textContent = 'Prev'; prev.disabled = currentPage === 1; prev.addEventListener('click', ()=>gotoPage(currentPage-1));
+            const next = document.createElement('button'); next.className = 'px-2 py-1 border rounded'; next.textContent = 'Next'; next.disabled = currentPage === totalPages; next.addEventListener('click', ()=>gotoPage(currentPage+1));
+            pager.appendChild(prev);
+            const range = 2; const s = Math.max(1, currentPage - range); const f = Math.min(totalPages, currentPage + range);
+            for(let i=s;i<=f;i++){
+              const b = document.createElement('button'); b.className = 'px-2 py-1 rounded ' + (i===currentPage? 'bg-yellow-200 font-semibold':'border'); b.textContent = String(i); b.addEventListener('click', ()=>gotoPage(i)); pager.appendChild(b);
+            }
+            pager.appendChild(next);
+          }
+
+          // store pager reference so we can refresh after DOM changes
+          window._PAGERS[tbodyId] = { render: render, gotoPage: gotoPage };
+
+          // initialize
+          render();
+        }
+
+        // helper to refresh all pagers
+        function refreshAllPagers(){
+          try{ Object.keys(window._PAGERS || {}).forEach(k => { try{ window._PAGERS[k].render(); }catch(e){} }); }catch(e){}
+        }
+
+        // Update the visible badges for each table, treating placeholder rows
+        // like "No pending job cards." as zero items.
+        function updateVisibleBadges(){
+          try{
+            const mapping = [{id:'jobcardsTbody',badge:'jobcardsBadge'},{id:'pendingTbody',badge:'pendingBadge'},{id:'correctedTbody',badge:'correctedBadge'}];
+            for(const m of mapping){
+              const tb = document.getElementById(m.id); if(!tb) continue;
+              const rows = Array.from(tb.querySelectorAll('tr'))
+                .filter(r => {
+                  if(r.classList.contains('manual-hidden')) return false;
+                  const txt = (r.textContent||'').trim().toLowerCase();
+                  if(txt === '') return false;
+                  // exclude common placeholder messages
+                  if(txt.includes('no pending job cards') || txt.includes('no job cards') || txt.includes('no corrected job cards') || txt.includes('no pending')) return false;
+                  return true;
+                });
+              const b = document.getElementById(m.badge); if(b) b.textContent = (rows.length) + ' items';
+            }
+          }catch(e){/* ignore */}
+        }
+
+        document.addEventListener('DOMContentLoaded', function(){
+          setupPager('jobcardsTbody','jobcardsPager', 5);
+          setupPager('pendingTbody','pendingPager', 5);
+          setupPager('correctedTbody','correctedPager', 5);
+          // expose refresh helper
+          window.refreshAllPagers = function(){ refreshAllPagers(); updateVisibleBadges(); };
+          // initialize search for the job card tables
+          try{ setupSearch && setupSearch(); }catch(e){ console.warn('search init failed', e); }
+          // ensure badges reflect visible rows on load
+          try{ updateVisibleBadges(); }catch(e){}
+        });
+      })();
+      
+      // Client-side search setup: filters visible rows across all three tables
+      function setupSearch(){
+        const input = document.getElementById('jobSearch');
+        if(!input) return;
+        let firstScanDone = false;
+        let debounceTimer = null;
+
+        function updateVisibleBadges(){
+          try{
+            const mapping = [{id:'jobcardsTbody',badge:'jobcardsBadge'},{id:'pendingTbody',badge:'pendingBadge'},{id:'correctedTbody',badge:'correctedBadge'}];
+            for(const m of mapping){
+              const tb = document.getElementById(m.id); if(!tb) continue;
+              const rows = Array.from(tb.querySelectorAll('tr'));
+              const visible = rows.filter(r => !r.classList.contains('manual-hidden')).length;
+              const b = document.getElementById(m.badge); if(b) b.textContent = visible + ' items';
+            }
+          }catch(e){/* ignore */}
+        }
+
+        function applySearch(q){
+          const ql = (q||'').trim().toLowerCase();
+          const tbIds = ['jobcardsTbody','pendingTbody','correctedTbody'];
+          for(const id of tbIds){
+            const tb = document.getElementById(id); if(!tb) continue;
+            const rows = Array.from(tb.querySelectorAll('tr'));
+            if(!firstScanDone){ rows.forEach(r => { r.dataset.presearchHidden = r.classList.contains('manual-hidden') ? '1' : '0'; }); firstScanDone = true; }
+            for(const r of rows){
+              const text = (r.textContent || '').toLowerCase();
+              const match = ql === '' || text.includes(ql);
+              if(!match){ r.classList.add('search-hidden'); r.classList.add('manual-hidden'); }
+              else { r.classList.remove('search-hidden'); if(r.dataset.presearchHidden === '1') r.classList.add('manual-hidden'); else r.classList.remove('manual-hidden'); }
+            }
+          }
+          try{ if(window.refreshAllPagers) window.refreshAllPagers(); }catch(e){}
+          updateVisibleBadges();
+        }
+
+        input.addEventListener('input', function(){ clearTimeout(debounceTimer); const v = this.value; debounceTimer = setTimeout(()=> applySearch(v), 220); });
+        // some browsers emit 'search' when user clears the field
+        input.addEventListener('search', function(){ applySearch(this.value); });
+      }
+    </script>
+          <div class="relative bg-white rounded-xl shadow-2xl max-w-2xl w-full mx-4 p-6 z-70 max-h-[90vh] overflow-auto">
+            <div class="flex items-center justify-between mb-4">
+              <h3 class="text-lg font-bold">Mark Job Card Corrected</h3>
+              <button id="correctedClose" class="text-gray-500 hover:text-gray-700">✕</button>
+            </div>
+            <form id="correctedForm" method="POST" action="">
+              <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-2">Entry</label>
+                <div id="correctedEntry" class="text-sm text-gray-800 font-semibold"></div>
+              </div>
+
+              <div class="mb-4 bg-white rounded-lg border p-4">
+                <h4 class="font-bold mb-3">Parts Issued</h4>
+                <div id="partsRows" class="space-y-3">
+                  <!-- dynamic rows will be inserted here -->
+                </div>
+                <div class="mt-3 flex gap-2">
+                  <button type="button" id="addPartRow" class="px-3 py-1 bg-blue-600 text-white rounded">Add Row</button>
+                  <div class="text-sm text-gray-500 self-center">Add multiple parts and quantities for this job card.</div>
+                </div>
+                <div id="part_list" class="hidden max-h-40 overflow-auto border rounded mt-2 bg-white z-50"></div>
+              </div>
+
+              <!-- Description when no items utilized -->
+              <div id="noItemsDescriptionWrap" class="mb-4 bg-white rounded-lg border p-4 hidden">
+                <h4 class="font-bold mb-2">Description (required when no items utilized)</h4>
+                <p class="text-sm text-gray-600 mb-2">Please explain why no parts/items were used for this job card.</p>
+                <textarea id="no_items_description" name="no_items_description" rows="3" class="w-full rounded border-gray-300 p-2" placeholder="Enter reason for no items used"></textarea>
+              </div>
+
+              <div class="mb-4 bg-white rounded-lg border p-4">
+                <h4 class="font-bold mb-3">Processed By</h4>
+                <div>
+                  <label class="block text-sm text-gray-700">Processed By (enter name)</label>
+                  <input name="processed_by" id="processed_by_input" type="text" class="mt-1 block w-full rounded border-gray-300 p-2" placeholder="e.g. John Doe" required>
+                </div>
+              </div>
+
+              <div class="mb-4 bg-white rounded-lg border p-4">
+                <h4 class="font-bold mb-3">Driver's Feedback</h4>
+                <div class="flex items-center gap-4">
+                  <button type="button" id="feedbackNot" class="px-6 py-2 bg-red-700 text-white rounded-full">Not Satisfied</button>
+                  <button type="button" id="feedbackYes" class="px-6 py-2 bg-green-600 text-white rounded-full">Satisfied</button>
+                  <input type="hidden" name="driver_feedback" id="driver_feedback" value="">
+                </div>
+                <div id="commandBoxWrap" class="mt-3 hidden">
+                  <label class="block text-sm text-gray-700 mb-1">Action / Notes (shown when 'Not Satisfied')</label>
+                  <textarea id="commandBox" name="driver_command" class="w-full rounded border-gray-300 p-2" rows="4" placeholder="Enter actions required, instructions, or command text here..."></textarea>
+                </div>
+              </div>
+
+              <div class="flex justify-end gap-2">
+                <button type="button" id="correctedCancel" class="px-4 py-2 rounded border hover:bg-gray-50">Cancel</button>
+                <button type="submit" id="correctedSubmit" class="px-4 py-2 bg-green-600 text-white rounded shadow-md">Mark Corrected</button>
+                <div id="correctedSubmitting" class="hidden items-center gap-3 px-4 py-2 bg-gray-100 rounded text-sm text-gray-700">
+                  <svg class="animate-spin h-4 w-4 text-gray-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path></svg>
+                  Submitting...
+                </div>
+              </div>
+            </form>
+          </div>
+        </div>
+
+      <script>
+        // Modal open/close logic for estimate modal
+        function openEstimateModal(id, entryNo){
+          const modal = document.getElementById('estimateModal');
+          const overlay = document.getElementById('estimateOverlay');
+          const entry = document.getElementById('estimateEntry');
+          const form = document.getElementById('estimateForm');
+          form.action = '/maintenance/' + id + '/set_pending';
+          entry.textContent = entryNo || ('ID: ' + id);
+          // Prefill created_at and processed_by from the table row data (data-id)
+          const row = document.querySelector('[data-id="' + id + '"]');
+          const createdAt = row ? (row.dataset.created_at || row.dataset.createdAt || '') : '';
+          const processedBy = row ? (row.dataset.processed_by || row.dataset.processedBy || '') : '';
+          const dayEndDesc = row ? (row.dataset.day_end_description || row.dataset.dayEndDescription || '') : '';
+          const createdEl = document.getElementById('estimateCreatedAt');
+          const procInput = document.getElementById('estimate_processed_by');
+          const dayEndEl = document.getElementById('estimate_day_end_description');
+          if(createdEl) createdEl.textContent = createdAt || '—';
+          if(procInput) procInput.value = processedBy || '';
+          if(dayEndEl) dayEndEl.value = dayEndDesc || '';
+          modal.classList.remove('hidden'); modal.classList.add('flex');
+          document.body.classList.add('overflow-hidden');
+        }
+        function closeEstimateModal(){
+          const modal = document.getElementById('estimateModal');
+          modal.classList.add('hidden'); modal.classList.remove('flex');
+          document.body.classList.remove('overflow-hidden');
+        }
+        document.getElementById('estimateClose').addEventListener('click', closeEstimateModal);
+        document.getElementById('estimateCancel').addEventListener('click', closeEstimateModal);
+        document.getElementById('estimateOverlay').addEventListener('click', closeEstimateModal);
+        
+        // Corrected modal logic
+        function openCorrectedModal(id, entryNo){
+          const modal = document.getElementById('correctedModal');
+          const overlay = document.getElementById('correctedOverlay');
+          const entry = document.getElementById('correctedEntry');
+          const form = document.getElementById('correctedForm');
+          form.action = '/maintenance/' + id + '/mark_corrected';
+          entry.textContent = entryNo || ('ID: ' + id);
+          // reset fields
+          document.getElementById('driver_feedback').value = '';
+          document.getElementById('feedbackNot').classList.remove('opacity-50');
+          document.getElementById('feedbackYes').classList.remove('opacity-50');
+          try{ updateNoItemsDescriptionVisibility(); }catch(e){}
+          modal.classList.remove('hidden'); modal.classList.add('flex');
+          document.body.classList.add('overflow-hidden');
+        }
+        function closeCorrectedModal(){
+          const modal = document.getElementById('correctedModal');
+          modal.classList.add('hidden'); modal.classList.remove('flex');
+          document.body.classList.remove('overflow-hidden');
+        }
+        document.getElementById('correctedClose').addEventListener('click', closeCorrectedModal);
+        document.getElementById('correctedCancel').addEventListener('click', closeCorrectedModal);
+        document.getElementById('correctedOverlay').addEventListener('click', closeCorrectedModal);
+
+        // driver feedback toggle (also show command box when 'Not Satisfied')
+        (function(){
+          const btnNot = document.getElementById('feedbackNot');
+          const btnYes = document.getElementById('feedbackYes');
+          const hiddenInput = document.getElementById('driver_feedback');
+          const cmdWrap = document.getElementById('commandBoxWrap');
+          const cmdBox = document.getElementById('commandBox');
+
+          if(btnNot){
+            btnNot.addEventListener('click', function(){
+              hiddenInput.value = 'not_satisfied';
+              this.classList.add('opacity-80');
+              if(btnYes) btnYes.classList.remove('opacity-80');
+              if(cmdWrap){ cmdWrap.classList.remove('hidden'); cmdBox && cmdBox.focus(); }
+            });
+          }
+          if(btnYes){
+            btnYes.addEventListener('click', function(){
+              hiddenInput.value = 'satisfied';
+              this.classList.add('opacity-80');
+              if(btnNot) btnNot.classList.remove('opacity-80');
+              if(cmdWrap){ cmdWrap.classList.add('hidden'); if(cmdBox) cmdBox.value = ''; }
+            });
+          }
+        })();
+
+        // Parts availability lookup and multi-row parts UI for corrected modal
+        (function(){
+          const form = document.getElementById('correctedForm');
+          if(!form) return;
+
+          const PARTS = {{ parts|tojson }} || [];
+          const partsRows = document.getElementById('partsRows');
+          const listBox = document.getElementById('part_list');
+          let currentPartRow = null;
+
+          function createPartSelect(selected){
+            const sel = document.createElement('select');
+            sel.name = 'part_id[]';
+            sel.className = 'mt-2 block w-full rounded border-gray-300 p-2 part-select';
+            const empty = document.createElement('option'); empty.value = ''; empty.textContent = 'Select'; sel.appendChild(empty);
+            for(const p of PARTS){
+              const o = document.createElement('option'); o.value = p.part_id; o.textContent = p.part_id + (p.part_name ? (' — ' + p.part_name) : '');
+              sel.appendChild(o);
+            }
+            if(selected) sel.value = selected;
+            return sel;
+          }
+
+          function addPartRow(prefillId, prefillQty){
+            const row = document.createElement('div'); row.className = 'grid grid-cols-1 md:grid-cols-3 gap-3 items-end';
+
+            const wrapPart = document.createElement('div');
+            const label = document.createElement('label'); label.className = 'block text-sm text-gray-700'; label.textContent = 'Part ID :';
+            const search = document.createElement('input'); search.type = 'text'; search.placeholder = 'Search parts or click to show all'; search.className = 'mt-1 block w-full rounded border-gray-300 p-2 part-search';
+            const sel = createPartSelect(prefillId);
+            wrapPart.appendChild(label); wrapPart.appendChild(search); wrapPart.appendChild(sel);
+
+            const wrapQty = document.createElement('div');
+            const qLabel = document.createElement('label'); qLabel.className = 'block text-sm text-gray-700'; qLabel.textContent = 'Utilization Quantity :';
+            const qty = document.createElement('input'); qty.name = 'part_qty[]'; qty.type = 'number'; qty.min = 1; qty.className = 'mt-1 block w-full rounded border-gray-300 p-2 part-qty';
+            if(prefillQty) qty.value = prefillQty;
+            const avail = document.createElement('div'); avail.className = 'text-sm text-gray-600 mt-2 part-availability'; avail.textContent = 'Available: —';
+            wrapQty.appendChild(qLabel); wrapQty.appendChild(qty); wrapQty.appendChild(avail);
+
+            const wrapBtn = document.createElement('div'); wrapBtn.className = 'flex items-center gap-2';
+            const remove = document.createElement('button'); remove.type = 'button'; remove.className = 'px-3 py-1 bg-red-500 text-white rounded remove-part-row'; remove.textContent = 'Remove';
+            wrapBtn.appendChild(remove);
+
+            row.appendChild(wrapPart); row.appendChild(wrapQty); row.appendChild(wrapBtn);
+            partsRows.appendChild(row);
+
+            // Events
+            search.addEventListener('focus', function(){ currentPartRow = row; renderPartList(''); listBox.classList.remove('hidden'); });
+            search.addEventListener('input', function(){ currentPartRow = row; renderPartList(this.value); listBox.classList.remove('hidden'); });
+            sel.addEventListener('change', function(){ fetchAvailabilityForRow(this.value, row); search.value = this.value; updateNoItemsDescriptionVisibility(); });
+            qty.addEventListener('input', function(){ updateNoItemsDescriptionVisibility(); });
+            remove.addEventListener('click', function(){ row.remove(); updateNoItemsDescriptionVisibility(); });
+
+            // if prefilled, fetch availability
+            if(prefillId) fetchAvailabilityForRow(prefillId, row);
+            return row;
+          }
+
+          function renderPartList(filter){
+            listBox.innerHTML = '';
+            const q = (filter||'').trim().toLowerCase();
+            const items = PARTS.filter(p => {
+              const id = (p.part_id||'').toString().toLowerCase();
+              const name = (p.part_name||'').toString().toLowerCase();
+              return q === '' || id.includes(q) || name.includes(q);
+            });
+            if(items.length === 0){ const el = document.createElement('div'); el.className='p-2 text-sm text-gray-500'; el.textContent='No parts found'; listBox.appendChild(el); return; }
+            for(const p of items){
+              const el = document.createElement('div'); el.className='px-3 py-2 hover:bg-gray-100 cursor-pointer text-sm'; el.textContent = (p.part_id || '') + (p.part_name?(' — '+p.part_name):''); el.dataset.partId = p.part_id;
+              el.addEventListener('click', function(){ if(!currentPartRow) return; const pid = this.dataset.partId; const sel = currentPartRow.querySelector('select.part-select'); const search = currentPartRow.querySelector('input.part-search'); if(sel) sel.value = pid; if(search) search.value = pid; listBox.classList.add('hidden'); fetchAvailabilityForRow(pid, currentPartRow); });
+              listBox.appendChild(el);
+            }
+          }
+
+          async function fetchAvailabilityForRow(partId, row){
+            if(!partId){ const av = row.querySelector('.part-availability'); const q = row.querySelector('.part-qty'); if(av) av.textContent='Available: —'; if(q) q.removeAttribute('max'); return; }
+            const av = row.querySelector('.part-availability'); const q = row.querySelector('.part-qty');
+            if(av) av.textContent = 'Available: checking...';
+            try{
+              const res = await fetch('/api/part_availability/' + encodeURIComponent(partId));
+              const ct = res.headers.get('content-type') || '';
+              if(res.status === 401 || res.redirected || !ct.includes('application/json')){ if(av) av.textContent = 'Available: login required'; if(q) q.removeAttribute('max'); return; }
+              if(!res.ok){ const txt = await res.text().catch(()=>null); throw new Error('Status '+res.status + (txt?(': '+txt):'')); }
+              const data = await res.json(); const avail = Number(data.available) || 0; if(av) av.textContent = 'Available: ' + avail; if(q) { q.setAttribute('max', String(avail)); if(Number(q.value) > avail) q.value = avail; }
+            }catch(err){ console.error('availability error', err); if(av) av.textContent='Available: error'; if(q) q.removeAttribute('max'); }
+          }
+
+          // expose for other UI widgets
+          window.fetchPartAvailability = fetchAvailabilityForRow;
+
+          // initialize with one row
+          addPartRow();
+          // ensure description visibility is correct after initial row
+          try{ updateNoItemsDescriptionVisibility(); }catch(e){}
+
+          // Add row button
+          const addBtn = document.getElementById('addPartRow'); if(addBtn) addBtn.addEventListener('click', ()=> addPartRow());
+
+          // click outside closes list
+          document.addEventListener('click', function(evt){ const target = evt.target; if(!listBox.contains(target) && !target.classList.contains('part-search')){ listBox.classList.add('hidden'); } });
+
+          // On submit, validate each row quantity against availability if known
+          form.addEventListener('submit', function(ev){
+            const rows = partsRows.querySelectorAll('div.grid');
+            for(const r of rows){
+              const sel = r.querySelector('select.part-select'); const pid = sel ? sel.value : '';
+              const qty = r.querySelector('input.part-qty'); const qv = Number(qty ? qty.value : 0) || 0;
+              const availTxt = r.querySelector('.part-availability');
+              if(pid && availTxt){
+                const m = (availTxt.textContent||'').match(/Available:\s*(\d+)/);
+                if(m){ const avail = Number(m[1]||0); if(qv < 1){ ev.preventDefault(); alert('Please enter a valid quantity for part ' + pid); qty && qty.focus(); return; } if(qv > avail){ ev.preventDefault(); alert('Quantity exceeds available stock ('+avail+') for part ' + pid); qty && qty.focus(); return; } }
+              }
+            }
+          });
+        })();
+        // Show/hide the 'no items description' box based on parts present
+        function updateNoItemsDescriptionVisibility(){
+          try{
+            const partsRowsEl = document.getElementById('partsRows');
+            const wrap = document.getElementById('noItemsDescriptionWrap');
+            if(!partsRowsEl || !wrap) return;
+            const rows = Array.from(partsRowsEl.querySelectorAll('div.grid'));
+            let hasItems = false;
+            for(const r of rows){
+              const sel = r.querySelector('select.part-select');
+              const qty = r.querySelector('input.part-qty');
+              const pid = sel ? (sel.value||'').toString().trim() : '';
+              const qv = qty ? Number(qty.value||0) : 0;
+              if(pid !== '' && qv > 0){ hasItems = true; break; }
+            }
+            if(!hasItems) wrap.classList.remove('hidden'); else wrap.classList.add('hidden');
+          }catch(e){/* ignore */}
+        }
+
+        // Friendly submit UX for corrected modal — submit via AJAX and show success popup
+        (function(){
+          const correctedForm = document.getElementById('correctedForm');
+          if(!correctedForm) return;
+          const submitBtn = document.getElementById('correctedSubmit');
+          const submitting = document.getElementById('correctedSubmitting');
+          correctedForm.addEventListener('submit', function(ev){
+            ev.preventDefault();
+            // client-side checks: processed_by required
+            const proc = correctedForm.querySelector('input[name="processed_by"]') || correctedForm.querySelector('#processed_by_input');
+            if(proc && !proc.value.trim()){
+              alert('Please enter "Processed By" before marking corrected.'); proc.focus(); return;
+            }
+
+            // If no parts/items were utilized, require a description explaining why
+            try{
+              const rowsFix = correctedForm.querySelectorAll('#partsRows > div.grid');
+              let hasItems = false;
+              rowsFix.forEach(r => {
+                const sel = r.querySelector('select.part-select');
+                const qty = r.querySelector('input.part-qty');
+                const pid = sel ? (sel.value||'').toString().trim() : '';
+                const qv = qty ? Number(qty.value||0) : 0;
+                if(pid !== '' && qv > 0) hasItems = true;
+              });
+              if(!hasItems){
+                const desc = correctedForm.querySelector('#no_items_description');
+                if(!desc || !desc.value.trim()){
+                  alert('Please enter a description explaining why no items were utilized.');
+                  if(desc) desc.focus();
+                  return;
+                }
+              }
+            }catch(e){ console.warn('no-items check error', e); }
+
+            if(submitBtn) submitBtn.setAttribute('disabled','disabled');
+            if(submitting) submitting.classList.remove('hidden');
+
+            // Ensure every part row submits a part_id[] value.
+            // Users sometimes type into the free-text search input without selecting
+            // the option — copy the typed value into the select (or create a
+            // hidden input) so FormData contains the part_id[] entry.
+            try{
+              const rowsFix = correctedForm.querySelectorAll('#partsRows > div.grid');
+              rowsFix.forEach(r => {
+                const sel = r.querySelector('select.part-select');
+                const search = r.querySelector('input.part-search');
+                if(search && (!sel || !sel.value)){
+                  const typed = (search.value||'').trim();
+                  if(typed){
+                    if(sel){
+                      // try to set select by adding an option if missing
+                      try{
+                        let exists = false;
+                        for(const o of sel.options){ if(o.value === typed) { exists = true; break; } }
+                        if(!exists){ const opt = document.createElement('option'); opt.value = typed; opt.text = typed; sel.appendChild(opt); }
+                        sel.value = typed;
+                      }catch(e){
+                        // fallback: create hidden input
+                        const hi = document.createElement('input'); hi.type = 'hidden'; hi.name = 'part_id[]'; hi.value = typed; r.appendChild(hi);
+                      }
+                    } else {
+                      const hi = document.createElement('input'); hi.type = 'hidden'; hi.name = 'part_id[]'; hi.value = typed; r.appendChild(hi);
+                    }
+                  }
+                }
+              });
+            }catch(e){ console.error('pre-submit parts fix error', e); }
+
+            const fd = new FormData(correctedForm);
+            fetch(correctedForm.action, { method: 'POST', body: fd, credentials: 'same-origin', headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+              .then(async res => {
+                const ct = res.headers.get('content-type') || '';
+                let data = null;
+                if(ct.includes('application/json')) data = await res.json(); else data = { success: res.ok };
+                if(res.ok){
+                  showCorrectedSuccessHistory(data);
+                }else{
+                  const txt = await res.text().catch(()=>null);
+                  alert('Failed to mark corrected:\n' + (data && data.message ? data.message : txt || res.status));
+                }
+              })
+              .catch(err => { console.error(err); alert('Network error while submitting.'); })
+              .finally(()=>{ if(submitBtn) submitBtn.removeAttribute('disabled'); if(submitting) submitting.classList.add('hidden'); });
+          });
+        })();
+        
+        // success popup for corrected modal (simplified: only message + Close)
+        function showCorrectedSuccessHistory(data){
+          let modal = document.getElementById('correctedSuccessModalHistory');
+          if(!modal){
+            modal = document.createElement('div');
+            modal.id = 'correctedSuccessModalHistory';
+            modal.className = 'fixed inset-0 z-60 flex items-center justify-center overflow-auto';
+            modal.innerHTML = `
+              <div class="absolute inset-0 bg-black/40"></div>
+              <div class="relative bg-white rounded-xl shadow-2xl max-w-sm w-full mx-4 p-6 z-70 text-center">
+                <div class="flex justify-center mb-2">
+                  <div class="w-16 h-16 rounded-full bg-green-50 flex items-center justify-center">
+                    <svg class="w-8 h-8 text-green-600" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M20 6L9 17l-5-5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                  </div>
+                </div>
+                <h3 class="text-lg font-bold text-slate-800">Submitted Successfully</h3>
+                <p id="correctedSuccessMessageHistory" class="text-sm text-slate-500 mt-2">The job card was marked corrected.</p>
+                <div class="mt-6">
+                  <button id="correctedCloseBtnHistory" class="w-full px-4 py-2 bg-slate-100 rounded-md">Close</button>
+                </div>
+              </div>`;
+            document.body.appendChild(modal);
+          }
+          const msg = document.getElementById('correctedSuccessMessageHistory');
+          if(msg) msg.textContent = (data && data.message) ? data.message : 'The job card was marked corrected.';
+          const closeBtn = document.getElementById('correctedCloseBtnHistory');
+          closeBtn.onclick = function(){
+            // Navigate to the same page (preserve query string) as requested
+            window.location = window.location.pathname + window.location.search;
+          };
+          modal.classList.remove('hidden'); modal.classList.add('flex'); document.body.classList.add('overflow-hidden');
+          modal.addEventListener('click', function(e){ if(e.target === modal){ modal.classList.add('hidden'); modal.classList.remove('flex'); document.body.classList.remove('overflow-hidden'); } });
+          document.addEventListener('keydown', function escHandler(ev){ if(ev.key === 'Escape'){ modal.classList.add('hidden'); modal.classList.remove('flex'); document.body.classList.remove('overflow-hidden'); document.removeEventListener('keydown', escHandler); } });
+        }
+      </script>
+      {% include 'footer.html' %}
+      </body>
+      </html>
+      <script src="{{ url_for('static', filename='js/uppercase.js') }}"></script>
+      </body>
+      </html>

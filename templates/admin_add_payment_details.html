@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Record Payment for Voucher - Drive Logs</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/output.css') }}">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <script>
+    // @ts-nocheck
+    /* eslint-disable */
+    /* jshint ignore:start */
+    const vouchersData = {{ vouchers|tojson|safe if vouchers else '[]' }};
+
+    function renderVoucherDropdownOptions() {
+      const dropdown = document.getElementById('voucherDropdown');
+      if (!dropdown) return;
+      
+      dropdown.innerHTML = '';
+      vouchersData.forEach(voucher => {
+        const div = document.createElement('div');
+        div.className = 'voucher-option';
+        div.setAttribute('data-entry', voucher.entry_no || '');
+        div.setAttribute('data-ref', voucher.ref_number || '');
+        div.setAttribute('data-payable', (voucher.total_payable != null) ? parseFloat(voucher.total_payable).toFixed(2) : '0.00');
+        div.setAttribute('data-paid', (voucher.paid_amount != null) ? parseFloat(voucher.paid_amount).toFixed(2) : '0.00');
+        div.setAttribute('data-remaining', (voucher.remaining != null) ? parseFloat(voucher.remaining).toFixed(2) : '0.00');
+        div.onclick = function() { selectVoucher(this); };
+
+        const inner = document.createElement('div');
+        inner.className = 'voucher-info';
+        const payableStr = (voucher.total_payable != null) ? parseFloat(voucher.total_payable).toFixed(2) : '0.00';
+        const paidStr = (voucher.paid_amount != null) ? parseFloat(voucher.paid_amount).toFixed(2) : '0.00';
+        const remainingStr = (voucher.remaining != null) ? parseFloat(voucher.remaining).toFixed(2) : '0.00';
+        
+        inner.innerHTML = `
+          <div>
+            <div class="voucher-number">${voucher.ref_number || ''}</div>
+            <div class="voucher-type">${voucher.institution_type || ''}</div>
+            <div class="voucher-amounts">Payable: ₹${payableStr} | Paid: ₹${paidStr}</div>
+          </div>
+          <div class="voucher-remaining">₹${remainingStr}</div>
+        `;
+        div.appendChild(inner);
+        dropdown.appendChild(div);
+      });
+    }
+    
+    function showVoucherDropdown() {
+      document.getElementById('voucherDropdown').style.display = 'block';
+    }
+
+    function updatePaymentHeaderFormat(institutionType) {
+      const headerElement = document.getElementById('paymentHeaderRef');
+      if (!headerElement) return;
+      
+      if (institutionType && institutionType.toLowerCase().includes('poly')) {
+        headerElement.textContent = 'PMC-POLY-LOGI-PAID-0001';
+      } else {
+        headerElement.textContent = 'PMC-ENGG-LOGI-PAID-0001';
+      }
+    }
+
+    function filterVouchers() {
+      const searchInput = document.getElementById('voucherSearch');
+      const dropdown = document.getElementById('voucherDropdown');
+      const filter = searchInput.value.toLowerCase();
+      const options = dropdown.getElementsByClassName('voucher-option');
+      
+      let hasVisible = false;
+      for (let i = 0; i < options.length; i++) {
+        const txtValue = options[i].textContent || options[i].innerText;
+        if (txtValue.toLowerCase().indexOf(filter) > -1) {
+          options[i].style.display = '';
+          hasVisible = true;
+        } else {
+          options[i].style.display = 'none';
+        }
+      }
+      dropdown.style.display = hasVisible ? 'block' : 'none';
+    }
+
+    function selectVoucher(element) {
+      const entryNo = element.getAttribute('data-entry');
+      const refNumber = element.getAttribute('data-ref');
+      const payable = element.getAttribute('data-payable');
+      const remaining = element.getAttribute('data-remaining');
+      const institutionType = element.getAttribute('data-institution');
+      
+      document.getElementById('voucherSearch').value = refNumber;
+      document.getElementById('voucherEntryNo').value = entryNo;
+      document.getElementById('voucherRefNumber').value = refNumber;
+      document.getElementById('institutionType').value = institutionType;
+      document.querySelector('input[name="amount"]').placeholder = `Remaining: ₹${remaining}`;
+      
+      // Update header to show institution-type based format
+      updatePaymentHeaderFormat(institutionType);
+      
+      document.getElementById('voucherDropdown').style.display = 'none';
+    }
+
+    function togglePaymentFields() {
+      const modeSelect = document.getElementById('modeOfPayment');
+      const mode = modeSelect.value;
+      
+      // Hide all fields first
+      document.getElementById('chequeFields').style.display = 'none';
+      document.getElementById('upiFields').style.display = 'none';
+      document.getElementById('neftRtgsFields').style.display = 'none';
+      document.getElementById('draftFields').style.display = 'none';
+      document.getElementById('cardFields').style.display = 'none';
+      
+      // Show relevant field based on selection
+      if (mode === 'Cheque') {
+        document.getElementById('chequeFields').style.display = 'block';
+      } else if (mode === 'UPI') {
+        document.getElementById('upiFields').style.display = 'block';
+      } else if (mode === 'NEFT/RTGS') {
+        document.getElementById('neftRtgsFields').style.display = 'block';
+      } else if (mode === 'Demand Draft') {
+        document.getElementById('draftFields').style.display = 'block';
+      } else if (mode === 'Credit Card') {
+        document.getElementById('cardFields').style.display = 'block';
+      }
+      // For Cash and Online Transfer, no additional fields are shown
+    }
+
+    // Hide dropdown when clicking outside
+    document.addEventListener('DOMContentLoaded', function() {
+      // populate the voucher dropdown once the DOM is ready
+      renderVoucherDropdownOptions();
+      
+      document.addEventListener('click', function(e) {
+        const voucherSearch = document.getElementById('voucherSearch');
+        const voucherDropdown = document.getElementById('voucherDropdown');
+        
+        if (e.target !== voucherSearch && !voucherDropdown.contains(e.target)) {
+          voucherDropdown.style.display = 'none';
+        }
+      });
+    });
+  </script>
+  <style>
+    * { font-family: 'Inter', sans-serif; }
+    body { background: #fffbeb; }
+    
+    .form-section {
+      background: #8b5cf6;
+      color: white;
+      padding: 14px 20px;
+      font-weight: 800;
+      font-size: 1rem;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      box-shadow: 0 4px 15px rgba(139, 92, 246, 0.3);
+    }
+    
+    .form-group { margin-bottom: 20px; }
+    
+    .form-label {
+      display: block;
+      font-size: 0.875rem;
+      font-weight: 700;
+      color: #1e293b;
+      margin-bottom: 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    
+    .form-input, .form-select, .form-textarea {
+      width: 100%;
+      padding: 12px 16px;
+      border: 2px solid #e2e8f0;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      transition: all 0.3s ease;
+      background: white;
+    }
+    
+    .form-input:focus, .form-select:focus, .form-textarea:focus {
+      outline: none;
+      border-color: #8b5cf6;
+      box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.1);
+    }
+    
+    .btn-primary {
+      background: #10b981;
+      color: white;
+      padding: 14px 32px;
+      border-radius: 10px;
+      font-weight: 700;
+      font-size: 1rem;
+      border: none;
+      cursor: pointer;
+      box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);
+      transition: all 0.3s ease;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(16, 185, 129, 0.4);
+    }
+    
+    .btn-secondary {
+      background: #64748b;
+      color: white;
+      padding: 14px 32px;
+      border-radius: 10px;
+      font-weight: 700;
+      font-size: 1rem;
+      border: none;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    
+    .search-dropdown-container {
+      position: relative;
+      flex: 1;
+    }
+    
+    .search-input {
+      width: 100%;
+      padding: 12px 16px;
+      border: 2px solid #e2e8f0;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      cursor: pointer;
+    }
+    
+    .search-input:focus {
+      outline: none;
+      border-color: #8b5cf6;
+      box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.1);
+    }
+    
+    .custom-dropdown {
+      position: absolute;
+      top: 100%;
+      left: 0;
+      right: 0;
+      max-height: 300px;
+      overflow-y: auto;
+      background: white;
+      border: 2px solid #8b5cf6;
+      border-radius: 8px;
+      margin-top: 4px;
+      z-index: 1000;
+      display: none;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    }
+    
+    .invoice-option {
+      padding: 12px 16px;
+      cursor: pointer;
+      transition: background 0.2s;
+      border-bottom: 1px solid #f1f5f9;
+    }
+    
+    .invoice-option:hover {
+      background: #ede9fe;
+    }
+    
+    .invoice-option:last-child {
+      border-bottom: none;
+    }
+    
+    .invoice-info {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    
+    .invoice-number {
+      font-weight: 600;
+      color: #1e293b;
+    }
+    
+    .invoice-vendor {
+      font-size: 0.85rem;
+      color: #64748b;
+      margin-top: 2px;
+    }
+    
+    .invoice-value {
+      font-weight: 700;
+      color: #8b5cf6;
+      font-size: 0.95rem;
+    }
+    
+    /* Voucher styles */
+    .voucher-option {
+      padding: 12px 16px;
+      cursor: pointer;
+      transition: background 0.2s;
+      border-bottom: 1px solid #f1f5f9;
+    }
+    
+    .voucher-option:hover {
+      background: #ede9fe;
+    }
+    
+    .voucher-option:last-child {
+      border-bottom: none;
+    }
+    
+    .voucher-info {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    
+    .voucher-number {
+      font-weight: 600;
+      color: #1e293b;
+      font-size: 0.95rem;
+    }
+    
+    .voucher-type {
+      font-size: 0.80rem;
+      color: #8b5cf6;
+      font-weight: 500;
+      margin-top: 2px;
+    }
+    
+    .voucher-amounts {
+      font-size: 0.80rem;
+      color: #64748b;
+      margin-top: 2px;
+    }
+    
+    .voucher-remaining {
+      font-weight: 700;
+      color: #10b981;
+      font-size: 0.95rem;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col pt-20">
+  
+  <!-- Logo Bar -->
+  <div class="logo-bar w-full flex items-center justify-between px-4 py-3 fixed top-0 left-0 z-50" style="background: #eab308;">
+    <img src="{{ url_for('static', filename='img/drive-logs.png') }}" alt="Drive Logs Logo" class="h-12 md:h-14 w-auto ml-2">
+    <div class="flex items-center gap-4">
+      <a href="{{ url_for('admin_dashboard') }}" class="bg-white text-yellow-700 px-3 py-2 rounded-full text-sm font-semibold transition-colors hover:bg-gray-100 flex items-center gap-1">
+        <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+          <path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z"/>
+        </svg>
+      </a>
+      <a href="{{ url_for('logout') }}" class="bg-white text-yellow-700 px-4 py-2 rounded-full text-sm font-semibold hover:bg-gray-100 transition-colors">
+        Logout
+      </a>
+    </div>
+  </div>
+
+  <!-- College Header -->
+  <div class="w-full flex justify-center items-center border-b border-gray-300 bg-white">
+    <img src="{{ url_for('static', filename='img/pmc-logo.png') }}" alt="College Header" class="w-full max-w-5xl h-auto p-2 md:p-4">
+  </div>
+
+  <!-- Main Content -->
+  <div class="flex-1 py-8 px-4">
+    <div class="max-w-4xl mx-auto">
+      
+      <!-- Flash Messages -->
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          {% for category, message in messages %}
+            <div class="mb-4 p-4 rounded-lg {% if category == 'success' %}bg-green-100 text-green-800 border border-green-300{% elif category == 'danger' %}bg-red-100 text-red-800 border border-red-300{% else %}bg-blue-100 text-blue-800 border border-blue-300{% endif %}">
+              {{ message }}
+            </div>
+          {% endfor %}
+        {% endif %}
+      {% endwith %}
+
+      <!-- Form Container -->
+      <div class="bg-white rounded-2xl shadow-2xl p-8 md:p-12">
+        
+        <div class="text-center mb-8">
+          <h1 class="text-3xl font-bold text-gray-800 mb-2">💰 RECORD PAYMENT FOR VOUCHER</h1>
+          <p class="text-gray-600">Entry Format: <strong class="text-purple-600" id="paymentHeaderRef">Select Voucher First</strong></p>
+          <p class="text-sm text-gray-500 mt-2">Record payment details for payment vouchers | Entry Number will be auto-generated based on voucher institution type</p>
+        </div>
+
+        <form method="POST" action="{{ url_for('admin_add_payment_details') }}">
+          
+      <!-- PAID DETAILS -->
+          <div class="form-section">Payment Details & Confirmation</div>
+          
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="form-group">
+              <label class="form-label">Voucher Number *</label>
+              <div class="search-dropdown-container">
+                <input type="text" id="voucherSearch" class="search-input" placeholder="Search voucher number..." onclick="showVoucherDropdown()" onkeyup="filterVouchers()" autocomplete="off">
+                <input type="hidden" name="voucher_entry_no" id="voucherEntryNo" required>
+                <input type="hidden" name="voucher_ref_number" id="voucherRefNumber" required>
+                <input type="hidden" name="institution_type" id="institutionType" required>
+                <div id="voucherDropdown" class="custom-dropdown">
+                  {% for voucher in vouchers %}
+                  <div class="voucher-option" data-entry="{{ voucher.entry_no }}" data-ref="{{ voucher.ref_number }}" data-institution="{{ voucher.institution_type }}" data-payable="{{ '%.2f'|format(voucher.total_payable) }}" data-paid="{{ '%.2f'|format(voucher.paid_amount) }}" data-remaining="{{ '%.2f'|format(voucher.remaining) }}" onclick="selectVoucher(this)">
+                    <div class="voucher-info">
+                      <div>
+                        <div class="voucher-number">{{ voucher.ref_number }}</div>
+                        <div class="voucher-type">{{ voucher.institution_type }}</div>
+                        <div class="voucher-amounts">Payable: ₹{{ '%.2f'|format(voucher.total_payable) }} | Paid: ₹{{ '%.2f'|format(voucher.paid_amount) }}</div>
+                      </div>
+                      <div class="voucher-remaining">₹{{ '%.2f'|format(voucher.remaining) }}</div>
+                    </div>
+                  </div>
+                  {% endfor %}
+                </div>
+              </div>
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">Type of Payment *</label>
+              <select name="type_of_entry" class="form-select" required>
+                <option value="">Select Type</option>
+                <option value="Advance Payment">Advance Payment</option>
+                <option value="Partial Payment">Partial Payment</option>
+                <option value="Full Payment">Full Payment</option>
+                <option value="Refund">Refund</option>
+                <option value="Adjustment">Adjustment</option>
+                <option value="Final Settlement">Final Settlement</option>
+              </select>
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">Mode of Payment *</label>
+              <select name="mode_of_payment" class="form-select" id="modeOfPayment" onchange="togglePaymentFields()" required>
+                <option value="">Select Payment Mode</option>
+                <option value="Cash">Cash</option>
+                <option value="Cheque">Cheque</option>
+                <option value="NEFT/RTGS">NEFT/RTGS</option>
+                <option value="UPI">UPI</option>
+                <option value="Demand Draft">Demand Draft</option>
+                <option value="Credit Card">Credit Card</option>
+              </select>
+            </div>
+            
+            <!-- Conditional Payment Mode Fields -->
+            <div id="chequeFields" class="form-group" style="display: none;">
+              <label class="form-label">Cheque Number</label>
+              <input type="text" name="cheque_number" class="form-input" placeholder="e.g., 123456789">
+            </div>
+            
+            <div id="upiFields" class="form-group" style="display: none;">
+              <label class="form-label">UTR Number (UPI Transaction Reference)</label>
+              <input type="text" name="utr_number" class="form-input" placeholder="e.g., UPI123456789">
+            </div>
+            
+            <div id="neftRtgsFields" class="form-group" style="display: none;">
+              <label class="form-label">NEFT/RTGS Reference Number</label>
+              <input type="text" name="neft_rtgs_number" class="form-input" placeholder="e.g., NEFT123456789">
+            </div>
+            
+            <div id="draftFields" class="form-group" style="display: none;">
+              <label class="form-label">Demand Draft Number</label>
+              <input type="text" name="draft_number" class="form-input" placeholder="e.g., DD123456">
+            </div>
+            
+            <div id="cardFields" class="form-group" style="display: none;">
+              <label class="form-label">Credit Card Number / Transaction ID</label>
+              <input type="text" name="card_number" class="form-input" placeholder="e.g., Last 4 digits: **** **** **** 1234 or Transaction ID">
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">Payment Date *</label>
+              <input type="date" name="payment_date" class="form-input" required>
+            </div>
+            
+            <div class="form-group md:col-span-2">
+              <label class="form-label">Payment Advice / Confirmation Details</label>
+              <textarea name="payment_advice" class="form-textarea" rows="3" placeholder="e.g., Cheque No., Reference No., Transaction ID..."></textarea>
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">Paid Amount (₹) *</label>
+              <input type="number" step="0.01" name="amount" class="form-input" required placeholder="Enter the amount paid">
+            </div>
+          </div>
+
+          <!-- APPROVAL SECTION -->
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-8">
+            <div class="form-group">
+              <label class="form-label">Entered By</label>
+              <input type="text" name="entered_by" class="form-input" value="{{ session.get('admin', '') }}" readonly style="background: #f8fafc;">
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">Approve This Payment?</label>
+              <div class="flex items-center gap-4 mt-2">
+                <label class="flex items-center gap-2 cursor-pointer">
+                  <input type="radio" name="approval_status" value="approved" class="w-5 h-5 text-green-600">
+                  <span class="bg-green-500 text-white px-6 py-2 rounded-full font-bold text-sm">YES</span>
+                </label>
+                <label class="flex items-center gap-2 cursor-pointer">
+                  <input type="radio" name="approval_status" value="pending" class="w-5 h-5 text-red-600" checked>
+                  <span class="bg-red-500 text-white px-6 py-2 rounded-full font-bold text-sm">NO</span>
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <!-- Form Actions -->
+          <div class="flex gap-4 mt-10 justify-center">
+            <button type="submit" class="btn-primary">
+              ✅ Record Payment
+            </button>
+            <a href="{{ url_for('admin_payments') }}" class="btn-secondary">
+              ❌ Cancel
+            </a>
+          </div>
+
+        </form>
+      </div>
+    </div>
+  </div>
+
+{% include 'footer.html' %}
+</body>
+</html>

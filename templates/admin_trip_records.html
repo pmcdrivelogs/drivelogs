@@ -1,0 +1,638 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Trip Records - Admin Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <style>
+    * { font-family: 'Inter', sans-serif; }
+    
+    body {
+      background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+    }
+    
+    .filter-card {
+      background: white;
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+      border: 2px solid #e2e8f0;
+    }
+    
+    .stat-card {
+      background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%);
+      color: white;
+      border-radius: 12px;
+      padding: 20px;
+      text-align: center;
+    }
+    
+    .stat-card.green {
+      background: linear-gradient(135deg, #059669 0%, #10b981 100%);
+    }
+    
+    .stat-card.orange {
+      background: linear-gradient(135deg, #d97706 0%, #f59e0b 100%);
+    }
+    
+    .stat-card.purple {
+      background: linear-gradient(135deg, #7c3aed 0%, #a78bfa 100%);
+    }
+    
+    .stat-card.pink {
+      background: linear-gradient(135deg, #db2777 0%, #f472b6 100%);
+    }
+    
+    .stat-card.cyan {
+      background: linear-gradient(135deg, #0891b2 0%, #22d3ee 100%);
+    }
+    
+    .stat-value {
+      font-size: 2rem;
+      font-weight: 800;
+      margin-bottom: 5px;
+    }
+    
+    .stat-label {
+      font-size: 0.85rem;
+      font-weight: 600;
+      opacity: 0.9;
+    }
+    
+    .table-container {
+      background: white;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+    }
+    
+    .data-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    
+    .data-table thead {
+      background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%);
+      color: white;
+    }
+    
+    .data-table th {
+      padding: 14px 12px;
+      text-align: left;
+      font-weight: 700;
+      font-size: 0.75rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    
+    .data-table td {
+      padding: 12px;
+      border-bottom: 1px solid #e2e8f0;
+      font-size: 0.85rem;
+    }
+    
+    .data-table tbody tr:hover {
+      background-color: #f8fafc;
+    }
+    
+    .data-table tbody tr:nth-child(even) {
+      background-color: #f9fafb;
+    }
+    
+    .filter-input, .filter-select {
+      padding: 10px 15px;
+      border: 2px solid #e2e8f0;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      transition: all 0.3s ease;
+    }
+    
+    .filter-input:focus, .filter-select:focus {
+      outline: none;
+      border-color: #3b82f6;
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+    }
+    
+    .btn {
+      padding: 10px 20px;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 0.9rem;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      border: none;
+    }
+    
+    .btn-primary {
+      background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%);
+      color: white;
+    }
+    
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 15px rgba(30, 64, 175, 0.3);
+    }
+    
+    .btn-success {
+      background: linear-gradient(135deg, #059669 0%, #10b981 100%);
+      color: white;
+    }
+    
+    .btn-success:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 15px rgba(5, 150, 105, 0.3);
+    }
+    
+    .btn-warning {
+      background: linear-gradient(135deg, #d97706 0%, #f59e0b 100%);
+      color: white;
+    }
+    
+    .btn-warning:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 15px rgba(217, 119, 6, 0.3);
+    }
+    
+    .btn-outline {
+      background: transparent;
+      border: 2px solid #e2e8f0;
+      color: #64748b;
+    }
+    
+    .btn-outline:hover {
+      background: #f8fafc;
+      border-color: #cbd5e1;
+    }
+    
+    .badge {
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+    
+    .badge-blue {
+      background: #dbeafe;
+      color: #1e40af;
+    }
+    
+    .badge-green {
+      background: #dcfce7;
+      color: #166534;
+    }
+    
+    .badge-orange {
+      background: #ffedd5;
+      color: #9a3412;
+    }
+    
+    .strength-breakdown {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    
+    .strength-item {
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 0.7rem;
+      font-weight: 600;
+    }
+    
+    .strength-student {
+      background: #fef3c7;
+      color: #92400e;
+    }
+    
+    .strength-faculty {
+      background: #dbeafe;
+      color: #1e40af;
+    }
+    
+    .strength-guest {
+      background: #e0e7ff;
+      color: #3730a3;
+    }
+    
+    @media print {
+      .no-print {
+        display: none !important;
+      }
+      
+      .data-table th {
+        background: #1e40af !important;
+        color: white !important;
+        -webkit-print-color-adjust: exact;
+        print-color-adjust: exact;
+      }
+    }
+  </style>
+</head>
+<body class="min-h-screen">
+  
+  <!-- Logo Bar -->
+  <div class="logo-bar w-full flex items-center justify-between px-4 py-3 fixed top-0 left-0 z-50">
+    <img src="{{ url_for('static', filename='img/drive-logs.png') }}" alt="Drive Logs Logo" class="h-12 md:h-14 w-auto ml-2">
+    <div class="flex items-center gap-4">
+      <a href="{{ url_for('admin_dashboard') }}" class="bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-full text-sm font-semibold transition-colors">
+        ← Dashboard
+      </a>
+      <a href="{{ url_for('logout') }}" class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-full text-sm font-semibold transition-colors">
+        Logout
+      </a>
+    </div>
+  </div>
+
+  <!-- Main Content -->
+  <div class="pt-24 px-4 md:px-8 pb-8">
+    <div class="max-w-7xl mx-auto">
+      
+      <!-- Page Header -->
+      <div class="mb-6">
+        <h1 class="text-3xl font-extrabold text-gray-800">Trip Sheet Records</h1>
+        <p class="text-gray-600 mt-1">View, filter, and export trip records</p>
+      </div>
+      
+      <!-- Flash Messages -->
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          {% for category, message in messages %}
+            <div class="mb-4 p-4 rounded-lg {% if category == 'success' %}bg-green-100 text-green-800 border border-green-300{% elif category == 'danger' %}bg-red-100 text-red-800 border border-red-300{% else %}bg-blue-100 text-blue-800 border border-blue-300{% endif %}">
+              {{ message }}
+            </div>
+          {% endfor %}
+        {% endif %}
+      {% endwith %}
+      
+      <!-- Statistics Cards -->
+      <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
+        <div class="stat-card">
+          <div class="stat-value">{{ total_trips }}</div>
+          <div class="stat-label">Total Trips</div>
+        </div>
+        <div class="stat-card green">
+          <div class="stat-value">{{ "%.1f"|format(total_distance) }}</div>
+          <div class="stat-label">Total KM</div>
+        </div>
+        <div class="stat-card orange">
+          <div class="stat-value">{{ total_students }}</div>
+          <div class="stat-label">Students</div>
+        </div>
+        <div class="stat-card purple">
+          <div class="stat-value">{{ total_faculty }}</div>
+          <div class="stat-label">Faculty</div>
+        </div>
+        <div class="stat-card pink">
+          <div class="stat-value">{{ total_guests }}</div>
+          <div class="stat-label">Guests</div>
+        </div>
+        <div class="stat-card cyan">
+          <div class="stat-value">{{ total_passengers }}</div>
+          <div class="stat-label">Total Passengers</div>
+        </div>
+      </div>
+      
+      <!-- Filters -->
+      <div class="filter-card mb-6 no-print">
+        <form method="GET" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+          <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-2">Route ID</label>
+            <select name="route_id" class="filter-select w-full">
+              <option value="">All Routes</option>
+              {% for route in unique_routes %}
+              <option value="{{ route }}" {% if route_filter == route %}selected{% endif %}>{{ route }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-2">Vehicle</label>
+            <select name="vehicle_id" class="filter-select w-full">
+              <option value="">All Vehicles</option>
+              {% for vehicle in vehicles %}
+              <option value="{{ vehicle.vehicle_id }}" {% if vehicle_filter == vehicle.vehicle_id %}selected{% endif %}>{{ vehicle.vehicle_id }} - {{ vehicle.registration_no or 'N/A' }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-2">Date From</label>
+            <input type="date" name="date_from" value="{{ date_from }}" class="filter-input w-full">
+          </div>
+          <div>
+            <label class="block text-sm font-semibold text-gray-700 mb-2">Date To</label>
+            <input type="date" name="date_to" value="{{ date_to }}" class="filter-input w-full">
+          </div>
+          <div class="flex items-end gap-2">
+            <button type="submit" class="btn btn-primary flex-1">
+              🔍 Filter
+            </button>
+            <a href="{{ url_for('admin_trip_records') }}" class="btn btn-outline">
+              Clear
+            </a>
+          </div>
+        </form>
+      </div>
+      
+      <!-- Export Buttons -->
+      <div class="flex gap-3 mb-4 no-print">
+        <button onclick="exportToPDF()" class="btn btn-success">
+          📄 Export PDF
+        </button>
+        <button onclick="exportToExcel()" class="btn btn-warning">
+          📊 Export Excel
+        </button>
+        <button onclick="window.print()" class="btn btn-primary">
+          🖨️ Print
+        </button>
+      </div>
+      
+      <!-- Data Table -->
+      <div class="table-container overflow-x-auto">
+        <table class="data-table" id="tripTable">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Route ID</th>
+              <th>Vehicle</th>
+              <th>Driver</th>
+              <th>Start KM</th>
+              <th>Close KM</th>
+              <th>Distance</th>
+              <th>Start Time</th>
+              <th>Close Time</th>
+              <th>Route</th>
+              <th>Strength Breakdown</th>
+              <th>Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for record in trip_records %}
+            <tr>
+              <td>
+                {% if record.date_time %}
+                  {{ record.date_time[:10] if record.date_time|length > 10 else record.date_time }}
+                {% else %}
+                  -
+                {% endif %}
+              </td>
+              <td>
+                <span class="badge badge-blue">{{ record.route_id or '-' }}</span>
+              </td>
+              <td>
+                <div class="font-semibold">{{ record.vehicle_id or '-' }}</div>
+                <div class="text-xs text-gray-500">{{ record.vehicle_no or '' }}</div>
+              </td>
+              <td>
+                <div class="font-semibold">{{ record.driver_name or '-' }}</div>
+                <div class="text-xs text-gray-500">{{ record.driver_id or '' }}</div>
+              </td>
+              <td class="font-mono">{{ record.trip_start_km or 0 }}</td>
+              <td class="font-mono">{{ record.trip_close_km or 0 }}</td>
+              <td class="font-mono font-bold text-blue-600">
+                {{ "%.1f"|format((record.trip_close_km or 0)|float - (record.trip_start_km or 0)|float) }} km
+              </td>
+              <td>{{ record.trip_start_time or '-' }}</td>
+              <td>{{ record.trip_close_time or '-' }}</td>
+              <td>
+                <div class="text-xs" style="max-width: 150px;">
+                  <div class="text-green-600 truncate" title="{{ record.trip_start_place or '-' }}">From: {{ record.trip_start_place or '-' }}</div>
+                  <div class="text-red-600 truncate" title="{{ record.trip_close_place or '-' }}">To: {{ record.trip_close_place or '-' }}</div>
+                </div>
+              </td>
+              <td>
+                <div class="strength-breakdown">
+                  {% if record.student_total or record.student_male or record.student_female or record.student_transgender %}
+                  <span class="strength-item strength-student">S: {{ record.student_total or ((record.student_male or 0)|int + (record.student_female or 0)|int + (record.student_transgender or 0)|int) }}</span>
+                  {% endif %}
+                  {% if record.faculty_total or record.faculty_male or record.faculty_female or record.faculty_transgender %}
+                  <span class="strength-item strength-faculty">F: {{ record.faculty_total or ((record.faculty_male or 0)|int + (record.faculty_female or 0)|int + (record.faculty_transgender or 0)|int) }}</span>
+                  {% endif %}
+                  {% if record.guest_total or record.guest_male or record.guest_female or record.guest_transgender %}
+                  <span class="strength-item strength-guest">G: {{ record.guest_total or ((record.guest_male or 0)|int + (record.guest_female or 0)|int + (record.guest_transgender or 0)|int) }}</span>
+                  {% endif %}
+                  {% if not (record.student_total or record.faculty_total or record.guest_total or record.student_male or record.faculty_male or record.guest_male) %}
+                    {% if record.male_count or record.female_count or record.transgender_count %}
+                    <span class="strength-item strength-student">M: {{ record.male_count or 0 }}</span>
+                    <span class="strength-item strength-faculty">F: {{ record.female_count or 0 }}</span>
+                    <span class="strength-item strength-guest">T: {{ record.transgender_count or 0 }}</span>
+                    {% else %}
+                    <span class="text-gray-400">-</span>
+                    {% endif %}
+                  {% endif %}
+                </div>
+              </td>
+              <td>
+                <span class="badge badge-green text-lg">
+                  {{ record.cumulative_strength or record.total_strength or ((record.male_count or 0)|int + (record.female_count or 0)|int + (record.transgender_count or 0)|int) }}
+                </span>
+              </td>
+            </tr>
+            {% else %}
+            <tr>
+              <td colspan="12" class="text-center py-8 text-gray-500">
+                No trip records found. Try adjusting your filters.
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Pagination + Add New -->
+      <div class="flex items-center justify-between mt-4 no-print">
+        <div>
+          <a href="{{ url_for('admin_add_trip') }}" class="btn btn-success">
+            ➕ Add New
+          </a>
+        </div>
+        <div id="tripPagination" class="flex items-center justify-center gap-2"></div>
+      </div>
+      
+      <!-- Records Count -->
+      <div class="mt-4 text-center text-gray-600">
+        Showing <span class="font-bold">{{ trip_records|length }}</span> records
+      </div>
+      
+    </div>
+  </div>
+
+  <script>
+    function setupPagination(tableId, paginationId, rowsPerPage = 10) {
+      const table = document.getElementById(tableId);
+      const pagination = document.getElementById(paginationId);
+      if (!table || !pagination) return;
+
+      const rows = Array.from(table.querySelectorAll('tbody tr'));
+      const totalPages = Math.max(1, Math.ceil(rows.length / rowsPerPage));
+
+      let currentPage = parseInt(pagination.getAttribute('data-page') || '1', 10);
+      if (currentPage > totalPages) currentPage = totalPages;
+      pagination.setAttribute('data-page', String(currentPage));
+
+      rows.forEach((row, index) => {
+        const start = (currentPage - 1) * rowsPerPage;
+        const end = start + rowsPerPage;
+        row.style.display = index >= start && index < end ? '' : 'none';
+      });
+
+      pagination.innerHTML = '';
+      const createButton = (label, page, disabled = false, isActive = false) => {
+        const btn = document.createElement('button');
+        btn.textContent = label;
+        btn.className = `btn ${isActive ? 'btn-primary' : 'btn-outline'}`;
+        btn.disabled = disabled;
+        btn.onclick = () => {
+          pagination.setAttribute('data-page', String(page));
+          setupPagination(tableId, paginationId, rowsPerPage);
+        };
+        return btn;
+      };
+
+      const windowSize = 5;
+      let startPage = Math.max(1, currentPage - Math.floor(windowSize / 2));
+      let endPage = Math.min(totalPages, startPage + windowSize - 1);
+      if (endPage - startPage + 1 < windowSize) {
+        startPage = Math.max(1, endPage - windowSize + 1);
+      }
+
+      pagination.appendChild(createButton('Prev', Math.max(1, currentPage - 1), currentPage === 1));
+      for (let page = startPage; page <= endPage; page += 1) {
+        pagination.appendChild(createButton(String(page), page, false, page === currentPage));
+      }
+      pagination.appendChild(createButton('Next', Math.min(totalPages, currentPage + 1), currentPage === totalPages));
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      setupPagination('tripTable', 'tripPagination', 10);
+    });
+
+    // Export to PDF
+    function exportToPDF() {
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF('l', 'mm', 'a4');
+      
+      // Load header image
+      const headerImg = new Image();
+      headerImg.src = '{{ url_for("static", filename="img/header_full.png") }}';
+      
+      headerImg.onload = function() {
+        // Add header image
+        doc.addImage(headerImg, 'PNG', 10, 5, 277, 25);
+        
+        // Title
+        doc.setFontSize(18);
+        doc.setTextColor(30, 64, 175);
+        doc.text('TRIP SHEET RECORDS', 148, 35, { align: 'center' });
+        
+        // Date
+        doc.setFontSize(10);
+        doc.setTextColor(100);
+        doc.text('Generated: ' + new Date().toLocaleDateString(), 148, 42, { align: 'center' });
+        
+        // Stats
+        doc.setFontSize(10);
+        doc.setTextColor(0);
+        doc.text('Total Trips: {{ total_trips }} | Total Distance: {{ "%.1f"|format(total_distance) }} km | Total Passengers: {{ total_passengers }}', 148, 50, { align: 'center' });
+        
+        // Table
+        doc.autoTable({
+          html: '#tripTable',
+          startY: 55,
+          styles: {
+            fontSize: 7,
+            cellPadding: 2
+          },
+          headStyles: {
+            fillColor: [30, 64, 175],
+            textColor: 255,
+            fontStyle: 'bold'
+          },
+          alternateRowStyles: {
+            fillColor: [249, 250, 251]
+          },
+          columnStyles: {
+            0: { cellWidth: 20 },
+            1: { cellWidth: 18 },
+            2: { cellWidth: 25 },
+            3: { cellWidth: 25 },
+            4: { cellWidth: 18 },
+            5: { cellWidth: 18 },
+            6: { cellWidth: 18 },
+            7: { cellWidth: 15 },
+            8: { cellWidth: 15 },
+            9: { cellWidth: 35 },
+            10: { cellWidth: 30 },
+            11: { cellWidth: 15 }
+          }
+        });
+        
+        doc.save('trip_records_' + new Date().toISOString().split('T')[0] + '.pdf');
+      };
+      
+      headerImg.onerror = function() {
+        console.error('Failed to load header image');
+        // Fallback without image
+        doc.setFontSize(18);
+        doc.setTextColor(30, 64, 175);
+        doc.text('TRIP SHEET RECORDS', 148, 15, { align: 'center' });
+        
+        doc.setFontSize(10);
+        doc.setTextColor(100);
+        doc.text('Generated: ' + new Date().toLocaleDateString(), 148, 22, { align: 'center' });
+        
+        doc.setFontSize(10);
+        doc.setTextColor(0);
+        doc.text('Total Trips: {{ total_trips }} | Total Distance: {{ "%.1f"|format(total_distance) }} km | Total Passengers: {{ total_passengers }}', 148, 30, { align: 'center' });
+        
+        doc.autoTable({
+          html: '#tripTable',
+          startY: 35,
+          styles: {
+            fontSize: 7,
+            cellPadding: 2
+          },
+          headStyles: {
+            fillColor: [30, 64, 175],
+            textColor: 255,
+            fontStyle: 'bold'
+          },
+          alternateRowStyles: {
+            fillColor: [249, 250, 251]
+          },
+          columnStyles: {
+            0: { cellWidth: 20 },
+            1: { cellWidth: 18 },
+            2: { cellWidth: 25 },
+            3: { cellWidth: 25 },
+            4: { cellWidth: 18 },
+            5: { cellWidth: 18 },
+            6: { cellWidth: 18 },
+            7: { cellWidth: 15 },
+            8: { cellWidth: 15 },
+            9: { cellWidth: 35 },
+            10: { cellWidth: 30 },
+            11: { cellWidth: 15 }
+          }
+        });
+        
+        doc.save('trip_records_' + new Date().toISOString().split('T')[0] + '.pdf');
+      };
+    }
+    
+    // Export to Excel
+    function exportToExcel() {
+      const table = document.getElementById('tripTable');
+      const wb = XLSX.utils.table_to_book(table, { sheet: 'Trip Records' });
+      XLSX.writeFile(wb, 'trip_records_' + new Date().toISOString().split('T')[0] + '.xlsx');
+    }
+  </script>
+
+<script src="{{ url_for('static', filename='js/uppercase.js') }}"></script>
+{% include 'footer.html' %}
+</body>
+</html>

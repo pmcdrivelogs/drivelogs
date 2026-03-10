@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Vehicle Profile - Permanent Records</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <script>
+    function handleSubmit(event) {
+      const form = event.target;
+      const submitBtn = form.querySelector('button[type="submit"]');
+      const originalText = submitBtn.innerHTML;
+      
+      // Disable button and show loading
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = '<svg class="animate-spin h-5 w-5 mr-3 inline-block" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Submitting...';
+      submitBtn.classList.add('opacity-75', 'cursor-not-allowed');
+      
+      // Allow form to submit naturally
+      return true;
+    }
+    
+    // Convert registration inputs to uppercase
+    document.addEventListener('DOMContentLoaded', function() {
+      const regInputs = document.querySelectorAll('input[name="registration_no"], input[name="registration_number"]');
+      regInputs.forEach(function(input) {
+        input.addEventListener('input', function(e) {
+          this.value = this.value.toUpperCase();
+        });
+      });
+    });
+  </script>
+  <style>
+    .permanent-table {
+      border-collapse: collapse;
+      width: 100%;
+    }
+    .permanent-table th {
+      background-color: #1e3a8a;
+      color: white;
+      padding: 12px 8px;
+      font-weight: bold;
+      font-size: 0.875rem;
+      text-align: center;
+      border: 1px solid #1e40af;
+    }
+    .permanent-table td {
+      padding: 10px 12px;
+      border: 1px solid #d1d5db;
+    }
+    .permanent-table td:first-child {
+      text-align: center;
+      font-weight: 600;
+      width: 8%;
+    }
+    .permanent-table td:nth-child(2) {
+      font-weight: 600;
+      width: 30%;
+    }
+    .permanent-table td:nth-child(3) {
+      width: 62%;
+    }
+    .permanent-table tr:nth-child(even) {
+      background-color: #f9fafb;
+    }
+    .permanent-table input[type="text"] {
+      width: 100%;
+      padding: 8px;
+      border: 1px solid #d1d5db;
+      border-radius: 4px;
+      font-size: 0.875rem;
+    }
+    .permanent-table input[type="text"]:focus {
+      outline: none;
+      border-color: #3b82f6;
+      ring: 2px;
+      ring-color: #93c5fd;
+    }
+    input[name="registration_no"],
+    input[name="registration_number"] {
+      text-transform: uppercase;
+    }
+  </style>
+</head>
+<body class="bg-[#fcfcfc] min-h-screen flex flex-col pt-20">
+  <!-- Logo Bar -->
+  <div class="logo-bar w-full flex items-center justify-between px-4 py-3 fixed top-0 left-0 z-50">
+    <img src="{{ url_for('static', filename='img/drive-logs.png') }}" alt="Drive Logs Logo" class="h-12 md:h-14 w-auto ml-2">
+    <div class="flex items-center gap-4">
+      <a href="{{ url_for('home') }}" class="bg-yellow-500 hover:bg-yellow-600 text-gray-900 px-4 py-2 rounded-full text-sm font-semibold transition-colors">
+        ← Back to Home
+      </a>
+      <a href="{{ url_for('logout') }}" class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-full text-sm font-semibold transition-colors">
+        Logout
+      </a>
+    </div>
+  </div>
+
+  <!-- College Header -->
+  <div class="w-full flex justify-center items-center border-b border-gray-300 bg-white">
+    <img src="{{ url_for('static', filename='img/pmc-logo.png') }}" alt="College Header" class="w-full max-w-5xl h-auto p-2 md:p-4">
+  </div>
+
+  <!-- Main Content -->
+  <div class="flex-1 py-6 px-4">
+    <div class="bg-white rounded-2xl shadow-lg w-full max-w-6xl mx-auto p-6 md:p-8 border-2 border-gray-200">
+      <!-- Flash Messages -->
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          {% for category, message in messages %}
+            <div class="mb-4 p-4 rounded-lg {% if category == 'success' %}bg-green-100 text-green-800 border border-green-300{% elif category == 'danger' %}bg-red-100 text-red-800 border border-red-300{% else %}bg-blue-100 text-blue-800 border border-blue-300{% endif %}">
+              {{ message }}
+            </div>
+          {% endfor %}
+        {% endif %}
+      {% endwith %}
+      
+      <!-- Back Button -->
+      <div class="mb-4">
+        <a href="{{ url_for('vehicle_profile') }}" class="inline-flex items-center bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-full text-sm font-semibold transition-colors">
+          ← BACK TO ANNUAL RECORDS
+        </a>
+      </div>
+
+      <!-- Header -->
+      <div class="flex justify-between items-center mb-6 pb-4 border-b-2 border-gray-300">
+        <h1 class="text-2xl md:text-3xl font-bold text-blue-900">VEHICLE PROFILE-PERMANENT RECORDS</h1>
+      </div>
+
+      <!-- Vehicle Selection -->
+      <form method="POST" class="mb-6" onsubmit="return handleSubmit(event)">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+          <div class="flex items-center gap-4">
+            <label class="font-bold text-gray-900 whitespace-nowrap">VEHICLE ID:</label>
+            <input type="text" name="vehicle_id" class="flex-1 px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200" placeholder="Enter vehicle ID">
+          </div>
+          <div class="flex items-center gap-4">
+            <label class="font-bold text-gray-900 whitespace-nowrap">REGISTRATION NO:</label>
+            <input type="text" name="registration_no" class="flex-1 px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200" placeholder="Enter registration number">
+          </div>
+        </div>
+
+        <!-- Edit Button -->
+        <div class="flex justify-end mb-4">
+          <button type="button" class="bg-purple-900 hover:bg-purple-700 text-white px-6 py-2 rounded-full font-semibold text-sm transition-colors inline-flex items-center gap-2">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+            </svg>
+            Edit
+          </button>
+        </div>
+
+        <!-- Permanent Records Table -->
+        <div class="overflow-x-auto">
+          <table class="permanent-table">
+            <thead>
+              <tr>
+                <th colspan="2">DOCUMENTS</th>
+                <th>DETAILS</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>1.</td>
+                <td>REGISTRATION NUMBER</td>
+                <td><input type="text" name="registration_number" readonly></td>
+              </tr>
+              <tr>
+                <td>2.</td>
+                <td>ROUTE ID</td>
+                <td><input type="text" name="route_id"></td>
+              </tr>
+              <tr>
+                <td>3.</td>
+                <td>TYPE OF VEHICLE</td>
+                <td><input type="text" name="vehicle_type"></td>
+              </tr>
+              <tr>
+                <td>4.</td>
+                <td>MANAGING COLLEGE</td>
+                <td><input type="text" name="managing_college"></td>
+              </tr>
+              <tr>
+                <td>5.</td>
+                <td>MAKE</td>
+                <td><input type="text" name="make"></td>
+              </tr>
+              <tr>
+                <td>6.</td>
+                <td>MODAL</td>
+                <td><input type="text" name="modal"></td>
+              </tr>
+              <tr>
+                <td>7.</td>
+                <td>YEAR OF MANUFACTURING</td>
+                <td><input type="text" name="year_manufacturing"></td>
+              </tr>
+              <tr>
+                <td>8.</td>
+                <td>YEAR OF PURCHASING</td>
+                <td><input type="text" name="year_purchasing"></td>
+              </tr>
+              <tr>
+                <td>9.</td>
+                <td>ENGINE NUMBER</td>
+                <td><input type="text" name="engine_number"></td>
+              </tr>
+              <tr>
+                <td>10.</td>
+                <td>CHASSIS NUMBER</td>
+                <td><input type="text" name="chassis_number"></td>
+              </tr>
+              <tr>
+                <td>11.</td>
+                <td>SPEED GOVERNER KIT ID</td>
+                <td><input type="text" name="speed_governer_id"></td>
+              </tr>
+              <tr>
+                <td>12.</td>
+                <td>SEATING CAPASITY</td>
+                <td><input type="text" name="seating_capacity"></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Submit Button -->
+        <div class="flex justify-center mt-8">
+          <button type="submit" class="bg-blue-800 hover:bg-green-600 text-white px-12 py-3 rounded-full font-bold text-lg shadow-lg transition-colors">
+            Submit
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+<script src="{{ url_for('static', filename='js/uppercase.js') }}"></script>
+{% include 'footer.html' %}
+</body>
+</html>

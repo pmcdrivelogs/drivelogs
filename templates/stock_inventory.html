@@ -1,0 +1,1322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Stock Inventory - Drive Logs</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <style>
+    * { font-family: 'Inter', sans-serif; }
+    
+    body {
+      background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 50%, #f0f9ff 100%);
+    }
+    
+    .filter-section {
+      background: white;
+      border-radius: 16px;
+      padding: 24px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+      margin-bottom: 24px;
+    }
+    
+    .filter-input {
+      padding: 12px 18px;
+      border: 2px solid #d1d5db;
+      border-radius: 12px;
+      font-size: 0.95rem;
+      width: 100%;
+      transition: all 0.3s ease;
+    }
+    
+    .filter-input:focus {
+      outline: none;
+      border-color: #3b82f6;
+      box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1);
+    }
+    
+    .stats-card {
+      background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+      color: white;
+      border-radius: 16px;
+      padding: 20px;
+      text-align: center;
+    }
+    
+    .stats-number {
+      font-size: 2.5rem;
+      font-weight: 800;
+      margin-bottom: 4px;
+    }
+    
+    .stats-label {
+      font-size: 0.85rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      opacity: 0.9;
+    }
+    
+    .table-container {
+      background: white;
+      border-radius: 16px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+      overflow: hidden;
+      margin-bottom: 32px;
+    }
+    
+    .table-header {
+      background: linear-gradient(135deg, #1e40af 0%, #1e3a8a 100%);
+      color: white;
+      padding: 20px 24px;
+      font-size: 1.25rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    
+    .table-wrapper {
+      overflow-x: auto;
+    }
+    
+    table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    
+    th {
+      background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+      padding: 18px 14px;
+      text-align: left;
+      font-size: 0.7rem;
+      font-weight: 800;
+      color: #1e293b;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      border-bottom: 3px solid #cbd5e1;
+      white-space: nowrap;
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      min-width: 100px;
+    }
+    
+    td {
+      padding: 18px 14px;
+      border-bottom: 1px solid #f1f5f9;
+      font-size: 0.9rem;
+      color: #334155;
+      vertical-align: middle;
+      white-space: nowrap;
+      max-width: 200px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    
+    td strong {
+      font-weight: 700;
+      color: #1e293b;
+    }
+    
+    /* Special column widths for better alignment */
+    th:nth-child(1), td:nth-child(1) { min-width: 180px; max-width: 200px; } /* Entry No */
+    th:nth-child(2), td:nth-child(2) { min-width: 150px; } /* Date & Time */
+    th:nth-child(3), td:nth-child(3) { min-width: 90px; } /* Vehicle ID */
+    th:nth-child(4), td:nth-child(4) { min-width: 130px; } /* Registration */
+    th:nth-child(5), td:nth-child(5) { min-width: 100px; } /* Part No */
+    th:nth-child(6), td:nth-child(6) { min-width: 120px; } /* Part Name */
+    th:nth-child(7), td:nth-child(7) { min-width: 100px; text-align: center; } /* Quantity */
+    th:nth-child(8), td:nth-child(8) { min-width: 130px; } /* Material Type */
+    th:nth-child(9), td:nth-child(9) { min-width: 100px; } /* Driver ID */
+    th:nth-child(10), td:nth-child(10) { min-width: 100px; } /* Mech ID */
+    th:nth-child(11), td:nth-child(11) { min-width: 180px; max-width: 200px; } /* Processed By */
+    th:nth-child(12), td:nth-child(12) { min-width: 100px; text-align: center; } /* Approved */
+    
+    tr:hover {
+      background: linear-gradient(135deg, #fefce8 0%, #fef9c3 100%);
+      transition: all 0.2s ease;
+    }
+    
+    tr:last-child td {
+      border-bottom: none;
+    }
+    
+    .badge-active {
+      background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+      color: white;
+      padding: 4px 12px;
+      border-radius: 12px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      display: inline-block;
+    }
+    
+    .badge-issued {
+      background: linear-gradient(135deg, #64748b 0%, #475569 100%);
+      color: white;
+      padding: 4px 12px;
+      border-radius: 12px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      display: inline-block;
+    }
+    
+    .issue-btn {
+      background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+      color: white;
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 0.8rem;
+      border: none;
+      cursor: pointer;
+      box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3);
+      transition: all 0.3s ease;
+    }
+    
+    .issue-btn:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4);
+    }
+    
+    .empty-state {
+      text-align: center;
+      padding: 60px 20px;
+      color: #6b7280;
+    }
+    
+    .empty-icon {
+      font-size: 4rem;
+      margin-bottom: 16px;
+      opacity: 0.3;
+    }
+    
+    .price-cell {
+      font-weight: 700;
+      color: #059669;
+      font-size: 0.9rem;
+    }
+    
+    .table-wrapper::-webkit-scrollbar {
+      height: 8px;
+    }
+    
+    .table-wrapper::-webkit-scrollbar-track {
+      background: #f1f5f9;
+      border-radius: 4px;
+    }
+    
+    .table-wrapper::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 4px;
+    }
+    
+    .table-wrapper::-webkit-scrollbar-thumb:hover {
+      background: #94a3b8;
+    }
+    
+    .export-btn {
+      background: linear-gradient(135deg, #0891b2 0%, #0e7490 100%);
+      color: white;
+      padding: 8px 16px;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 0.85rem;
+      border: none;
+      cursor: pointer;
+      box-shadow: 0 2px 8px rgba(8, 145, 178, 0.3);
+      transition: all 0.3s ease;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    
+    .export-btn:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(8, 145, 178, 0.4);
+    }
+    
+    /* Pagination Styles */
+    .pagination-container {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 20px 24px;
+      background: #f8fafc;
+      border-top: 1px solid #cbd5e1;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    
+    .pagination-info {
+      font-size: 0.85rem;
+      color: #475569;
+      font-weight: 500;
+    }
+    
+    .pagination-controls {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+    
+    .pagination-btn {
+      padding: 8px 12px;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      background: white;
+      color: #334155;
+      font-weight: 600;
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    
+    .pagination-btn:hover:not(:disabled) {
+      background: #1e40af;
+      color: white;
+      border-color: #1e40af;
+    }
+    
+    .pagination-btn.active {
+      background: #1e40af;
+      color: white;
+      border-color: #1e40af;
+    }
+    
+    .pagination-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    
+    .page-size-selector {
+      font-size: 0.85rem;
+      padding: 6px 10px;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      background: white;
+      color: #334155;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    
+    .page-size-selector:hover {
+      border-color: #1e40af;
+      box-shadow: 0 0 0 3px rgba(30, 64, 175, 0.1);
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col pt-20">
+  
+  <!-- Logo Bar -->
+  <div class="logo-bar w-full flex items-center justify-between px-4 py-3 fixed top-0 left-0 z-50">
+    <img src="{{ url_for('static', filename='img/drive-logs.png') }}" alt="Drive Logs Logo" class="h-12 md:h-14 w-auto ml-2">
+    <div class="flex items-center gap-4">
+      <a href="{{ url_for('admin_dashboard') }}" class="bg-white text-red-600 px-3 py-2 rounded-full text-sm font-semibold transition-colors hover:bg-gray-100 flex items-center gap-1">
+        <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+          <path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z"/>
+        </svg>
+      </a>
+      <a href="{{ url_for('logout') }}" class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-full text-sm font-semibold transition-colors">
+        Logout
+      </a>
+    </div>
+  </div>
+
+  <!-- College Header -->
+  <div class="w-full flex justify-center items-center border-b border-gray-300 bg-white">
+    <img src="{{ url_for('static', filename='img/pmc-logo.png') }}" alt="College Header" class="w-full max-w-5xl h-auto p-2 md:p-4">
+  </div>
+
+  <!-- Main Content -->
+  <div class="flex-1 py-8 px-4">
+    <div class="max-w-7xl mx-auto">
+      
+      <!-- Page Header -->
+      <div class="text-center mb-8">
+        <h1 class="text-4xl font-bold text-blue-900 mb-2">Stock Inventory</h1>
+        <p class="text-gray-600 font-semibold">Manage and Issue Purchase Items</p>
+        <div class="mt-4 flex gap-3 justify-center">
+        
+         <!-- <a href="{{ url_for('stock_issue_history') }}" class="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-full font-semibold transition-colors inline-flex items-center gap-2">
+            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+              <path fill-rule="evenodd" d="M6 2a2 2 0 00-2 2v12a2 2 0 002 2h8a2 2 0 002-2V7.414A2 2 0 0015.414 6L12 2.586A2 2 0 0010.586 2H6zm5 6a1 1 0 10-2 0v3.586l-1.293-1.293a1 1 0 10-1.414 1.414l3 3a1 1 0 001.414 0l3-3a1 1 0 00-1.414-1.414L11 11.586V8z" clip-rule="evenodd"/>
+            </svg>
+            View Issue History
+          </a>-->
+        </div>
+      </div>
+
+      <!-- Flash Messages -->
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          {% for category, message in messages %}
+            <div class="mb-4 p-4 rounded-lg {% if category == 'success' %}bg-green-100 text-green-800 border border-green-300{% elif category == 'danger' %}bg-red-100 text-red-800 border border-red-300{% else %}bg-blue-100 text-blue-800 border border-blue-300{% endif %}">
+              {{ message }}
+            </div>
+          {% endfor %}
+        {% endif %}
+      {% endwith %}
+
+      <!-- Stats -->
+      <div class="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+        <div class="stats-card">
+          <div class="stats-number">{{ total_items }}</div>
+          <div class="stats-label">Total Qty</div>
+          <div class="stats-number" style="font-size: 1.5rem; margin-top: 8px;">₹{{ total_value }}</div>
+          <div class="stats-label" style="font-size: 0.75rem;">Total Value</div>
+        </div>
+        <div class="stats-card" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
+          <div class="stats-number">{{ active_items }}</div>
+          <div class="stats-label">In Stock</div>
+          <div class="stats-number" style="font-size: 1.5rem; margin-top: 8px;">₹{{ instock_value }}</div>
+          <div class="stats-label" style="font-size: 0.75rem;">In Stock Value</div>
+        </div>
+        <div class="stats-card" style="background: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%);">
+          <div class="stats-number">{{ total_utilized }}</div>
+          <div class="stats-label">Utilized Qty</div>
+          <div class="stats-number" style="font-size: 1.5rem; margin-top: 8px;">₹{{ utilized_value }}</div>
+          <div class="stats-label" style="font-size: 0.75rem;">Utilized Value</div>
+        </div>
+        <div class="stats-card" style="background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);">
+          <div class="stats-number">{{ total_scrapped }}</div>
+          <div class="stats-label">Scrapped Qty</div>
+          <div class="stats-number" style="font-size: 1.5rem; margin-top: 8px;">₹{{ scrapped_value }}</div>
+          <div class="stats-label" style="font-size: 0.75rem;">Scrapped Value</div>
+        </div>
+      </div>
+
+      <!-- Filter Section -->
+      <div class="filter-section">
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <input type="text" id="searchInput" class="filter-input" placeholder="🔍 Search by Invoice No, Part Name, Number, or Vendor...">
+          <select id="filterVendor" class="filter-input">
+          <div style="margin-left: auto; display: flex; gap: 8px;">
+            <button onclick="exportToPDF('activeTable', 'Active_Inventory')" class="export-btn">
+              <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd"/>
+              </svg>
+              PDF
+            </button>
+            <button onclick="exportToExcel('activeTable', 'Active_Inventory')" class="export-btn" style="background: #16a34a;">
+              <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd"/>
+              </svg>
+              Excel
+            </button>
+          </div>
+            <option value="">All Vendors</option>
+            {% for vendor in vendors %}
+            <option value="{{ vendor }}">{{ vendor }}</option>
+            {% endfor %}
+          </select>
+          <select id="filterType" class="filter-input">
+            <option value="">All Types</option>
+            {% for type in purchase_types %}
+            <option value="{{ type }}">{{ type }}</option>
+            {% endfor %}
+          </select>
+        </div>
+      </div>
+
+      <!-- Active Inventory Table -->
+      <div class="table-container">
+        <div class="table-header">
+          <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M20 2H4c-1 0-2 .9-2 2v3.01c0 .72.43 1.34 1 1.69V20c0 1.1 1.1 2 2 2h14c.9 0 2-.9 2-2V8.7c.57-.35 1-.97 1-1.69V4c0-1.1-1-2-2-2zm-5 12H9v-2h6v2zm5-7H4V4h16v3z"/>
+          </svg>
+          Active Inventory
+        </div>
+        
+        {% if items %}
+        <div class="table-wrapper">
+          <table id="activeTable">
+            <thead>
+              <tr>
+                <th>Entry No</th>
+                <th>Invoice No</th>
+                <th>Date</th>
+                <th>Part Name</th>
+                <th>Part No</th>
+                <th>Vendor</th>
+                <th>Type</th>
+                <th>Purchased Qty</th>
+                <th>Utilized Qty</th>
+                <th>Scrapped Qty</th>
+                <th>Available Qty</th>
+                <th>Rate</th>
+                <th>Total</th>
+                <th>Net Payable</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for item in items %}
+              <tr data-vendor="{{ item.vendor }}" data-type="{{ item.type_of_purchase }}" data-search="{{ item.invoice_no }} {{ item.part_name }} {{ item.part_number }} {{ item.vendor }}">
+                <td><strong>{{ item.entry_no }}</strong></td>
+                <td>{{ item.invoice_no or '-' }}</td>
+                <td>{{ item.date or '-' }}</td>
+                <td><strong>{{ item.part_name or '-' }}</strong></td>
+                <td>{{ item.part_number or '-' }}</td>
+                <td>{{ item.vendor or '-' }}</td>
+                <td>{{ item.type_of_purchase or '-' }}</td>
+                <td>{{ item.purchased_quantity or item.quantity or 0 }}</td>
+                <td>{{ item.utilized_quantity or 0 }}</td>
+                <td>{{ item.scrapped_quantity or 0 }}</td>
+                <td><strong style="color: #059669;">{{ item.available_quantity or 0 }}</strong></td>
+                {# Compute rate from net_payable / quantity when explicit fields missing #}
+                {% set _qty = (item.purchased_quantity or item.quantity or 0) %}
+                {% set _rate = (item.net_payable / _qty) if _qty else 0 %}
+                {% set _avail = (item.available_quantity or item.available_qty or item.purchased_quantity or item.quantity or 0) %}
+                <td>₹{{ "%.2f"|format(_rate) }}</td>
+                <td class="price-cell">₹{{ "%.2f"|format(_rate * _avail) }}</td>
+                <td class="price-cell"><strong>₹{{ "%.2f"|format(item.net_payable or 0) }}</strong></td>
+                <td><span class="badge-active">In Stock</span></td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <div class="pagination-container" id="activeTablePagination">
+          <div class="pagination-info">
+            Rows per page: <select class="page-size-selector" onchange="setPageSize(this.value, 'activeTable')">
+              <option value="10">10</option>
+              <option value="25">25</option>
+              <option value="50">50</option>
+              <option value="100">100</option>
+            </select>
+          </div>
+          <div id="activeTableInfo" class="pagination-info"></div>
+          <div class="pagination-controls" id="activeTableControls"></div>
+        </div>
+        {% else %}
+        <div class="empty-state">
+          <div class="empty-icon">📦</div>
+          <h3 class="text-xl font-bold text-gray-700 mb-2">No Items in Inventory</h3>
+          <p class="text-gray-500">Add purchase records to see items here.</p>
+        </div>
+        {% endif %}
+      </div>
+
+      <!-- Issue History Table -->
+    <!--  <div class="table-container">
+        <div class="table-header" style="background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);">
+          <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M13 3c-4.97 0-9 4.03-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42C8.27 19.99 10.51 21 13 21c4.97 0 9-4.03 9-9s-4.03-9-9-9zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z"/>
+          </svg>
+          Issue History
+          <div style="margin-left: auto; display: flex; gap: 8px;">
+            <button onclick="exportToPDF('issueHistoryTable', 'Issue_History')" class="export-btn">
+              <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd"/>
+              </svg>
+              PDF
+            </button>
+            <button onclick="exportToExcel('issueHistoryTable', 'Issue_History')" class="export-btn" style="background: #16a34a;">
+              <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd"/>
+              </svg>
+              Excel
+            </button>
+          </div>
+        </div>
+        
+        {% if issued_items %}
+        <div class="table-wrapper">
+          <table id="issueHistoryTable">
+            <thead>
+              <tr>
+                <th>Entry No</th>
+                <th>Invoice No</th>
+                <th>Purchase Date</th>
+                <th>Part Name</th>
+                <th>Part No</th>
+                <th>Vendor</th>
+                <th>Type</th>
+                <th>Qty</th>
+                <th>Rate</th>
+                <th>Total</th>
+                <th>Net Payable</th>
+                <th>Status</th>
+                <th>Issued On</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for item in issued_items %}
+              <tr>
+                <td><strong>{{ item.entry_no }}</strong></td>
+                <td>{{ item.invoice_no or '-' }}</td>
+                <td>{{ item.date or '-' }}</td>
+                <td><strong>{{ item.part_name or '-' }}</strong></td>
+                <td>{{ item.part_number or '-' }}</td>
+                <td>{{ item.vendor or '-' }}</td>
+                <td>{{ item.type_of_purchase or '-' }}</td>
+                <td>{{ item.quantity or '0' }}</td>
+                {# Compute rate/total for issued items if stored fields missing #}
+                {% set _qty = (item.quantity or item.purchased_quantity or 0) %}
+                {% set _rate = (item.net_payable / _qty) if _qty else 0 %}
+                <td>₹{{ "%.2f"|format(_rate) }}</td>
+                <td class="price-cell">₹{{ "%.2f"|format(_rate * (_qty or 0)) }}</td>
+                <td class="price-cell"><strong>₹{{ "%.2f"|format(item.net_payable or 0) }}</strong></td>
+                <td><span class="badge-issued">Issued</span></td>
+                <td>{{ item.updated_at[:10] if item.updated_at else '-' }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <div class="pagination-container" id="issueHistoryTablePagination">
+          <div class="pagination-info">
+            Rows per page: <select class="page-size-selector" onchange="setPageSize(this.value, 'issueHistoryTable')">
+              <option value="10">10</option>
+              <option value="25">25</option>
+              <option value="50">50</option>
+              <option value="100">100</option>
+            </select>
+          </div>
+          <div id="issueHistoryTableInfo" class="pagination-info"></div>
+          <div class="pagination-controls" id="issueHistoryTableControls"></div>
+        </div>
+        {% else %}
+        <div class="empty-state">
+          <div class="empty-icon">📋</div>
+          <h3 class="text-xl font-bold text-gray-700 mb-2">No Issued Items</h3>
+          <p class="text-gray-500">Issued items will appear here.</p>
+        </div>
+        {% endif %}
+      </div>
+-->
+      <!-- Maintenance Utilization Section (new) -->
+      <div class="table-container">
+        <div style="padding: 18px 24px 0 24px; background: #f8fafc; display:flex; gap:12px; align-items:center;">
+          <input type="text" id="maintenanceUtilizationSearchInput" class="filter-input" style="max-width: 350px; margin-bottom: 10px;" placeholder="🔍 Search Maintenance Utilization...">
+          <div style="display:flex; align-items:center; gap:8px;">
+            <label for="maintenanceStatusSelect" style="font-weight:600; color:#334155;">Show:</label>
+            <select id="maintenanceStatusSelect" class="filter-input" style="max-width:160px; padding:8px 10px;">
+              <option value="corrected">Corrected Job Cards</option>
+              <option value="pending">Pending Job Cards</option>
+            </select>
+          </div>
+        </div>
+        <div class="table-header" style="background: linear-gradient(135deg, #06b6d4 0%, #0891b2 100%);">
+          <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M12 2a2 2 0 00-2 2v4H6a2 2 0 000 4h4v4a2 2 0 002 2h4v-4h4a2 2 0 000-4h-4V4a2 2 0 00-2-2h-4z"/>
+          </svg>
+          Maintenance Utilization Records
+        </div>
+        <div class="table-wrapper">
+          <table id="maintenanceUtilizationTable">
+            <thead>
+              <tr>
+                  <th>Entry No</th>
+                  <th>Date/Time</th>
+                  <th>Vehicle</th>
+                  <th>Current KM</th>
+                  <th>Driver</th>
+                  <th>Utilized Qty</th>
+                  <th>Processed By</th>
+                  <th>Rating</th>
+                  <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+              {% set ns = namespace(cnt=0) %}
+              {% if (maintenance_corrected and maintenance_corrected|length>0) or (maintenance_pending and maintenance_pending|length>0) %}
+                {% if maintenance_corrected %}
+                  {% for e in maintenance_corrected %}
+                    {% if not (e.rating and (e.rating|string)|int < 3) %}
+                    <tr data-status="corrected">
+                      <td><strong>{{ e.entry_no or '-' }}</strong></td>
+                      <td>{{ e.date_time or '-' }}</td>
+                      <td>
+                        {{ e.vehicle_id or '-' }}{% if e.registration_no %} — {{ e.registration_no }}{% endif %}
+                      </td>
+                      <td class="px-3 py-2">{% set km = e.current_km or e.current_kilometer or e.km_reading or e.odometer %}{% if km %}<span class="text-sm text-gray-500">{{ km }}</span>{% else %}-{% endif %}</td>
+                      <td>{{ e.driver_incharge or '-' }}</td>
+                      <td style="text-align: center;"><strong>{{ e.utilized_qty or 0 }}</strong></td>
+                      <td>{{ e.processed_by or '-' }}</td>
+                      <td class="text-center">
+                        {% if e.rating and (e.rating|string)|int >= 3 %}
+                          <span style="font-weight:700; color: {% if (e.rating|string)|int == 3 %}#16a34a{% else %}#2563eb{% endif %};">{{ e.rating }} ★</span>
+                        {% else %}
+                          -
+                        {% endif %}
+                      </td>
+                      <td>
+                        <a href="{{ url_for('maintenance_view', entry_id=e.id) }}" class="px-3 py-1 bg-blue-600 text-white rounded text-sm">View</a>
+                      </td>
+                      </tr>
+                      {% set ns.cnt = ns.cnt + 1 %}
+                    {% endif %}
+                  {% endfor %}
+                {% endif %}
+
+                {% if maintenance_pending %}
+                  {% for e in maintenance_pending %}
+                    {% if not (e.rating and (e.rating|string)|int < 3) %}
+                    <tr data-status="pending">
+                      <td><strong>{{ e.entry_no or '-' }}</strong></td>
+                      <td>{{ e.date_time or e.created_at or '-' }}</td>
+                      <td>
+                        {{ e.vehicle_id or e.vehicle or '-' }}{% if e.registration_no %} — {{ e.registration_no }}{% endif %}
+                      </td>
+                        <td class="px-3 py-2">{% set km = e.current_km or e.current_kilometer or e.km_reading or e.odometer %}{% if km %}<span class="text-sm text-gray-500">{{ km }}</span>{% else %}-{% endif %}</td>
+                      <td>{{ e.driver_incharge or e.driver or '-' }}</td>
+                      <td style="text-align: center;"><strong>{{ e.utilized_qty or e.utilized_qty_actual or 0 }}</strong></td>
+                      <td>{{ e.processed_by or '-' }}</td>
+                      <td class="text-center">
+                        {% if e.rating and (e.rating|string)|int >= 3 %}
+                          <span style="font-weight:700; color: {% if (e.rating|string)|int == 3 %}#16a34a{% else %}#2563eb{% endif %};">{{ e.rating }} ★</span>
+                        {% else %}
+                          -
+                        {% endif %}
+                      </td>
+                      <td>
+                        <a href="{{ url_for('maintenance_view', entry_id=e.id) }}" class="px-3 py-1 bg-gray-100 text-gray-800 rounded text-sm">View</a>
+                      </td>
+                    </tr>
+                    {% set ns.cnt = ns.cnt + 1 %}
+                    {% endif %}
+                  {% endfor %}
+                {% endif %}
+              {% else %}
+                {% if ns.cnt == 0 %}
+                  <tr><td class="px-4 py-8 text-center text-gray-500" colspan="9">No maintenance job cards found for the selected status.</td></tr>
+                {% endif %}
+              {% endif %}
+            </tbody>
+          </table>
+        </div>
+        <div class="pagination-container" id="maintenanceUtilizationTablePagination">
+          <div class="pagination-info">
+            Rows per page: <select class="page-size-selector" onchange="setPageSize(this.value, 'maintenanceUtilizationTable')">
+              <option value="10">10</option>
+              <option value="25">25</option>
+              <option value="50">50</option>
+              <option value="100">100</option>
+            </select>
+          </div>
+          <div id="maintenanceUtilizationTableInfo" class="pagination-info"></div>
+          <div class="pagination-controls" id="maintenanceUtilizationTableControls"></div>
+        </div>
+      </div>
+
+      <!-- Material Utilization Table -->
+      <div class="table-container">
+        <div style="padding: 18px 24px 0 24px; background: #f8fafc;">
+          <input type="text" id="utilizationSearchInput" class="filter-input" style="max-width: 350px; margin-bottom: 10px;" placeholder="🔍 Search Utilization...">
+        </div>
+        <div class="table-header" style="background: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%);">
+          <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94L14.4 2.81c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/>
+          </svg>
+          Material Utilization Records
+          <div style="margin-left: auto; display: flex; gap: 8px;">
+            <button onclick="exportToPDF('utilizationTable', 'Material_Utilization')" class="export-btn">
+              <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd"/>
+              </svg>
+              PDF
+            </button>
+            <button onclick="exportToExcel('utilizationTable', 'Material_Utilization')" class="export-btn" style="background: #16a34a;">
+              <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd"/>
+              </svg>
+              Excel
+            </button>
+          </div>
+        </div>
+        
+        {% if utilization_records %}
+        <div class="table-wrapper">
+          <table id="utilizationTable">
+            <thead>
+              <tr>
+                <th>Entry No</th>
+                <th>Date & Time</th>
+                <th>Vehicle ID</th>
+                <th>Registration</th>
+                <th>Part No</th>
+                <th>Part Name</th>
+                <th>Quantity</th>
+                <th>Driver ID</th>
+                <th>Mech ID</th>
+                <th>Processed By</th>
+                <th>Approved</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for record in utilization_records %}
+              <tr>
+                <td><strong>{{ record.entry_no }}</strong></td>
+                <td>{{ record.date_time[:16] if record.date_time else '-' }}</td>
+                <td>{{ record.vehicle_id or '-' }}</td>
+                <td>{{ record.vehicle_registration_no or '-' }}</td>
+                <td>{{ record.part_no or '-' }}</td>
+                <td><strong>{{ record.part_name or '-' }}</strong></td>
+                <td><strong>{{ record.quantity or '0' }}</strong></td>
+                <td>{{ record.driver_id or record.driver or record.driver_name or '-' }}</td>
+                <td>{{ record.mech_id or record.mech or record.mech_name or '-' }}</td>
+                <td>{{ record.processed_by_id or record.processed_by or record.processed_by_name or '-' }}</td>
+                <td>
+                  {% if record.approved == 'YES' %}
+                  <span class="badge-active">YES</span>
+                  {% else %}
+                  <span class="badge-issued">NO</span>
+                  {% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <div class="pagination-container" id="utilizationTablePagination">
+          <div class="pagination-info">
+            Rows per page: <select class="page-size-selector" onchange="setPageSize(this.value, 'utilizationTable')">
+              <option value="10">10</option>
+              <option value="25">25</option>
+              <option value="50">50</option>
+              <option value="100">100</option>
+            </select>
+          </div>
+          <div id="utilizationTableInfo" class="pagination-info"></div>
+          <div class="pagination-controls" id="utilizationTableControls"></div>
+        </div>
+        {% else %}
+        <div class="empty-state">
+          <div class="empty-icon">⚙️</div>
+          <h3 class="text-xl font-bold text-gray-700 mb-2">No Utilization Records</h3>
+          <p class="text-gray-500">Material utilization records will appear here.</p>
+        </div>
+        {% endif %}
+      </div>
+
+      <!-- Scrap Records Table -->
+      <div class="table-container">
+        <div class="table-header" style="background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);">
+          <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+          </svg>
+          Scrap Records
+          <div style="margin-left: auto; display: flex; gap: 8px;">
+            <button onclick="exportToPDF('scrapTable', 'Scrap_Records')" class="export-btn">
+              <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd"/>
+              </svg>
+              PDF
+            </button>
+            <button onclick="exportToExcel('scrapTable', 'Scrap_Records')" class="export-btn" style="background: #16a34a;">
+              <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd"/>
+              </svg>
+              Excel
+            </button>
+          </div>
+        </div>
+        
+        {% if scrap_records %}
+        <div class="table-wrapper">
+          <table id="scrapTable">
+            <thead>
+              <tr>
+                <th>Entry No</th>
+                <th>Date & Time</th>
+                <th>Vehicle ID</th>
+                <th>Registration</th>
+                <th>Part No</th>
+                <th>Part Name</th>
+                <th>Quantity</th>
+                <th>Material Type</th>
+                <th>Driver ID</th>
+                <th>Mech ID</th>
+                <th>Processed By</th>
+                <th>Approved</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for record in scrap_records %}
+              <tr>
+                <td><strong>{{ record.entry_no }}</strong></td>
+                <td>{{ record.date_time[:16] if record.date_time else '-' }}</td>
+                <td>{{ record.vehicle_id or '-' }}</td>
+                <td>{{ record.vehicle_registration_no or '-' }}</td>
+                <td>{{ record.part_no or '-' }}</td>
+                <td><strong>{{ record.part_name or '-' }}</strong></td>
+                <td style="text-align: center;"><strong>{{ record.quantity or '0' }}</strong></td>
+                <td>{{ record.type_of_material or '-' }}</td>
+                <td>{{ record.driver_id or '-' }}</td>
+                <td>{{ record.mech_id or '-' }}</td>
+                <td style="white-space: normal; word-break: break-all; max-width: 200px; font-size: 0.75rem;">{{ record.processed_by_id or '-' }}</td>
+                <td style="text-align: center;">
+                  {% if record.approved == 'YES' %}
+                  <span class="badge-active">YES</span>
+                  {% else %}
+                  <span class="badge-issued">NO</span>
+                  {% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <div class="pagination-container" id="scrapTablePagination">
+          <div class="pagination-info">
+            Rows per page: <select class="page-size-selector" onchange="setPageSize(this.value, 'scrapTable')">
+              <option value="10">10</option>
+              <option value="25">25</option>
+              <option value="50">50</option>
+              <option value="100">100</option>
+            </select>
+          </div>
+          <div id="scrapTableInfo" class="pagination-info"></div>
+          <div class="pagination-controls" id="scrapTableControls"></div>
+        </div>
+        {% else %}
+        <div class="empty-state">
+          <div class="empty-icon">🗑️</div>
+          <h3 class="text-xl font-bold text-gray-700 mb-2">No Scrap Records</h3>
+          <p class="text-gray-500">Scrapped items will appear here.</p>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Pagination configuration
+    const paginationState = {
+      activeTable: { page: 1, pageSize: 10 },
+      issueHistoryTable: { page: 1, pageSize: 10 },
+      utilizationTable: { page: 1, pageSize: 10 },
+      maintenanceUtilizationTable: { page: 1, pageSize: 10 },
+    };
+
+    function showPage(tableId) {
+      const table = document.getElementById(tableId);
+      if (!table) return;
+      const state = paginationState[tableId];
+      // Only paginate rows that are filtered in (data-visible="true")
+      const rows = Array.from(table.querySelectorAll('tbody tr')).filter(row => row.getAttribute('data-visible') !== 'false');
+      const totalRows = rows.length;
+      const pageSize = state.pageSize;
+      const page = state.page;
+      const start = (page - 1) * pageSize;
+      const end = start + pageSize;
+      rows.forEach((row, idx) => {
+        row.style.display = (idx >= start && idx < end) ? '' : 'none';
+      });
+      // Hide all other rows (filtered out)
+      Array.from(table.querySelectorAll('tbody tr')).forEach(row => {
+        if (row.getAttribute('data-visible') === 'false') row.style.display = 'none';
+      });
+      // Update info
+      const info = document.getElementById(tableId + 'Info');
+      if (info) {
+        if (totalRows === 0) {
+          info.textContent = 'No records to display.';
+        } else {
+          info.textContent = `Showing ${start + 1}-${Math.min(end, totalRows)} of ${totalRows} records`;
+        }
+      }
+    }
+
+    function updatePaginationControls(tableId) {
+      const table = document.getElementById(tableId);
+      if (!table) return;
+      const state = paginationState[tableId];
+      // Only paginate rows that are filtered in (data-visible != 'false')
+      const rows = Array.from(table.querySelectorAll('tbody tr')).filter(row => row.getAttribute('data-visible') !== 'false');
+      const totalRows = rows.length;
+      const pageSize = state.pageSize;
+      const totalPages = Math.ceil(totalRows / pageSize) || 1;
+      if (state.page > totalPages) state.page = totalPages;
+      if (state.page < 1) state.page = 1;
+      showPage(tableId);
+      const controls = document.getElementById(tableId + 'Controls');
+      if (!controls) return;
+      controls.innerHTML = '';
+      // Prev button
+      const prevBtn = document.createElement('button');
+      prevBtn.className = 'pagination-btn';
+      prevBtn.textContent = 'Prev';
+      prevBtn.disabled = state.page === 1;
+      prevBtn.onclick = () => {
+        state.page--;
+        updatePaginationControls(tableId);
+      };
+      controls.appendChild(prevBtn);
+      // Page numbers
+      for (let i = 1; i <= totalPages; i++) {
+        const btn = document.createElement('button');
+        btn.className = 'pagination-btn' + (i === state.page ? ' active' : '');
+        btn.textContent = i;
+        btn.onclick = () => {
+          state.page = i;
+          updatePaginationControls(tableId);
+        };
+        controls.appendChild(btn);
+      }
+      // Next button
+      const nextBtn = document.createElement('button');
+      nextBtn.className = 'pagination-btn';
+      nextBtn.textContent = 'Next';
+      nextBtn.disabled = state.page === totalPages;
+      nextBtn.onclick = () => {
+        state.page++;
+        updatePaginationControls(tableId);
+      };
+      controls.appendChild(nextBtn);
+    }
+
+    function setPageSize(size, tableId) {
+      paginationState[tableId].pageSize = parseInt(size);
+      paginationState[tableId].page = 1;
+      updatePaginationControls(tableId);
+    }
+
+    // Initialize pagination on DOMContentLoaded
+    document.addEventListener('DOMContentLoaded', function() {
+      ['activeTable', 'utilizationTable', 'maintenanceUtilizationTable'].forEach(tableId => {
+        const table = document.getElementById(tableId);
+        if (table) {
+          updatePaginationControls(tableId);
+          // Set selector to default value
+          const container = document.getElementById(tableId + 'Pagination');
+          if (container) {
+            const selector = container.querySelector('.page-size-selector');
+            if (selector) selector.value = paginationState[tableId].pageSize;
+          }
+        }
+      });
+    });
+
+    // Search and Filter functionality for active inventory
+    const searchInput = document.getElementById('searchInput');
+    const filterVendor = document.getElementById('filterVendor');
+    const filterType = document.getElementById('filterType');
+
+    function filterItems() {
+      const searchTerm = searchInput.value.toLowerCase();
+      const vendorFilter = filterVendor.value.toLowerCase();
+      const typeFilter = filterType.value.toLowerCase();
+
+      const tableRows = document.querySelectorAll('#activeTable tbody tr');
+      tableRows.forEach(row => {
+        const searchData = row.getAttribute('data-search').toLowerCase();
+        const vendorData = row.getAttribute('data-vendor').toLowerCase();
+        const typeData = row.getAttribute('data-type').toLowerCase();
+
+        const matchesSearch = searchData.includes(searchTerm);
+        const matchesVendor = !vendorFilter || vendorData.includes(vendorFilter);
+        const matchesType = !typeFilter || typeData.includes(typeFilter);
+
+        if (matchesSearch && matchesVendor && matchesType) {
+          row.setAttribute('data-visible', 'true');
+        } else {
+          row.setAttribute('data-visible', 'false');
+        }
+      });
+
+      // Reset pagination after filter
+      paginationState.activeTable.page = 1;
+      updatePaginationControls('activeTable');
+    }
+
+    if (searchInput) searchInput.addEventListener('input', filterItems);
+    if (filterVendor) filterVendor.addEventListener('change', filterItems);
+    if (filterType) filterType.addEventListener('change', filterItems);
+
+    // PDF Export Function
+    function exportToPDF(tableId, fileName) {
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF('l', 'mm', 'a4'); // landscape orientation
+      
+      // Load header image
+      const headerImg = new Image();
+      headerImg.src = '{{ url_for("static", filename="img/header_full.png") }}';
+      
+      headerImg.onload = function() {
+        // Add header image
+        doc.addImage(headerImg, 'PNG', 10, 5, 277, 25);
+        
+        // Add title below header
+        doc.setFontSize(14);
+        doc.setTextColor(0, 0, 0);
+        doc.text(fileName.replace(/_/g, ' '), 148, 35, { align: 'center' });
+        
+        doc.setFontSize(10);
+        doc.setTextColor(100, 100, 100);
+        doc.text('Generated on: ' + new Date().toLocaleString(), 148, 42, { align: 'center' });
+        
+        // Get table element
+        const table = document.getElementById(tableId);
+        
+        if (!table) {
+          alert('Table not found!');
+          return;
+        }
+        
+        // Extract headers
+        const headers = [];
+        const headerCells = table.querySelectorAll('thead th');
+        headerCells.forEach(cell => {
+          headers.push(cell.textContent.trim());
+        });
+        
+        // Extract rows
+        const rows = [];
+        const bodyRows = table.querySelectorAll('tbody tr:not([style*="display: none"])');
+        bodyRows.forEach(row => {
+          const rowData = [];
+          const cells = row.querySelectorAll('td');
+          cells.forEach(cell => {
+            // Clone cell to manipulate
+            const clone = cell.cloneNode(true);
+            
+            // Remove badges, buttons, and SVG elements
+            clone.querySelectorAll('span.badge-active, span.badge-issued, button, a, svg').forEach(el => el.remove());
+            
+            // Get text and clean up
+            let text = clone.textContent.trim();
+            // Clean up extra whitespace
+            text = text.replace(/\s+/g, ' ');
+            // Remove currency symbols for proper number formatting
+            text = text.replace(/₹/g, 'Rs. ');
+            
+            rowData.push(text);
+          });
+          if (rowData.length > 0) {
+            rows.push(rowData);
+          }
+        });
+        
+        // Generate table in PDF
+        doc.autoTable({
+          head: [headers],
+          body: rows,
+          startY: 50,
+          theme: 'grid',
+          styles: {
+            fontSize: 7,
+            cellPadding: 2,
+            overflow: 'linebreak',
+            halign: 'left',
+            valign: 'middle'
+          },
+          headStyles: {
+            fillColor: [30, 64, 175],
+            textColor: [255, 255, 255],
+            fontStyle: 'bold',
+            halign: 'center'
+          },
+          alternateRowStyles: {
+            fillColor: [245, 247, 250]
+          },
+          margin: { top: 50, left: 10, right: 10, bottom: 10 },
+          didDrawPage: function(data) {
+            // Footer
+            const pageCount = doc.internal.getNumberOfPages();
+            doc.setFontSize(8);
+            doc.setTextColor(100);
+            doc.text(
+              'Page ' + doc.internal.getCurrentPageInfo().pageNumber + ' of ' + pageCount,
+              148,
+              doc.internal.pageSize.height - 10,
+              { align: 'center' }
+            );
+          }
+        });
+        
+        // Save the PDF
+        doc.save(fileName + '_' + new Date().toISOString().split('T')[0] + '.pdf');
+      };
+      
+      headerImg.onerror = function() {
+        console.error('Failed to load header image');
+        // Fallback without header image
+        doc.setFontSize(14);
+        doc.setTextColor(0, 0, 0);
+        doc.text(fileName.replace(/_/g, ' '), 148, 15, { align: 'center' });
+        
+        doc.setFontSize(10);
+        doc.setTextColor(100, 100, 100);
+        doc.text('Generated on: ' + new Date().toLocaleString(), 148, 22, { align: 'center' });
+        
+        const table = document.getElementById(tableId);
+        
+        if (!table) {
+          alert('Table not found!');
+          return;
+        }
+        
+        const headers = [];
+        const headerCells = table.querySelectorAll('thead th');
+        headerCells.forEach(cell => {
+          headers.push(cell.textContent.trim());
+        });
+        
+        const rows = [];
+        const bodyRows = table.querySelectorAll('tbody tr:not([style*="display: none"])');
+        bodyRows.forEach(row => {
+          const rowData = [];
+          const cells = row.querySelectorAll('td');
+          cells.forEach(cell => {
+            const clone = cell.cloneNode(true);
+            clone.querySelectorAll('span.badge-active, span.badge-issued, button, a, svg').forEach(el => el.remove());
+            let text = clone.textContent.trim();
+            text = text.replace(/\s+/g, ' ');
+            text = text.replace(/₹/g, 'Rs. ');
+            rowData.push(text);
+          });
+          if (rowData.length > 0) {
+            rows.push(rowData);
+          }
+        });
+        
+        doc.autoTable({
+          head: [headers],
+          body: rows,
+          startY: 28,
+          theme: 'grid',
+          styles: {
+            fontSize: 7,
+            cellPadding: 2,
+            overflow: 'linebreak',
+            halign: 'left',
+            valign: 'middle'
+          },
+          headStyles: {
+            fillColor: [30, 64, 175],
+            textColor: [255, 255, 255],
+            fontStyle: 'bold',
+            halign: 'center'
+          },
+          alternateRowStyles: {
+            fillColor: [245, 247, 250]
+          },
+          margin: { top: 28, left: 10, right: 10, bottom: 10 },
+          didDrawPage: function(data) {
+            const pageCount = doc.internal.getNumberOfPages();
+            doc.setFontSize(8);
+            doc.setTextColor(100);
+            doc.text(
+              'Page ' + doc.internal.getCurrentPageInfo().pageNumber + ' of ' + pageCount,
+              148,
+              doc.internal.pageSize.height - 10,
+              { align: 'center' }
+            );
+          }
+        });
+        
+        doc.save(fileName + '_' + new Date().toISOString().split('T')[0] + '.pdf');
+      };
+    }
+
+    // Excel Export Function
+    function exportToExcel(tableId, fileName) {
+      const table = document.getElementById(tableId);
+      
+      if (!table) {
+        alert('Table not found!');
+        return;
+      }
+      
+      const wb = XLSX.utils.table_to_book(table, { sheet: fileName });
+      XLSX.writeFile(wb, fileName + '_' + new Date().toISOString().split('T')[0] + '.xlsx');
+    }
+
+    // Material Utilization Search
+    (function() {
+      const utilizationSearchInput = document.getElementById('utilizationSearchInput');
+      if (!utilizationSearchInput) return;
+
+      function filterUtilization() {
+        const searchTerm = utilizationSearchInput.value.trim().toLowerCase();
+        const tableRows = document.querySelectorAll('#utilizationTable tbody tr');
+        tableRows.forEach(row => {
+          const rowText = (row.textContent || '').toLowerCase();
+          if (rowText.includes(searchTerm)) {
+            row.setAttribute('data-visible', 'true');
+          } else {
+            row.setAttribute('data-visible', 'false');
+          }
+        });
+        // Reset pagination after filter
+        if (paginationState.utilizationTable) paginationState.utilizationTable.page = 1;
+        updatePaginationControls('utilizationTable');
+      }
+
+      utilizationSearchInput.addEventListener('input', filterUtilization);
+    })();
+
+    // Maintenance Utilization Search (filters only maintenance entries shown above)
+    (function() {
+      const maintenanceSearchInput = document.getElementById('maintenanceUtilizationSearchInput');
+      const statusSelect = document.getElementById('maintenanceStatusSelect');
+      if (!maintenanceSearchInput) return;
+
+      function filterMaintenance() {
+        const searchTerm = maintenanceSearchInput.value.trim().toLowerCase();
+        const tableRows = document.querySelectorAll('#maintenanceUtilizationTable tbody tr');
+        tableRows.forEach(row => {
+          const rowText = (row.textContent || '').toLowerCase();
+          // basic search match
+          const matchesSearch = rowText.includes(searchTerm);
+          // optional status filtering: if statusSelect is present and set to 'pending', only show rows that have data-status="pending"
+          let matchesStatus = true;
+          if(statusSelect){
+            const sel = statusSelect.value || 'corrected';
+            const rowStatus = (row.dataset.status || 'corrected').toLowerCase();
+            // if the row lacks explicit status, assume 'corrected'
+            matchesStatus = (sel === rowStatus);
+          }
+          if (matchesSearch && matchesStatus) {
+            row.setAttribute('data-visible', 'true');
+          } else {
+            row.setAttribute('data-visible', 'false');
+          }
+        });
+        if (paginationState.maintenanceUtilizationTable) paginationState.maintenanceUtilizationTable.page = 1;
+        updatePaginationControls('maintenanceUtilizationTable');
+      }
+
+      maintenanceSearchInput.addEventListener('input', filterMaintenance);
+      if(statusSelect){
+        // initialize selection from query param if present
+        try{
+          const params = new URLSearchParams(window.location.search);
+          const s = params.get('show_status');
+          if(s && (s === 'pending' || s === 'corrected')) statusSelect.value = s;
+        }catch(e){}
+
+        statusSelect.addEventListener('change', function(){
+          // update query param and reload so server can optionally respond
+          try{
+            const params = new URLSearchParams(window.location.search);
+            params.set('show_status', statusSelect.value);
+            window.location.search = params.toString();
+          }catch(e){
+            // fallback: just filter client-side
+            filterMaintenance();
+          }
+        });
+        // apply filter immediately so correct rows are visible on load
+        filterMaintenance();
+      }
+    })();
+  </script>
+
+  <script src="{{ url_for('static', filename='js/uppercase.js') }}"></script>
+
+  {% include 'footer.html' %}
+  </body>
+  </html>

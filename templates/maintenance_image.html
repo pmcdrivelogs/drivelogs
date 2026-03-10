@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Maintenance Entry Image - Drive Logs</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <style>
+    * { font-family: 'Inter', sans-serif; }
+    body { background: #f7fafc; }
+    .top-yellow { background: #ffe600; height:72px; display:flex; align-items:center; padding:8px 20px; }
+    .drive-logo-wrap { background:#fff200; padding:6px 12px; border-radius:8px; display:inline-flex; align-items:center; box-shadow:0 4px 8px rgba(0,0,0,0.06);}    
+    .image-mock { background: white; border-radius: 16px; padding: 20px; max-width: 980px; margin: 8px auto; box-shadow: 0 8px 30px rgba(0,0,0,0.08); border: 2px solid #e6e6e6; }
+    .header-band { background: #0f766e; color: white; padding: 14px 18px; font-weight: 800; font-size:1.05rem; display:flex; align-items:center; justify-content:space-between; border-radius:8px; }
+    .wrench-circle { width:36px; height:36px; border-radius:50%; background:transparent; display:flex; align-items:center; justify-content:center; border:2px solid rgba(255,255,255,0.2);} 
+
+    /* form styles borrowed from utilization.html for alignment and responsiveness */
+    .form-row { display:flex; align-items:center; margin-bottom:14px; }
+    .form-label { font-weight:700; color:#1f2937; font-size:0.95rem; min-width:240px; text-transform:uppercase; letter-spacing:0.3px; }
+    .colon { margin: 0 12px; font-weight:700; color:#1f2937; }
+    .form-input, .form-select, .form-textarea { flex:1; padding:10px 14px; border:1px solid #e5e7eb; border-radius:12px; font-size:0.95rem; background:white; }
+    .form-textarea { min-height:90px; border-radius:12px; resize:vertical; }
+    .form-input:focus, .form-select:focus, .form-textarea:focus { outline:none; border-color:#34d399; box-shadow:0 8px 24px rgba(16,185,129,0.06); }
+    .submit-btn { background: linear-gradient(135deg,#06b6d4,#0ea5e9); color:white; padding:12px 36px; border-radius:12px; font-weight:700; box-shadow:0 8px 20px rgba(14,165,233,0.12); }
+
+    @media (max-width:768px) {
+      .form-row { flex-direction:column; align-items:flex-start; }
+      .form-label { min-width:auto; }
+      .colon { display:none; }
+      .form-input, .form-select, .form-textarea { width:100%; }
+    }
+  </style>
+</head>
+<body class="bg-[#f8fafc] min-h-screen flex flex-col pt-6">
+  <div class="top-yellow">
+    <div class="drive-logo-wrap">
+      <img src="{{ url_for('static', filename='img/drive-logs.png') }}" alt="Drive Logs" style="height:36px;">
+    </div>
+  </div>
+
+  <div class="w-full flex justify-center items-center border-b border-gray-300 bg-white">
+    <img src="{{ url_for('static', filename='img/pmc-logo.png') }}" alt="College Header" class="w-full max-w-5xl h-auto p-2 md:p-4">
+  </div>
+
+  <div class="flex-1 py-4 px-4">
+    <div class="image-mock">
+      <div class="mb-3 flex justify-between items-center">
+        <a href="{{ url_for('dashboard') }}" class="inline-flex items-center gap-2 px-3 py-2 bg-slate-100 hover:bg-slate-200 rounded-md text-sm font-semibold">← Back to Dashboard</a>
+        <div class="wrench-circle" title="Maintenance">
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 9.3l6 6a2.8 2.8 0 0 1-4 4l-6-6"/><path d="M11 13l-8 8"/></svg>
+        </div>
+      </div>
+      <div class="header-band">
+        <div>MAINTENANCE ENTRY</div>
+      </div>
+
+      <form id="maintenanceForm" method="POST">
+        <div style="padding:18px 6px">
+          <div class="form-row"><label class="form-label">Date &amp; Time</label><span class="colon">:</span><input type="datetime-local" name="date_time" class="form-input" required></div>
+
+          <div class="form-row"><label class="form-label">Vehicle ID</label><span class="colon">:</span>
+            <select id="vehicleSelect" name="vehicle_id" class="form-select">
+              <option value="">Select</option>
+              {% for v in vehicles %}
+                <option value="{{ v.get('vehicle_id') }}">{{ v.get('vehicle_id') }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div class="form-row"><label class="form-label">Registration Number</label><span class="colon">:</span><input id="registrationInput" type="text" name="registration_no" class="form-input" placeholder="Auto Fetch Registration Number Using Vehicle ID" readonly></div>
+
+          <div class="form-row"><label class="form-label">Current Kilometer</label><span class="colon">:</span><input id="currentKmInput" type="number" name="current_km" class="form-input" placeholder="Enter current odometer reading" step="1"></div>
+          <div class="form-row"><label class="form-label">Driver Incharge</label><span class="colon">:</span><textarea name="driver_incharge" class="form-textarea"></textarea></div>
+
+          <div class="form-row"><label class="form-label">Driver's Voice</label><span class="colon">:</span><textarea name="drivers_voice" class="form-textarea"></textarea></div>
+
+          <div class="form-row"><label class="form-label">Technician Alloted</label><span class="colon">:</span><input type="text" name="technician_alloted" class="form-input"></div>
+
+          <div class="form-row"><label class="form-label">Technician observation</label><span class="colon">:</span><textarea name="technician_observation" class="form-textarea"></textarea></div>
+
+          <div class="form-row"><label class="form-label">Possible Ways of Maintenance</label><span class="colon">:</span><textarea name="possible_ways" class="form-textarea"></textarea></div>
+
+          <div class="form-row"><label class="form-label">Parts Required</label><span class="colon">:</span><textarea name="parts_required" class="form-textarea"></textarea></div>
+
+          <div class="flex justify-center mt-6"><button type="submit" class="submit-btn">CREATE JOB CARD</button></div>
+        </div>
+      </form>
+      <!-- Success modal (styled like provided design) -->
+      <div id="successModal" class="fixed inset-0 z-60 hidden items-center justify-center overflow-auto">
+        <div id="successOverlay" class="absolute inset-0 bg-black/40 modal-overlay"></div>
+        <div class="relative bg-white rounded-2xl shadow-2xl max-w-sm w-full mx-4 p-6 z-70 text-center">
+          <div class="flex justify-center mb-2">
+            <div class="w-20 h-20 rounded-full bg-green-50 flex items-center justify-center mx-auto">
+              <svg class="w-10 h-10 text-green-600" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M20 6L9 17l-5-5" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+          </div>
+          <h3 class="text-xl font-extrabold text-slate-800">Successfully Submitted!</h3>
+          <p id="successMessage" class="text-sm text-slate-500 mt-2">Your job card has been created.</p>
+
+          <div class="mt-5 flex items-center justify-center gap-3">
+            <button id="printBtn" class="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-full shadow">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M6 9V2h12v7" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><rect x="6" y="13" width="12" height="8" rx="2" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              Print
+            </button>
+            <button id="downloadBtn" class="inline-flex items-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-full shadow">
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/><polyline points="7 10 12 15 17 10" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              Download
+            </button>
+          </div>
+
+          <div class="mt-6">
+            <button id="closeAddBtn" class="w-full px-4 py-3 bg-slate-100 hover:bg-slate-200 rounded-full text-slate-800 font-semibold">Close & Add New Entry</button>
+          </div>
+          <button id="successClose" class="absolute top-3 right-3 text-gray-400 hover:text-gray-700">✕</button>
+        </div>
+      </div>
+    </div>
+  </div>
+    <script>
+      // Set current date/time default like utilization form
+      document.addEventListener('DOMContentLoaded', function() {
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const day = String(now.getDate()).padStart(2, '0');
+        const hours = String(now.getHours()).padStart(2, '0');
+        const minutes = String(now.getMinutes()).padStart(2, '0');
+        const datetimeStr = `${year}-${month}-${day}T${hours}:${minutes}`;
+        const dt = document.querySelector('input[name="date_time"]');
+        if (dt) dt.value = datetimeStr;
+      });
+    </script>
+    {% if entry %}
+    <script>
+      // Prefill form when editing an existing entry
+      document.addEventListener('DOMContentLoaded', function(){
+        try{
+          const entry = {{ entry|tojson }} || {};
+          if(!entry) return;
+          // set form fields if present
+          const setIf = (sel, val) => { const el = document.querySelector(sel); if(el){ el.value = val === null || val === undefined ? '' : val; } };
+          setIf('input[name="date_time"]', entry.date_time ? (entry.date_time.replace(' ', 'T')) : '');
+          setIf('select[name="vehicle_id"]', entry.vehicle_id);
+          setIf('input[name="registration_no"]', entry.registration_no || '');
+          setIf('input[name="current_km"]', entry.current_km || entry.current_kilometer || entry.km_reading || entry.odometer || '');
+          setIf('textarea[name="driver_incharge"]', entry.driver_incharge || '');
+          setIf('textarea[name="drivers_voice"]', entry.drivers_voice || '');
+          setIf('input[name="technician_alloted"]', entry.technician_alloted || '');
+          setIf('textarea[name="technician_observation"]', entry.technician_observation || '');
+          setIf('textarea[name="possible_ways"]', entry.possible_ways || '');
+          setIf('textarea[name="parts_required"]', entry.parts_required || '');
+          // change submit text
+          const btn = document.querySelector('.submit-btn'); if(btn) btn.textContent = 'UPDATE JOB CARD';
+        }catch(e){ console.error('prefill error', e); }
+      });
+    </script>
+    {% endif %}
+    <script>
+      // If a Job Card history table exists on this page, append the newly-created
+      // job card entry so users see it immediately without a full page reload.
+      window.addJobcardToHistory = function(entry){
+        try{
+          const tbody = document.getElementById('jobcardsTbody');
+          if(!tbody) return; // no history table on this page
+
+          const id = entry.entry_id || entry.id || entry.entryId || '';
+          const entryNo = entry.entry_no || entry.entryNo || '';
+          const dateTime = entry.date_time || entry.created_at || new Date().toISOString();
+          const vehicle = entry.vehicle_id || entry.vehicle || '';
+          const reg = entry.registration_no || entry.registration || '';
+          const currentKm = (entry.current_km || entry.currentKm || entry.km) || '';
+          const driver = entry.driver_incharge || entry.driver || '';
+          const processedBy = entry.processed_by || entry.processedBy || '';
+          const utilized = entry.utilized_qty || entry.utilization_qty || entry.utilized || '';
+
+          const tr = document.createElement('tr');
+          tr.className = 'table-row-hover';
+          tr.setAttribute('data-id', String(id));
+          tr.setAttribute('data-rating','');
+          tr.setAttribute('data-utilized_qty', String(utilized || ''));
+          tr.setAttribute('data-entry', String(entryNo || ''));
+          tr.setAttribute('data-vehicle', String(vehicle || ''));
+          tr.setAttribute('data-driver', String(driver || ''));
+          tr.setAttribute('data-created_at', String(dateTime || ''));
+          tr.setAttribute('data-processed_by', String(processedBy || ''));
+          tr.setAttribute('data-day_end_description', '');
+          tr.setAttribute('data-current-km', String(currentKm || ''));
+
+          function fmt(dt){ try{ const d = new Date(dt); if(isNaN(d)) return dt; return d.toLocaleString(); }catch(e){ return dt; } }
+
+          tr.innerHTML = `
+            <td class="px-3 py-2">${entryNo || '-'}</td>
+            <td class="px-3 py-2">${fmt(dateTime)}</td>
+            <td class="px-3 py-2">${vehicle || '-'}${reg?(' — '+reg):''}</td>
+            <td class="px-3 py-2">${currentKm?('<span class="text-sm text-gray-500">'+currentKm+'</span>'):'-'}</td>
+            <td class="px-3 py-2">${driver || '-'}</td>
+            <td class="px-3 py-2">
+              <a href="/maintenance/${id}/edit" class="px-3 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded text-sm mr-2 border">Edit</a>
+              <a href="/maintenance/${id}" class="px-3 py-1 bg-gray-50 hover:bg-gray-100 text-gray-800 rounded text-sm mr-2 border">View</a>
+              <button type="button" class="px-3 py-1 bg-yellow-500 hover:bg-yellow-600 text-white rounded text-sm mr-2 shadow-sm" onclick="openEstimateModal('${id}', '${entryNo}')">Set Pending</button>
+              <button type="button" class="px-3 py-1 bg-green-600 hover:bg-green-700 text-white rounded text-sm shadow-md" onclick="openCorrectedModal('${id}', '${entryNo}')">Mark Corrected</button>
+            </td>
+          `;
+
+          // insert at top
+          tbody.insertBefore(tr, tbody.firstChild);
+
+          // update badge count (best-effort)
+          try{ const b = document.getElementById('jobcardsBadge'); if(b){ const n = Number((b.textContent||'').split(' ')[0]||0); b.textContent = (n+1) + ' items'; } }catch(e){}
+
+          // refresh pagers and rating count if helpers exist
+          try{ if(window.refreshAllPagers) window.refreshAllPagers(); }catch(e){}
+          try{ if(window.updateDriverRatingCount) window.updateDriverRatingCount(); }catch(e){}
+
+        }catch(err){ console.error('addJobcardToHistory error', err); }
+      };
+    </script>
+    <script>
+      // Ensure the submit button is disabled immediately when the form is submitted
+      document.addEventListener('DOMContentLoaded', function(){
+        try{
+          const formDisable = document.getElementById('maintenanceForm');
+          if(!formDisable) return;
+          formDisable.addEventListener('submit', function(){
+            const btn = formDisable.querySelector('.submit-btn');
+            if(btn && !btn.disabled){
+              btn.disabled = true;
+              btn.classList.add('opacity-60','cursor-not-allowed');
+              btn.dataset.origText = btn.dataset.origText || btn.textContent;
+              btn.textContent = 'Submitting...';
+            }
+          }, true);
+        }catch(e){ console.warn('submit-disable init failed', e); }
+      });
+
+      // AJAX submit, show styled success modal with Print / Download / Close & Add
+      (function(){
+        const form = document.getElementById('maintenanceForm');
+        const modal = document.getElementById('successModal');
+        const overlay = document.getElementById('successOverlay');
+        const closeBtn = document.getElementById('successClose');
+        const downloadBtn = document.getElementById('downloadBtn');
+        const printBtn = document.getElementById('printBtn');
+        const closeAddBtn = document.getElementById('closeAddBtn');
+        const successMessage = document.getElementById('successMessage');
+        let lastEntry = null;
+
+        function openModal(){ modal.classList.remove('hidden'); modal.classList.add('flex'); document.body.classList.add('overflow-hidden'); }
+        function closeModal(){ modal.classList.add('hidden'); modal.classList.remove('flex'); document.body.classList.remove('overflow-hidden'); }
+
+        closeBtn.addEventListener('click', closeModal);
+        overlay.addEventListener('click', closeModal);
+
+        form.addEventListener('submit', function(e){
+          // If this page is used for editing (entry present), allow normal POST to server
+          {% if entry %}
+            return; // let browser submit form to current URL (/maintenance/<id>/edit)
+          {% endif %}
+          e.preventDefault();
+          const fd = new FormData(form);
+          // helper to re-enable submit button on failure
+          function reEnableSubmit(){ try{ const b = form.querySelector('.submit-btn'); if(b){ b.removeAttribute('disabled'); b.classList.remove('opacity-60','cursor-not-allowed'); b.textContent = b.dataset.origText || 'CREATE JOB CARD'; } }catch(e){} }
+          fetch('/api/maintenance', { method: 'POST', body: fd, credentials: 'same-origin' })
+            .then(async response => {
+              const ct = response.headers.get('content-type') || '';
+              let data = null;
+              if(ct.includes('application/json')) data = await response.json(); else {
+                const text = await response.text(); try{ data = text ? JSON.parse(text) : null; }catch{ data = null; }
+              }
+              return { ok: response.ok, status: response.status, data };
+            })
+            .then(({ ok, status, data }) => {
+              if (ok && data && data.success) {
+                lastEntry = data;
+                successMessage.textContent = data.message || (`Job card ${data.entry_no || ''} created successfully.`);
+                    // try to add the new job card to any in-page Job Card history table
+                    try{ if(window.addJobcardToHistory) { window.addJobcardToHistory(data); } }catch(e){}
+                    openModal();
+              } else {
+                reEnableSubmit();
+                const msg = (data && data.message) || `Server responded ${status}`;
+                alert('Failed to create job card:\n' + msg);
+                console.error('Create error:', status, data);
+              }
+            }).catch(err => {
+              reEnableSubmit();
+              console.error(err);
+              alert('Error creating job card (network).');
+            });
+        });
+
+        downloadBtn.addEventListener('click', function(){
+          if (!lastEntry) return;
+          const payload = JSON.stringify(lastEntry, null, 2);
+          const blob = new Blob([payload], { type: 'application/json' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a'); a.href = url; a.download = (lastEntry.entry_no || 'jobcard') + '.json'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+        });
+
+        printBtn.addEventListener('click', function(){
+          if (!lastEntry) return;
+          const id = lastEntry.entry_id;
+          if (!id) { alert('Print not available: missing entry id.'); return; }
+          const w = window.open('/maintenance/' + id + '?print=1', '_blank');
+          if (!w) alert('Popup blocked. Please allow popups to print.');
+        });
+
+        closeAddBtn.addEventListener('click', function(){ window.location = '{{ url_for('maintenance_image') }}'; });
+      })();
+    </script>
+    <script>
+      // Auto-fill registration number when a vehicle is selected
+      document.addEventListener('DOMContentLoaded', function(){
+        try{
+          const vehicles = {{ vehicles|tojson }} || [];
+          const lookup = {};
+          vehicles.forEach(v => {
+            const id = (v && (v.vehicle_id || v.get && v.get('vehicle_id')));
+            const reg = (v && (v.registration_no || v.get && v.get('registration_no'))) || '';
+            const km = (v && (v.current_km || v.current_kilometer || v.km || v.odometer || v.km_reading || (v.get && (v.get('current_km') || v.get('odometer'))))) || '';
+            if(id !== undefined && id !== null){ lookup[String(id)] = { reg: reg, km: km }; }
+          });
+
+          const sel = document.getElementById('vehicleSelect');
+          const regInput = document.getElementById('registrationInput');
+          const kmInput = document.getElementById('currentKmInput');
+          if(!sel || !regInput) return;
+
+          sel.addEventListener('change', function(){
+            const val = this.value || '';
+            if(!val){ regInput.value = ''; if(kmInput) kmInput.value = ''; return; }
+            const obj = lookup[val] || {};
+            regInput.value = obj.reg || '';
+            if(kmInput) kmInput.value = obj.km || '';
+          });
+        }catch(e){ console.error('Auto-fill vehicle registration error', e); }
+      });
+    </script>
+    <script>
+      // Force uppercase for all text inputs and textareas while typing and on paste
+      (function(){
+        function toUpperInput(el){
+          try{
+            const start = el.selectionStart;
+            const end = el.selectionEnd;
+            el.value = el.value.toUpperCase();
+            if(typeof start === 'number' && typeof end === 'number') el.setSelectionRange(start, end);
+          }catch(e){ /* ignore */ }
+        }
+
+        document.addEventListener('input', function(e){
+          const t = e.target;
+          if(!t) return;
+          const tag = t.tagName && t.tagName.toUpperCase();
+          if(tag === 'INPUT'){
+            const type = (t.type || '').toLowerCase();
+            if(type === 'text' || type === 'search' || type === 'tel' || type === 'email'){
+              toUpperInput(t);
+            }
+          } else if(tag === 'TEXTAREA'){
+            toUpperInput(t);
+          }
+        }, true);
+
+        // handle paste events to ensure pasted text is uppercased
+        document.addEventListener('paste', function(e){
+          const t = e.target;
+          if(!t) return;
+          const tag = t.tagName && t.tagName.toUpperCase();
+          if(tag === 'INPUT' || tag === 'TEXTAREA'){
+            // defer to input handler after paste completes
+            setTimeout(function(){ toUpperInput(t); }, 0);
+          }
+        });
+      })();
+    </script>
+    <script src="{{ url_for('static', filename='js/uppercase.js') }}"></script>
+{% include 'footer.html' %}
+</body>
+</html>

@@ -1,0 +1,5194 @@
+import pkgutil
+import importlib.util
+
+# Compatibility shim: Python 3.12+ removed `pkgutil.get_loader` which
+# older Flask versions call. Provide a minimal replacement that returns
+# an object with `get_filename()` so Flask can determine package paths.
+if not hasattr(pkgutil, "get_loader"):
+    def _get_loader(name):
+        # Avoid inspecting __main__ (find_spec may raise ValueError)
+        if name == "__main__":
+            return None
+        try:
+            spec = importlib.util.find_spec(name)
+        except Exception:
+            return None
+        if spec is None:
+            return None
+        class _Loader:
+            def get_filename(self, fullname):
+                return spec.origin
+        return _Loader()
+    pkgutil.get_loader = _get_loader
+
+from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
+from functools import wraps
+import os
+import logging
+from collections import deque
+from database import (
+    authenticate_user, authenticate_super_admin, log_login_attempt, 
+    save_vehicle_annual_record, get_vehicle_annual_record, 
+    save_vehicle_permanent_record, get_vehicle_permanent_record, 
+    save_trip_opening_checklist, save_utilization_record, save_fuel_consumption, 
+    save_daily_technical_remarks, save_weekly_attention, save_driver_voice, 
+    save_technician_observation_works, save_technician_observation_materials, 
+    save_process_of_works, save_monthly_maintenance, save_halfyearly_maintenance, 
+    save_annual_maintenance, save_annual_summary_complaints, save_annual_summary_recommendations, 
+    save_incidents_reports_incidents, save_incidents_reports_claims, save_feedback,
+    save_purchase, get_next_purchase_entry_no,
+    save_fuel, get_next_fuel_entry_no,
+    save_stock, get_next_stock_entry_no,
+    save_statutory, get_next_statutory_entry_no,
+    get_all_users, get_all_vehicles, get_users_count, get_vehicles_count,
+    get_user_by_id, get_vehicle_by_id, admin_create_user, admin_update_user,
+    admin_delete_user, admin_toggle_user_status, admin_add_vehicle, admin_update_vehicle,
+    admin_delete_vehicle, get_all_fuel_records, get_all_statutory_records, 
+    get_all_trip_sheets, get_all_purchases, get_all_stock_issues, get_all_utilization, 
+    get_all_scrap, save_maintenance_entry, update_maintenance_entry, supabase
+)
+from database import save_material_utilization, consume_part_from_purchases
+from datetime import datetime
+import time
+import json
+from dotenv import load_dotenv
+
+load_dotenv()
+
+app = Flask(__name__)
+app.secret_key = os.getenv('SECRET_KEY', 'your-secret-key-change-this-in-production')
+
+# Disable template caching for development
+app.config['TEMPLATES_AUTO_RELOAD'] = True
+app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0
+
+# Jinja filter: format datetime strings to DD/MM/YYYY or DD/MM/YYYY HH:MM when time present
+def _format_date(value, with_time=False):
+    if not value:
+        return ''
+    try:
+        # If it's already a datetime
+        if hasattr(value, 'strftime'):
+            dt = value
+        else:
+            s = str(value)
+            # Handle common ISO formats
+            try:
+                # fromisoformat supports 'YYYY-MM-DD' and 'YYYY-MM-DDTHH:MM:SS'
+                dt = datetime.fromisoformat(s)
+            except Exception:
+                # try common other formats
+                for fmt in ('%Y-%m-%d %H:%M:%S', '%Y-%m-%dT%H:%M:%S', '%Y-%m-%d'):
+                    try:
+                        dt = datetime.strptime(s, fmt)
+                        break
+                    except Exception:
+                        dt = None
+                if dt is None:
+                    # fallback: return raw string
+                    return s
+        if with_time:
+            return dt.strftime('%d/%m/%Y %H:%M')
+        return dt.strftime('%d/%m/%Y')
+    except Exception:
+        try:
+            return str(value)
+        except Exception:
+            return ''
+
+# Register the filter
+app.jinja_env.filters['fmt_dt'] = _format_date
+
+# In-memory log buffer for recent application logs (temporary, for debugging)
+LOG_BUFFER = deque(maxlen=400)
+
+class BufferHandler(logging.Handler):
+    def emit(self, record):
+        try:
+            msg = self.format(record)
+        except Exception:
+            msg = record.getMessage()
+        LOG_BUFFER.append({'level': record.levelname, 'message': msg, 'time': record.created})
+
+# Attach buffer handler to app logger
+buffer_handler = BufferHandler()
+buffer_handler.setLevel(logging.DEBUG)
+formatter = logging.Formatter('%(asctime)s %(levelname)s: %(message)s')
+buffer_handler.setFormatter(formatter)
+app.logger.addHandler(buffer_handler)
+
+# Configuration
+app.config['UPLOAD_FOLDER'] = 'uploads'
+app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
+
+# Login required decorator (allows both user and admin)
+def login_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'user' not in session and 'admin' not in session:
+            flash('Please login first', 'warning')
+            return redirect(url_for('login'))
+        return f(*args, **kwargs)
+    return decorated_function
+
+
+def module_required(module_name):
+    """Decorator to restrict access to users who have the given module assigned.
+    Super-admins (session 'admin') are allowed by default.
+    """
+    def _decorator(f):
+        @wraps(f)
+        def wrapped(*args, **kwargs):
+            # Super admin bypass
+            if 'admin' in session:
+                return f(*args, **kwargs)
+
+            uid = session.get('user_id')
+            try:
+                if not uid:
+                    flash('Access denied: not authorized', 'danger')
+                    return redirect(url_for('dashboard'))
+                user = get_user_by_id(uid)
+                mods = user.get('modules') if user else None
+                if not mods:
+                    flash('Access denied: module not assigned', 'danger')
+                    return redirect(url_for('dashboard'))
+                # Allow if module present
+                if module_name in mods:
+                    return f(*args, **kwargs)
+                flash('Access denied: you do not have permissions for this module', 'danger')
+                return redirect(url_for('dashboard'))
+            except Exception:
+                flash('Access denied: error checking permissions', 'danger')
+                return redirect(url_for('dashboard'))
+        return wrapped
+    return _decorator
+
+# Admin login required decorator
+def admin_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'admin' not in session:
+            flash('Admin access required', 'danger')
+            return redirect(url_for('super_admin_login'))
+        return f(*args, **kwargs)
+    return decorated_function
+
+@app.route('/')
+def index():
+    return redirect(url_for('login'))
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    if request.method == 'POST':
+        email = request.form.get('email')
+        password = request.form.get('password')
+        
+        # Authenticate with Supabase
+        user = authenticate_user(email, password)
+        
+        if user:
+            session['user'] = email
+            session['user_id'] = user['id']
+            session['user_name'] = user['full_name']
+            flash('Login successful!', 'success')
+            log_login_attempt(email, True, request.remote_addr)
+            return redirect(url_for('dashboard'))
+        else:
+            flash('Invalid email or password', 'danger')
+            log_login_attempt(email, False, request.remote_addr)
+    
+    return render_template('login.html')
+
+@app.route('/super-admin-login', methods=['GET', 'POST'])
+def super_admin_login():
+    if request.method == 'POST':
+        identifier = request.form.get('email')  # Can be email or username
+        password = request.form.get('password')
+        
+        # Authenticate with Supabase
+        admin = authenticate_super_admin(identifier, password)
+        
+        if admin:
+            session['admin'] = identifier
+            session['admin_id'] = admin['id']
+            session['admin_name'] = admin['full_name']
+            flash('Admin login successful!', 'success')
+            log_login_attempt(identifier, True, request.remote_addr)
+            return redirect(url_for('admin_dashboard'))
+        else:
+            flash('Invalid admin credentials', 'danger')
+            log_login_attempt(identifier, False, request.remote_addr)
+    
+    return render_template('super_admin_login.html')
+
+@app.route('/dashboard')
+@login_required
+def dashboard():
+    # Fetch current user's assigned modules (if any) and pass to template
+    user_modules = []
+    try:
+        uid = session.get('user_id')
+        if uid:
+            u = get_user_by_id(uid)
+            if u:
+                user_modules = u.get('modules') or []
+    except Exception:
+        user_modules = []
+    return render_template('dashboard.html', modules=user_modules)
+
+
+@app.route('/maintenance-image', methods=['GET', 'POST'])
+@login_required
+@module_required('Maintenance')
+def maintenance_image():
+    """Render the maintenance entry form and handle submissions."""
+    def get_next_entry_no():
+        """Return the next entry_no in the sequence PMC/MAIN/NNN (zero-padded).
+        Falls back to a timestamp-derived suffix on error.
+        """
+        try:
+            res = supabase.table('maintenance_entry').select('entry_no').like('entry_no', 'PMC/MAIN/%').execute()
+            rows = res.data if res.data else []
+            maxn = 0
+            for r in rows:
+                en = r.get('entry_no') or ''
+                parts = en.split('/')
+                if len(parts) >= 3:
+                    try:
+                        n = int(parts[2])
+                        if n > maxn:
+                            maxn = n
+                    except Exception:
+                        continue
+            return f"PMC/MAIN/{(maxn+1):03d}"
+        except Exception:
+            import time
+            return f"PMC/MAIN/{int(time.time())%1000:03d}"
+    if request.method == 'POST':
+        try:
+            # Build data dict from form
+            # Accept vehicle_id as-is (vehicle ids can be alphanumeric like '96A')
+            vehicle_id = request.form.get('vehicle_id') or None
+
+            # parse current_km if provided
+            try:
+                _ck = request.form.get('current_km')
+                current_km = int(_ck) if (_ck is not None and str(_ck).strip() != '') else None
+            except Exception:
+                current_km = None
+
+            data = {
+                'entry_no': request.form.get('entry_no') or get_next_entry_no(),
+                'date_time': request.form.get('date_time'),
+                'vehicle_id': vehicle_id,
+                'current_km': current_km,
+                'registration_no': request.form.get('registration_no'),
+                'driver_incharge': request.form.get('driver_incharge'),
+                'drivers_voice': request.form.get('drivers_voice'),
+                'technician_alloted': request.form.get('technician_alloted'),
+                'technician_observation': request.form.get('technician_observation'),
+                'possible_ways': request.form.get('possible_ways'),
+                'parts_required': request.form.get('parts_required'),
+                'processed_by': session.get('user_id') or session.get('admin_id'),
+                'approved': False,
+                'created_by': session.get('user_id') or session.get('admin_id')
+            }
+
+            saved = save_maintenance_entry(data)
+            if saved:
+                flash('Maintenance job card created successfully!', 'success')
+                return redirect(url_for('maintenance_history'))
+            else:
+                flash('Failed to save job card. Try again.', 'danger')
+        except Exception as e:
+            flash(f'Error saving job card: {str(e)}', 'danger')
+            import traceback
+            traceback.print_exc()
+
+    # GET: render form with vehicles for dropdown
+    try:
+        vehicles_res = supabase.table('vehicles').select('vehicle_id, registration_no').order('vehicle_id').execute()
+        vehicles = vehicles_res.data if vehicles_res.data else []
+    except Exception as e:
+        vehicles = []
+
+    return render_template('maintenance_image.html', vehicles=vehicles)
+
+
+@app.route('/internal-audit', methods=['GET', 'POST'])
+@login_required
+@module_required('Internal Audit')
+def internal_audit():
+    """Simple Internal Audit report form (starter implementation)."""
+    if request.method == 'POST':
+        try:
+            # TODO: persist audit data to DB (not implemented yet)
+            flash('Internal audit submitted (stub).', 'success')
+            return redirect(url_for('dashboard'))
+        except Exception as e:
+            app.logger.exception('Failed submitting internal audit')
+            flash('Failed to submit audit: ' + str(e), 'danger')
+
+    try:
+        vehicles_res = supabase.table('vehicles').select('vehicle_id, registration_no').order('vehicle_id').execute()
+        vehicles = vehicles_res.data if vehicles_res.data else []
+    except Exception:
+        vehicles = []
+    try:
+        employees_res = supabase.table('employees').select('employee_id, name').order('employee_id').execute()
+        employees = employees_res.data if employees_res.data else []
+    except Exception:
+        employees = []
+
+    return render_template('internal_audit.html', vehicles=vehicles, employees=employees)
+
+
+@app.route('/api/employees', methods=['GET'])
+@login_required
+def api_employees_list():
+    """Return a lightweight list of employees (id + name) for client-side datalists and search.
+    """
+    try:
+        res = supabase.table('employees').select('employee_id, name, full_name').order('employee_id').execute()
+        rows = res.data if res.data else []
+        # normalize to minimal shape
+        out = []
+        for r in rows:
+            emp_id = r.get('employee_id') or r.get('id') or ''
+            name = r.get('name') or r.get('full_name') or ''
+            out.append({'employee_id': emp_id, 'name': name})
+        return jsonify({'success': True, 'employees': out}), 200
+    except Exception as e:
+        app.logger.exception('Failed to fetch employees list')
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@app.route('/api/employee/<path:employee_id>', methods=['GET'])
+@login_required
+def api_employee_get(employee_id):
+    """Return a single employee row by employee_id (supports slashes).
+    """
+    try:
+        # try to match by employee_id field
+        res = supabase.table('employees').select('*').eq('employee_id', employee_id).limit(1).execute()
+        row = None
+        if res.data and len(res.data) > 0:
+            row = res.data[0]
+        else:
+            # fallback: try matching against id if numeric
+            try:
+                res2 = supabase.table('employees').select('*').eq('id', int(employee_id)).limit(1).execute()
+                if res2.data and len(res2.data) > 0:
+                    row = res2.data[0]
+            except Exception:
+                pass
+
+        if row:
+            return jsonify({'success': True, 'employee': row}), 200
+        return jsonify({'success': False, 'message': 'Not found'}), 404
+    except Exception as e:
+        app.logger.exception('Failed to fetch employee %s', employee_id)
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@app.route('/api/maintenance', methods=['POST'])
+@login_required
+def api_create_maintenance():
+    """API endpoint to create a maintenance entry and return JSON (used by AJAX)."""
+    try:
+        # Accept vehicle_id as-is (some vehicle ids are alphanumeric)
+        vehicle_id = request.form.get('vehicle_id') or None
+
+        # compute next entry number in the desired sequence
+        def get_next_entry_no_api():
+            try:
+                res = supabase.table('maintenance_entry').select('entry_no').like('entry_no', 'PMC/MAIN/%').execute()
+                rows = res.data if res.data else []
+                maxn = 0
+                for r in rows:
+                    en = r.get('entry_no') or ''
+                    parts = en.split('/')
+                    if len(parts) >= 3:
+                        try:
+                            n = int(parts[2])
+                            if n > maxn:
+                                maxn = n
+                        except Exception:
+                            continue
+                return f"PMC/MAIN/{(maxn+1):03d}"
+            except Exception:
+                import time
+                return f"PMC/MAIN/{int(time.time())%1000:03d}"
+
+        # parse current_km if provided in API request
+        try:
+            _ck = request.form.get('current_km')
+            current_km = int(_ck) if (_ck is not None and str(_ck).strip() != '') else None
+        except Exception:
+            current_km = None
+
+        data = {
+            'entry_no': request.form.get('entry_no') or get_next_entry_no_api(),
+            'date_time': request.form.get('date_time'),
+            'vehicle_id': vehicle_id,
+            'current_km': current_km,
+            'registration_no': request.form.get('registration_no'),
+            'driver_incharge': request.form.get('driver_incharge'),
+            'drivers_voice': request.form.get('drivers_voice'),
+            'technician_alloted': request.form.get('technician_alloted'),
+            'technician_observation': request.form.get('technician_observation'),
+            'possible_ways': request.form.get('possible_ways'),
+            'parts_required': request.form.get('parts_required'),
+            'processed_by': session.get('user_id') or session.get('admin_id'),
+            'approved': False,
+            'created_by': session.get('user_id') or session.get('admin_id')
+        }
+
+        saved = save_maintenance_entry(data)
+        if saved:
+            # Try to fetch saved row id/entry_no if save helper returns row or id
+            entry_id = None
+            entry_no = data.get('entry_no')
+            try:
+                res = supabase.table('maintenance_entry').select('*').eq('entry_no', entry_no).limit(1).execute()
+                if res.data and len(res.data) > 0:
+                    row = res.data[0]
+                    entry_id = row.get('id')
+            except Exception:
+                app.logger.exception('Failed to fetch created maintenance entry by entry_no')
+
+            response = {'success': True, 'message': 'Maintenance job card created.', 'entry_id': entry_id, 'entry_no': entry_no}
+            return jsonify(response), 201
+        else:
+            app.logger.error('save_maintenance_entry returned falsy for data: %s', data)
+            return jsonify({'success': False, 'message': 'save_maintenance_entry returned falsy (None).', 'debug_data': {'entry_no': data.get('entry_no'), 'date_time': data.get('date_time')}}), 500
+    except Exception as e:
+        app.logger.exception('Exception in api_create_maintenance')
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@app.route('/maintenance-history')
+@login_required
+@module_required('Maintenance')
+def maintenance_history():
+    try:
+        res = supabase.table('maintenance_entry').select('*').order('created_at', desc=True).execute()
+        entries = res.data if res.data else []
+    except Exception as e:
+        flash(f'Error loading maintenance history: {str(e)}', 'danger')
+        entries = []
+    # load parts for the corrected modal dropdown
+    try:
+        parts_res = supabase.table('parts').select('part_id, part_name').eq('status', 'active').order('part_name').execute()
+        parts = parts_res.data if parts_res.data else []
+    except Exception:
+        parts = []
+
+    # Enrich entries with total utilized quantity from material_utilization records
+    try:
+        util_res = supabase.table('material_utilization').select('entry_no, description, quantity').execute()
+        util_rows = util_res.data if util_res.data else []
+        # map maintenance_id -> total quantity
+        util_map = {}
+        import re
+        for u in util_rows:
+            qty = 0
+            try:
+                qty = float(u.get('quantity') or 0)
+            except Exception:
+                qty = 0
+            desc = (u.get('description') or '')
+            entry_no = (u.get('entry_no') or '')
+            # try to extract maintenance id from description like 'From maintenance {id}'
+            m = re.search(r'From maintenance\s*(\d+)', desc)
+            mid = None
+            if m:
+                mid = int(m.group(1))
+            else:
+                # try to parse from entry_no like MU/{maintenance_id}/12345
+                m2 = re.search(r'MU/(\d+)/', entry_no)
+                if m2:
+                    try:
+                        mid = int(m2.group(1))
+                    except Exception:
+                        mid = None
+            if mid is not None:
+                util_map[mid] = util_map.get(mid, 0) + qty
+
+        # attach utilized_qty to entries if present
+        for e in entries:
+            try:
+                eid = int(e.get('id')) if e.get('id') is not None else None
+            except Exception:
+                eid = None
+            e['utilized_qty'] = util_map.get(eid, None)
+    except Exception:
+        # If enrichment fails, leave entries as-is
+        pass
+
+    return render_template('maintenance_history.html', entries=entries, parts=parts)
+
+
+@app.route('/api/maintenance/low_ratings')
+@login_required
+def api_low_ratings():
+    """Return maintenance entries with rating 1 or 2 (used by Driver Rating modal)."""
+    try:
+        res = supabase.table('maintenance_entry').select('*').order('created_at', desc=True).execute()
+        rows = res.data if res.data else []
+
+        # Enrich with utilized_qty from material_utilization (same approach as maintenance_history)
+        try:
+            util_res = supabase.table('material_utilization').select('entry_no, description, quantity').execute()
+            util_rows = util_res.data if util_res.data else []
+            util_map = {}
+            import re
+            for u in util_rows:
+                qty = 0
+                try:
+                    qty = float(u.get('quantity') or 0)
+                except Exception:
+                    qty = 0
+                desc = (u.get('description') or '')
+                entry_no = (u.get('entry_no') or '')
+                m = re.search(r'From maintenance\s*(\d+)', desc)
+                mid = None
+                if m:
+                    try:
+                        mid = int(m.group(1))
+                    except Exception:
+                        mid = None
+                else:
+                    m2 = re.search(r'MU/(\d+)/', entry_no)
+                    if m2:
+                        try:
+                            mid = int(m2.group(1))
+                        except Exception:
+                            mid = None
+                if mid is not None:
+                    util_map[mid] = util_map.get(mid, 0) + qty
+        except Exception:
+            util_map = {}
+
+        low = []
+        for r in rows:
+            try:
+                rv = int(r.get('rating')) if (r.get('rating') is not None and str(r.get('rating')).strip() != '') else None
+            except Exception:
+                rv = None
+            if rv in (1,2):
+                # attach utilized_qty if available
+                try:
+                    eid = int(r.get('id')) if r.get('id') is not None else None
+                except Exception:
+                    eid = None
+                if eid is not None:
+                    r['utilized_qty'] = util_map.get(eid, None)
+                else:
+                    r['utilized_qty'] = None
+                low.append(r)
+        return jsonify({'success': True, 'rows': low}), 200
+    except Exception as e:
+        app.logger.exception('Failed to fetch low ratings')
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@app.route('/maintenance/<int:entry_id>/set_pending', methods=['POST'])
+@login_required
+def maintenance_set_pending(entry_id):
+    """Set a job card to pending with an estimated date."""
+    try:
+        est_date = request.form.get('estimated_date')
+        processed_by_form = request.form.get('processed_by')
+        day_end_description = request.form.get('day_end_description')
+        # Accept processed_by as a free-text name from the modal. If a numeric id is sent,
+        # keep it as-is; otherwise store the entered string so the UI can display it.
+        data = {'status': 'pending', 'estimated_date': est_date}
+        if processed_by_form:
+            data['processed_by'] = processed_by_form
+        if day_end_description:
+            data['day_end_description'] = day_end_description
+        updated = update_maintenance_entry(entry_id, data)
+        if updated:
+            flash('Job card moved to Pending.', 'success')
+        else:
+            flash('Failed to move job card to Pending.', 'danger')
+    except Exception as e:
+        flash(f'Error: {e}', 'danger')
+    # After setting to Pending, return to the maintenance entry page
+    return redirect(url_for('maintenance_view', entry_id=entry_id))
+
+
+@app.route('/maintenance/<int:entry_id>/mark_corrected', methods=['POST'])
+@login_required
+def maintenance_mark_corrected(entry_id):
+    """Mark a pending job card as corrected/approved."""
+    try:
+        # accept optional parts/feedback and processed_by from modal/form
+        # Support multiple parts submitted as arrays: part_id[] and part_qty[]
+        part_ids = request.form.getlist('part_id[]') or request.form.getlist('part_id') or []
+        part_qtys = request.form.getlist('part_qty[]') or request.form.getlist('part_qty') or []
+        # If single values were sent (legacy forms), ensure we still handle them
+        if not part_ids:
+            single_part = request.form.get('part_id')
+            if single_part:
+                part_ids = [single_part]
+        if not part_qtys:
+            single_qty = request.form.get('part_qty')
+            if single_qty:
+                part_qtys = [single_qty]
+        driver_feedback = request.form.get('driver_feedback')
+        processed_by_form = request.form.get('processed_by')
+
+        data = {'status': 'corrected', 'approved': True}
+        # debug log incoming parts for troubleshooting
+        try:
+            app.logger.debug('mark_corrected received part_ids=%s part_qtys=%s processed_by=%s', part_ids, part_qtys, processed_by_form)
+        except Exception:
+            pass
+        if driver_feedback:
+            # store driver feedback in drivers_voice field for now
+            data['drivers_voice'] = (driver_feedback or '')
+        # If user provided a processed_by value in the form, store it
+        if processed_by_form:
+            data['processed_by'] = processed_by_form
+
+        updated = update_maintenance_entry(entry_id, data)
+        if updated:
+            # If parts were supplied (possibly multiple), record utilization and reduce stock for each
+            try:
+                if part_ids:
+                    app.logger.debug('Mark corrected multiple parts: part_ids=%s part_qtys=%s entry_id=%s', part_ids, part_qtys, entry_id)
+                    # try to enrich utilization record with vehicle details once
+                    vehicle_id_val = ''
+                    vehicle_reg_val = None
+                    try:
+                        mres = supabase.table('maintenance_entry').select('*').eq('id', entry_id).limit(1).execute()
+                        if mres.data and len(mres.data) > 0:
+                            mrow = mres.data[0]
+                            vehicle_id_val = mrow.get('vehicle_id') or (mrow.get('registration_no') or '')
+                            vehicle_reg_val = mrow.get('registration_no')
+                    except Exception:
+                        vehicle_id_val = ''
+
+                    parts_summary_items = []
+                    parts_items = []
+                    # iterate through provided arrays; handle length mismatches gracefully
+                    max_len = max(len(part_ids), len(part_qtys)) if (part_ids or part_qtys) else 0
+                    for i in range(max_len):
+                        try:
+                            pid = part_ids[i] if i < len(part_ids) else None
+                            pqty_raw = part_qtys[i] if i < len(part_qtys) else None
+                            if not pid:
+                                continue
+                            try:
+                                pqty = float(pqty_raw) if (pqty_raw is not None and str(pqty_raw).strip() != '') else 0
+                            except Exception:
+                                pqty = 0
+                            if pqty <= 0:
+                                # skip zero/invalid quantities
+                                continue
+
+                            # try to get part name from purchases or parts table
+                            part_name_val = pid
+                            try:
+                                p_res = supabase.table('purchases').select('part_name').eq('part_number', pid).limit(1).execute()
+                                if p_res.data and len(p_res.data) > 0:
+                                    part_name_val = p_res.data[0].get('part_name') or pid
+                                else:
+                                    pp = supabase.table('parts').select('part_name').eq('part_id', pid).limit(1).execute()
+                                    if pp.data and len(pp.data) > 0:
+                                        part_name_val = pp.data[0].get('part_name') or pid
+                            except Exception:
+                                part_name_val = pid
+
+                            util = {
+                                'date_time': datetime.now().isoformat(),
+                                'entry_no': f'MU/{entry_id}/{int(time.time())}',
+                                'vehicle_id': vehicle_id_val or '',
+                                'vehicle_registration_no': vehicle_reg_val,
+                                'part_no': pid,
+                                'part_name': part_name_val or pid,
+                                'quantity': float(pqty),
+                                'description': f'From maintenance {entry_id}',
+                                'driver_id': None,
+                                'mech_id': None,
+                                'processed_by_id': None
+                            }
+                            # try to set processed_by_id from numeric form value or session id
+                            try:
+                                if processed_by_form:
+                                    if str(processed_by_form).strip().isdigit():
+                                        util['processed_by_id'] = int(str(processed_by_form).strip())
+                                    else:
+                                        util['processed_by_id'] = None
+                                else:
+                                    sid = session.get('user_id') or session.get('admin_id')
+                                    if sid is not None:
+                                        try:
+                                            util['processed_by_id'] = int(sid)
+                                        except Exception:
+                                            util['processed_by_id'] = None
+                            except Exception:
+                                util['processed_by_id'] = None
+
+                            saved = save_material_utilization(util)
+                            # support new return shape from save_material_utilization
+                            try:
+                                saved_row = saved.get('row') if isinstance(saved, dict) else saved
+                            except Exception:
+                                saved_row = saved
+                            if not saved_row:
+                                app.logger.warning('save_material_utilization returned falsy for util: %s', util)
+
+                            # Attempt to consume stock even if saving utilization failed
+                            try:
+                                consume_res = consume_part_from_purchases(pid, float(pqty))
+                                app.logger.debug('consume_part_from_purchases result for %s: %s', pid, consume_res)
+                                if not consume_res:
+                                    app.logger.warning('No purchases were consumed for part %s qty %s', pid, pqty)
+                            except Exception as exc2:
+                                app.logger.exception('Error during consume_part_from_purchases for %s: %s', pid, exc2)
+
+                            parts_summary_items.append(f"{pid} x{int(pqty) if float(pqty).is_integer() else pqty}")
+                            parts_items.append({
+                                'part_no': pid,
+                                'part_name': part_name_val,
+                                'quantity': float(pqty)
+                            })
+                        except Exception as exc:
+                            app.logger.exception('Failed processing part at index %s: %s', i, exc)
+
+                    # update maintenance record with a summary of issued parts and processed_by once
+                    if parts_summary_items:
+                        summary = 'Issued: ' + '; '.join(parts_summary_items)
+                        upd = {'parts_required': summary, 'items_utilized': True, 'utilized_items': parts_items}
+                        if processed_by_form:
+                            upd['processed_by'] = processed_by_form
+                        update_maintenance_entry(entry_id, upd)
+                    else:
+                        # No parts used: if a no_items_description was provided in the form, save it
+                        no_items_desc = request.form.get('no_items_description')
+                        if no_items_desc:
+                            update_maintenance_entry(entry_id, {'no_items_description': no_items_desc, 'items_utilized': False})
+            except Exception as exc:
+                app.logger.exception('Failed to record utilization or consume stock for multiple parts: %s', exc)
+
+            flash('Job card marked Corrected.', 'success')
+        else:
+            flash('Failed to mark job card Corrected.', 'danger')
+    except Exception as e:
+        flash(f'Error: {e}', 'danger')
+    return redirect(url_for('maintenance_history'))
+
+
+@app.route('/maintenance/<int:entry_id>')
+@login_required
+def maintenance_view(entry_id):
+    """View a single maintenance job card details."""
+    try:
+        res = supabase.table('maintenance_entry').select('*').eq('id', entry_id).limit(1).execute()
+        entry = res.data[0] if res.data and len(res.data) > 0 else None
+    except Exception as e:
+        flash(f'Error loading job card: {str(e)}', 'danger')
+        entry = None
+    # Enrich single entry with utilized_qty (same logic as maintenance_history)
+    try:
+        if entry:
+            util_res = supabase.table('material_utilization').select('entry_no, description, quantity').execute()
+            util_rows = util_res.data if util_res.data else []
+            util_map = {}
+            import re
+            for u in util_rows:
+                qty = 0
+                try:
+                    qty = float(u.get('quantity') or 0)
+                except Exception:
+                    qty = 0
+                desc = (u.get('description') or '')
+                entry_no = (u.get('entry_no') or '')
+                m = re.search(r'From maintenance\s*(\d+)', desc)
+                mid = None
+                if m:
+                    try:
+                        mid = int(m.group(1))
+                    except Exception:
+                        mid = None
+                else:
+                    m2 = re.search(r'MU/(\d+)/', entry_no)
+                    if m2:
+                        try:
+                            mid = int(m2.group(1))
+                        except Exception:
+                            mid = None
+                if mid is not None:
+                    util_map[mid] = util_map.get(mid, 0) + qty
+            try:
+                eid = int(entry.get('id')) if entry.get('id') is not None else None
+            except Exception:
+                eid = None
+            entry['utilized_qty'] = util_map.get(eid, None)
+    except Exception:
+        pass
+    return render_template('maintenance_view.html', entry=entry)
+
+
+@app.route('/admin/internal_audits')
+@admin_required
+def admin_internal_audits():
+    """Admin view: show recent internal audits from DB and any locally saved fallback entries."""
+    audits_db = []
+    audits_fallback = []
+    # Fetch from Supabase internal_audits table if available
+    try:
+        res = supabase.table('internal_audits').select('*').order('created_at', desc=True).limit(200).execute()
+        audits_db = res.data if res.data else []
+    except Exception as e:
+        app.logger.exception('Failed to fetch internal_audits from DB')
+        audits_db = []
+
+    # Enrich DB rows with employee name/designation when possible so admin preview shows them
+    try:
+        # fetch employees mapping once
+        emp_map = {}
+        try:
+            emp_res = supabase.table('employees').select('employee_id, name, full_name, designation').execute()
+            emp_rows = emp_res.data if getattr(emp_res, 'data', None) else []
+            for er in emp_rows:
+                key = er.get('employee_id') or er.get('id')
+                if key:
+                    emp_map[str(key)] = {
+                        'name': er.get('name') or er.get('full_name') or '',
+                        'designation': er.get('designation') or ''
+                    }
+        except Exception:
+            emp_map = {}
+
+        # attach name/designation to each audit record when missing
+        for a in audits_db:
+            try:
+                # auditor_1
+                a.setdefault('auditor_1_name', a.get('auditor_1_name') or '')
+                a.setdefault('auditor_1_designation', a.get('auditor_1_designation') or '')
+                # auditor_2
+                a.setdefault('auditor_2_name', a.get('auditor_2_name') or '')
+                a.setdefault('auditor_2_designation', a.get('auditor_2_designation') or '')
+                # auditee
+                a.setdefault('auditee_name', a.get('auditee_name') or '')
+                a.setdefault('auditee_designation', a.get('auditee_designation') or '')
+
+                # lookup from emp_map by id if values still empty
+                if (not a.get('auditor_1_name')) and a.get('auditor_1') and str(a.get('auditor_1')) in emp_map:
+                    a['auditor_1_name'] = emp_map[str(a.get('auditor_1'))]['name']
+                    a['auditor_1_designation'] = emp_map[str(a.get('auditor_1'))]['designation']
+                if (not a.get('auditor_2_name')) and a.get('auditor_2') and str(a.get('auditor_2')) in emp_map:
+                    a['auditor_2_name'] = emp_map[str(a.get('auditor_2'))]['name']
+                    a['auditor_2_designation'] = emp_map[str(a.get('auditor_2'))]['designation']
+                if (not a.get('auditee_name')) and a.get('auditee') and str(a.get('auditee')) in emp_map:
+                    a['auditee_name'] = emp_map[str(a.get('auditee'))]['name']
+                    a['auditee_designation'] = emp_map[str(a.get('auditee'))]['designation']
+            except Exception:
+                continue
+    except Exception:
+        # non-fatal: if enrichment fails, continue without names
+        app.logger.exception('Failed to enrich audits with employee names')
+
+    # Load fallback file if present (last 200 lines)
+    fallback_path = os.path.join(os.getcwd(), 'internal_audits_fallback.jsonl')
+    try:
+        if os.path.exists(fallback_path):
+            with open(fallback_path, 'r', encoding='utf-8') as fh:
+                import json
+                lines = fh.read().strip().splitlines()
+                # keep most recent 200
+                for ln in lines[-200:][::-1]:
+                    try:
+                        j = json.loads(ln)
+                        # ensure ts and payload keys exist
+                        audits_fallback.append({'ts': j.get('ts'), 'error': j.get('error'), 'payload': j.get('payload')})
+                    except Exception:
+                        continue
+            # Merge fallback payloads into audits_db at the front so recently-saved-local entries show in admin
+            try:
+                fallback_payloads = []
+                for f in audits_fallback:
+                    p = f.get('payload') or {}
+                    if isinstance(p, dict):
+                        # annotate that this row came from fallback
+                        p['_from_fallback'] = True
+                        p['_fallback_ts'] = f.get('ts')
+                        p['_fallback_error'] = f.get('error')
+                        fallback_payloads.append(p)
+                if fallback_payloads:
+                    # prepend fallback payloads so newest appear first
+                    audits_db = fallback_payloads + (audits_db or [])
+                    # avoid double-listing in the fallback table area
+                    audits_fallback = []
+            except Exception:
+                app.logger.exception('Failed to merge fallback payloads')
+    except Exception:
+        app.logger.exception('Failed to read fallback internal audits file')
+
+    return render_template('admin_internal_audits.html', audits_db=audits_db, audits_fallback=audits_fallback)
+
+
+@app.route('/maintenance/<int:entry_id>/edit', methods=['GET', 'POST'])
+@login_required
+@module_required('Maintenance')
+def maintenance_edit(entry_id):
+    """Edit an existing maintenance job card. GET renders the form prefilled, POST updates the row."""
+    try:
+        # fetch existing entry
+        res = supabase.table('maintenance_entry').select('*').eq('id', entry_id).limit(1).execute()
+        entry = res.data[0] if res.data and len(res.data) > 0 else None
+    except Exception as e:
+        flash(f'Error loading job card for edit: {e}', 'danger')
+        return redirect(url_for('maintenance_history'))
+
+    if request.method == 'POST':
+        try:
+            # accept vehicle_id as-is (vehicle ids can be alphanumeric)
+            vehicle_id = request.form.get('vehicle_id') or None
+
+            try:
+                _ck = request.form.get('current_km')
+                current_km = int(_ck) if (_ck is not None and str(_ck).strip() != '') else None
+            except Exception:
+                current_km = None
+
+            data = {
+                'date_time': request.form.get('date_time'),
+                'vehicle_id': vehicle_id,
+                'current_km': current_km,
+                'registration_no': request.form.get('registration_no'),
+                'driver_incharge': request.form.get('driver_incharge'),
+                'drivers_voice': request.form.get('drivers_voice'),
+                'technician_alloted': request.form.get('technician_alloted'),
+                'technician_observation': request.form.get('technician_observation'),
+                'possible_ways': request.form.get('possible_ways'),
+                'parts_required': request.form.get('parts_required')
+            }
+            updated = update_maintenance_entry(entry_id, data)
+            if updated:
+                flash('Job card updated successfully.', 'success')
+                return redirect(url_for('maintenance_view', entry_id=entry_id))
+            else:
+                flash('Failed to update job card.', 'danger')
+        except Exception as e:
+            flash(f'Error updating job card: {e}', 'danger')
+
+    # GET - render the same form but pass the entry so template can prefill
+    try:
+        vehicles_res = supabase.table('vehicles').select('vehicle_id, registration_no').order('vehicle_id').execute()
+        vehicles = vehicles_res.data if vehicles_res.data else []
+    except Exception:
+        vehicles = []
+
+    return render_template('maintenance_image.html', vehicles=vehicles, entry=entry)
+
+
+@app.route('/maintenance/<int:entry_id>/rate', methods=['POST'])
+@login_required
+def maintenance_rate(entry_id):
+    """Save a numeric rating (1-5) for a maintenance entry."""
+    try:
+        rating_raw = request.form.get('rating')
+        rating = None
+        if rating_raw is not None and rating_raw != '':
+            try:
+                rating = int(rating_raw)
+                if rating < 1 or rating > 5:
+                    rating = None
+            except Exception:
+                rating = None
+        # store rating (allow null to clear). Do NOT change status here
+        update_data = {'rating': rating}
+        # include optional rating description when provided
+        try:
+            rating_desc = (request.form.get('rating_description') or '').strip()
+            if rating_desc != '':
+                update_data['rating_description'] = rating_desc
+        except Exception:
+            pass
+        updated = update_maintenance_entry(entry_id, update_data)
+        if updated:
+            entry = None
+            try:
+                res = supabase.table('maintenance_entry').select('*').eq('id', entry_id).limit(1).execute()
+                entry = res.data[0] if res.data and len(res.data) > 0 else None
+            except Exception:
+                entry = None
+            return jsonify({'success': True, 'rating': rating, 'entry': entry}), 200
+        else:
+            return jsonify({'success': False, 'message': 'Failed to update'}), 500
+    except Exception as e:
+        app.logger.exception('Error saving rating')
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
+@app.route('/debug/logs')
+@login_required
+def debug_logs():
+    """Temporary route: return recent in-memory app logs as JSON."""
+    try:
+        # Return latest logs (most recent last)
+        return jsonify(list(LOG_BUFFER)), 200
+    except Exception as e:
+        app.logger.exception('Failed to return debug logs')
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/debug/part/<part_id>')
+@login_required
+def debug_part(part_id):
+    """Temporary debug endpoint: return purchases, utilization, scrap and issues for a part_id."""
+    try:
+        # All purchases (include statuses) and a filtered view
+        pur_res = supabase.table('purchases').select('*').order('created_at', desc=False).execute()
+        purchases = pur_res.data if pur_res.data else []
+
+        matched = []
+        for p in purchases:
+            pn = (p.get('part_number') or p.get('part_no') or '')
+            pn_norm = pn.strip().lower() if isinstance(pn, str) else str(pn).lower()
+            if pn_norm == str(part_id).strip().lower():
+                matched.append({
+                    'id': p.get('id'),
+                    'part_number': p.get('part_number'),
+                    'part_no': p.get('part_no'),
+                    'quantity': p.get('quantity'),
+                    'status': p.get('status'),
+                    'net_payable': p.get('net_payable')
+                })
+
+        util_res = supabase.table('material_utilization').select('*').eq('part_no', part_id).execute()
+        scrap_res = supabase.table('scrap').select('*').eq('part_no', part_id).execute()
+        issues_res = supabase.table('stock_issue_register').select('*').eq('part_no', part_id).execute()
+
+        # include recent application logs to help diagnose whether consumption ran
+        recent_logs = list(LOG_BUFFER)
+        return jsonify({
+            'part_id': part_id,
+            'matched_purchases': matched,
+            'all_purchases_count': len(purchases),
+            'utilization': util_res.data if util_res.data else [],
+            'scrap': scrap_res.data if scrap_res.data else [],
+            'issues': issues_res.data if issues_res.data else [],
+            'recent_logs': recent_logs
+        }), 200
+    except Exception as e:
+        app.logger.exception('Error in debug_part')
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/part_availability/<part_id>')
+@login_required
+def api_part_availability(part_id):
+    """Return available quantity for a given part_id.
+    Calculation: SUM(purchases.quantity where part_no=part_id and status='active')
+                 - SUM(stock_issue_register.quantity_issued where part_no=part_id)
+                 - SUM(material_utilization.quantity where part_no=part_id)
+    """
+    try:
+        # Helper to safely extract a numeric quantity from a record using common field names
+        def _extract_qty(record, candidates):
+            for k in candidates:
+                if k in record:
+                    try:
+                        return float(record.get(k) or 0)
+                    except Exception:
+                        try:
+                            return float(str(record.get(k)).strip() or 0)
+                        except Exception:
+                            return 0
+            return 0
+
+        # Compute available quantity by summing the current `quantity` field
+        # from `purchases` for rows that match the given part id. The
+        # `purchases.quantity` field is treated as the canonical remaining
+        # stock (FIFO consumption updates it), so we rely on it rather than
+        # attempting to subtract separate issue/utilization records here.
+        total_purchased = 0
+        pur_res = supabase.table('purchases').select('*').execute()
+        if pur_res.data:
+            for r in pur_res.data:
+                pn = (r.get('part_number') or r.get('part_no') or '')
+                pn = pn.strip() if isinstance(pn, str) else str(pn)
+                if not pn:
+                    continue
+                try:
+                    if pn.lower() == str(part_id).lower():
+                        total_purchased += _extract_qty(r, ['quantity', 'qty', 'Quantity'])
+                except Exception:
+                    if pn == part_id:
+                        total_purchased += _extract_qty(r, ['quantity', 'qty', 'Quantity'])
+
+        # We no longer subtract issue/utilization records here because those
+        # operations should already have updated `purchases.quantity`. Return
+        # the summed remaining quantity as the available amount.
+        available = total_purchased
+        if available < 0:
+            available = 0
+        return jsonify({'part_id': part_id, 'available': available}), 200
+    except Exception as e:
+        app.logger.exception('Error computing part availability for %s', part_id)
+        # Return a safe JSON response so clients (AJAX) can still show availability as 0
+        return jsonify({'part_id': part_id, 'available': 0, 'error': str(e)}), 200
+
+# Part ID Generator Route
+@app.route('/part-generator', methods=['GET', 'POST'])
+@login_required
+@module_required('Part ID')
+def part_generator():
+    """Part ID Generator for creating and managing parts"""
+    if request.method == 'POST':
+        try:
+            data = {
+                'part_id': request.form.get('part_id'),
+                'part_name': request.form.get('part_name'),
+                'category': request.form.get('category'),
+                'unit': request.form.get('unit'),
+                'description': request.form.get('description'),
+                'created_by': session.get('user_id') or session.get('user'),
+                'status': 'active'
+            }
+            
+            result = supabase.table('parts').insert(data).execute()
+            
+            if result.data:
+                flash('Part ID created successfully!', 'success')
+            else:
+                flash('Error creating Part ID.', 'danger')
+        except Exception as e:
+            flash(f'Error: {str(e)}', 'danger')
+        return redirect(url_for('part_generator'))
+    
+    # GET request - show form
+    try:
+        # Get all parts
+        all_parts = supabase.table('parts').select('*').order('created_at', desc=True).execute()
+        parts = all_parts.data if all_parts.data else []
+        
+        return render_template('part_generator.html', parts=parts)
+    except Exception as e:
+        flash(f'Error loading parts: {str(e)}', 'danger')
+        return redirect(url_for('dashboard'))
+
+@app.route('/part-generator/<part_id>/edit', methods=['GET', 'POST'])
+@login_required
+def edit_part(part_id):
+    """Edit existing part"""
+    try:
+        if request.method == 'POST':
+            new_part_id = request.form.get('part_id')
+            
+            # Update part data
+            update_data = {
+                'part_id': new_part_id,
+                'part_name': request.form.get('part_name'),
+                'category': request.form.get('category'),
+                'unit': request.form.get('unit'),
+                'description': request.form.get('description'),
+                'status': request.form.get('status', 'active')
+            }
+            
+            result = supabase.table('parts').update(update_data).eq('part_id', part_id).execute()
+            
+            if result.data:
+                flash('Part updated successfully!', 'success')
+                return redirect(url_for('part_generator'))
+            else:
+                flash('Error updating part.', 'danger')
+        
+        # GET request - load part data
+        print(f"[DEBUG] Fetching part with ID: {part_id}")
+        response = supabase.table('parts').select('*').eq('part_id', part_id).execute()
+        print(f"[DEBUG] Query response: {response.data}")
+        
+        if response.data and len(response.data) > 0:
+            part = response.data[0]
+            print(f"[DEBUG] Part found: {part}")
+            return render_template('edit_part.html', part=part)
+        else:
+            print(f"[DEBUG] No part found for ID: {part_id}")
+            flash('Part not found', 'danger')
+            return redirect(url_for('part_generator'))
+            
+    except Exception as e:
+        print(f"[ERROR] Error editing part: {type(e).__name__}: {e}")
+        import traceback
+        traceback.print_exc()
+        flash(f'Error: {str(e)}', 'danger')
+        return redirect(url_for('part_generator'))
+
+# Dashboard Menu Routes
+@app.route('/purchase', methods=['GET', 'POST'])
+@login_required
+@module_required('Purchase')
+def purchase():
+    if request.method == 'POST':
+        try:
+            data = {
+                'date': request.form.get('date'),
+                'time': request.form.get('time'),
+                'entry_no': request.form.get('entry_no'),
+                'invoice_no': request.form.get('invoice_no'),
+                'invoice_date': request.form.get('invoice_date'),
+                'vendor': request.form.get('vendor'),
+                'type_of_purchase': request.form.get('type_of_purchase'),
+                'part_number': request.form.get('part_number'),
+                'part_name': request.form.get('part_name'),
+                'quantity': request.form.get('quantity'),
+                'batch_number': request.form.get('batch_number'),
+                'rate': request.form.get('rate'),
+                'discount_percent': request.form.get('discount_percent'),
+                'discount_amount': request.form.get('discount_amount'),
+                'taxable_amount': request.form.get('taxable_amount'),
+                'sgst_percent': request.form.get('sgst_percent'),
+                'sgst_amount': request.form.get('sgst_amount'),
+                'cgst_percent': request.form.get('cgst_percent'),
+                'cgst_amount': request.form.get('cgst_amount'),
+                'igst_percent': request.form.get('igst_percent'),
+                'igst_amount': request.form.get('igst_amount'),
+                'total_payment': request.form.get('total_payment'),
+                'dn': request.form.get('dn'),
+                'less_tds': request.form.get('less_tds'),
+                'net_payable': request.form.get('net_payable'),
+                'reference_number': request.form.get('reference_number'),
+                'comments': request.form.get('comments'),
+                'user_id': session.get('user_id')
+            }
+            result = save_purchase(data)
+            if result:
+                flash('Purchase record saved successfully!', 'success')
+                return redirect(url_for('purchase', success='true'))
+            else:
+                flash('Error: Failed to save purchase record. Please check the console for details.', 'danger')
+        except Exception as e:
+            flash(f'Purchase Save Error: {str(e)}', 'danger')
+            print(f"Purchase error details: {str(e)}")
+            import traceback
+            traceback.print_exc()
+        return redirect(url_for('purchase'))
+    
+    # Get next entry number for auto-fill
+    next_entry_no = get_next_purchase_entry_no()
+    
+    # Get all active vendors for dropdown
+    try:
+        # Try to fetch including the legacy `type_of_purchase` column (may not exist if schema migrated)
+        vendors_result = supabase.table('vendors').select('vendor_id, organization_name, type_of_purchase').eq('status', 'active').order('organization_name').execute()
+        vendors = vendors_result.data if vendors_result.data else []
+    except Exception as e:
+        # Fallback: fetch without the column to avoid PostgREST schema errors
+        print(f"Error fetching vendors with type_of_purchase: {e} -- falling back to minimal select")
+        try:
+            vendors_result = supabase.table('vendors').select('vendor_id, organization_name').eq('status', 'active').order('organization_name').execute()
+            vendors = vendors_result.data if vendors_result.data else []
+        except Exception as e2:
+            print(f"Error fetching vendors: {e2}")
+            vendors = []
+    
+    # Get all active parts for dropdown
+    try:
+        parts_result = supabase.table('parts').select('part_id, part_name').eq('status', 'active').order('part_name').execute()
+        parts = parts_result.data if parts_result.data else []
+    except Exception as e:
+        print(f"Error fetching parts: {e}")
+        parts = []
+    
+    return render_template('purchase.html', entry_no=next_entry_no, vendors=vendors, parts=parts)
+
+@app.route('/utilization', methods=['GET', 'POST'])
+@login_required
+@module_required('Utilization')
+def utilization():
+    """Material Utilization form for recording material usage"""
+    if request.method == 'POST':
+        try:
+            # Collect form data
+            data = {
+                'entry_no': request.form.get('entry_no'),
+                'date_time': request.form.get('date_time'),
+                'vehicle_id': request.form.get('vehicle_id'),
+                'vehicle_registration_no': request.form.get('vehicle_registration_no'),
+                'part_no': request.form.get('part_no'),
+                'part_name': request.form.get('part_name'),
+                'quantity': request.form.get('quantity'),
+                'description': request.form.get('description'),
+                'driver_id': request.form.get('driver_id'),
+                'mech_id': request.form.get('mech_id'),
+                'processed_by_id': request.form.get('processed_by_id'),
+                'approved': request.form.get('approved'),
+                'reference_number': request.form.get('reference_number'),
+                'comments': request.form.get('comments')
+            }
+            
+            # Save to material_utilization table
+            result = supabase.table('material_utilization').insert(data).execute()
+
+            if result.data:
+                # After recording utilization, consume stock from purchases using FIFO
+                try:
+                    try:
+                        qty_to_consume = float(data.get('quantity') or 0)
+                    except Exception:
+                        qty_to_consume = 0
+                    if qty_to_consume > 0 and data.get('part_no'):
+                        consume_res = consume_part_from_purchases(data.get('part_no'), qty_to_consume)
+                        app.logger.debug('consume_part_from_purchases result for utilization: %s', consume_res)
+                except Exception as exc:
+                    app.logger.exception('Error consuming stock after utilization insert: %s', exc)
+
+                flash('Material utilization record submitted successfully!', 'success')
+                return redirect(url_for('utilization'))
+            else:
+                flash('Error submitting utilization record.', 'danger')
+        except Exception as e:
+            flash(f'Error: {str(e)}', 'danger')
+    
+    # GET request - show form
+    try:
+        # Generate entry number manually from database
+        import re
+        existing = supabase.table('material_utilization').select('entry_no').order('created_at', desc=True).limit(1).execute()
+        if existing.data and existing.data[0].get('entry_no'):
+            last_entry = existing.data[0]['entry_no']
+            # Extract the sequential number at the end (e.g., PMCTECH/LOGI/UTI/001 -> 001)
+            match = re.search(r'(\d+)$', last_entry)
+            if match:
+                next_num = int(match.group(1)) + 1
+                entry_no = f'PMCTECH/LOGI/UTI/{str(next_num).zfill(3)}'
+            else:
+                entry_no = 'PMCTECH/LOGI/UTI/001'
+        else:
+            entry_no = 'PMCTECH/LOGI/UTI/001'
+        
+        # Get all vehicles for dropdown
+        vehicles = supabase.table('vehicles').select('vehicle_id, registration_no').order('vehicle_id').execute()
+        
+        # Get parts from purchases (include status so we can skip already-issued rows)
+        purchases = supabase.table('purchases').select('part_number, part_name, quantity, status').execute()
+        
+        # Get all utilized quantities from material_utilization
+        utilized = supabase.table('material_utilization').select('part_no, quantity').execute()
+        
+        # Get all scrapped quantities from scrap
+        scrapped = supabase.table('scrap').select('part_no, quantity').execute()
+        
+        # Calculate available quantities
+        parts_dict = {}
+        
+        # Add purchased quantities (skip rows already issued/consumed)
+        if purchases.data:
+            for item in purchases.data:
+                part_no = item.get('part_number') or item.get('part_no')
+                if not part_no:
+                    continue
+                status_val = (item.get('status') or '')
+                try:
+                    if status_val and status_val.lower() in ('issued', 'consumed', 'removed', 'scrapped', 'deleted'):
+                        continue
+                except Exception:
+                    pass
+
+                if part_no not in parts_dict:
+                    parts_dict[part_no] = {
+                        'part_no': part_no,
+                        'part_name': item.get('part_name') or '',
+                        'purchased': 0,
+                        'utilized': 0,
+                        'scrapped': 0
+                    }
+                parts_dict[part_no]['purchased'] += float(item.get('quantity', 0) or 0)
+        
+        # Subtract utilized quantities
+        if utilized.data:
+            for item in utilized.data:
+                part_no = item['part_no']
+                if part_no in parts_dict:
+                    parts_dict[part_no]['utilized'] += float(item.get('quantity', 0))
+        
+        # Subtract scrapped quantities
+        if scrapped.data:
+            for item in scrapped.data:
+                part_no = item['part_no']
+                if part_no in parts_dict:
+                    parts_dict[part_no]['scrapped'] += float(item.get('quantity', 0))
+        
+        # Calculate available quantity and filter
+        parts_list = []
+        for part in parts_dict.values():
+            available = part['purchased'] - part['utilized'] - part['scrapped']
+            if available > 0:
+                parts_list.append({
+                    'part_no': part['part_no'] or '',
+                    'part_name': part['part_name'] or '',
+                    'available_quantity': round(available, 2)
+                })
+        
+        # Sort by part_no (handle None values)
+        parts_list.sort(key=lambda x: x['part_no'] or '')
+        
+        return render_template('material_utilization.html', 
+                             entry_no=entry_no,
+                             vehicles=vehicles.data if vehicles.data else [],
+                             parts=parts_list)
+    except Exception as e:
+        flash(f'Error loading form: {str(e)}', 'danger')
+        return redirect(url_for('dashboard'))
+
+@app.route('/scrap', methods=['GET', 'POST'])
+@login_required
+@module_required('Scrap')
+def scrap():
+    """Scrap form for recording scrapped/damaged parts"""
+    if request.method == 'POST':
+        try:
+            # Collect form data
+            data = {
+                'entry_no': request.form.get('entry_no'),
+                'date_time': request.form.get('date_time'),
+                'vehicle_id': request.form.get('vehicle_id'),
+                'vehicle_registration_no': request.form.get('vehicle_registration_no'),
+                'part_no': request.form.get('part_no'),
+                'part_name': request.form.get('part_name'),
+                'quantity': request.form.get('quantity'),
+                'type_of_material': request.form.get('type_of_material'),
+                'driver_id': request.form.get('driver_id'),
+                'mech_id': request.form.get('mech_id'),
+                'processed_by_id': request.form.get('processed_by_id'),
+                'approved': request.form.get('approved'),
+                'reference_number': request.form.get('reference_number'),
+                'comments': request.form.get('comments')
+            }
+            
+            # Save to scrap table
+            result = supabase.table('scrap').insert(data).execute()
+            
+            if result.data:
+                flash('Scrap record submitted successfully!', 'success')
+                return redirect(url_for('scrap'))
+            else:
+                flash('Error submitting scrap record.', 'danger')
+        except Exception as e:
+            flash(f'Error: {str(e)}', 'danger')
+    
+    # GET request - show form
+    try:
+        # Generate entry number manually from database
+        import re
+        existing = supabase.table('scrap').select('entry_no').order('created_at', desc=True).limit(1).execute()
+        if existing.data and existing.data[0].get('entry_no'):
+            last_entry = existing.data[0]['entry_no']
+            # Extract the sequential number at the end (e.g., PMCTECH/LOGI/SCRAP/2527/001 -> 001)
+            match = re.search(r'(\d+)$', last_entry)
+            if match:
+                next_num = int(match.group(1)) + 1
+                # Replace the last number with incremented value
+                entry_no = re.sub(r'\d+$', str(next_num).zfill(3), last_entry)
+            else:
+                entry_no = 'PMCTECH/LOGI/SCRAP/2528/001'
+        else:
+            entry_no = 'PMCTECH/LOGI/SCRAP/2528/001'
+        
+        # Get all vehicles for dropdown
+        vehicles = supabase.table('vehicles').select('vehicle_id, registration_no').order('vehicle_id').execute()
+        
+        # Get active parts from purchases
+        purchases = supabase.table('purchases').select('part_number, part_name, quantity').eq('status', 'active').execute()
+        
+        # Get all utilized quantities from material_utilization
+        utilized = supabase.table('material_utilization').select('part_no, quantity').execute()
+        
+        # Get all scrapped quantities from scrap
+        scrapped = supabase.table('scrap').select('part_no, quantity').execute()
+        
+        # Calculate available quantities
+        parts_dict = {}
+        
+        # Add purchased quantities
+        if purchases.data:
+            for item in purchases.data:
+                part_no = item['part_number']
+                if part_no not in parts_dict:
+                    parts_dict[part_no] = {
+                        'part_no': part_no,
+                        'part_name': item['part_name'],
+                        'purchased': 0,
+                        'utilized': 0,
+                        'scrapped': 0
+                    }
+                parts_dict[part_no]['purchased'] += float(item.get('quantity', 0))
+        
+        # Subtract utilized quantities
+        if utilized.data:
+            for item in utilized.data:
+                part_no = item['part_no']
+                if part_no in parts_dict:
+                    parts_dict[part_no]['utilized'] += float(item.get('quantity', 0))
+        
+        # Subtract scrapped quantities
+        if scrapped.data:
+            for item in scrapped.data:
+                part_no = item['part_no']
+                if part_no in parts_dict:
+                    parts_dict[part_no]['scrapped'] += float(item.get('quantity', 0))
+        
+        # Calculate available quantity and filter
+        parts_list = []
+        for part in parts_dict.values():
+            available = part['purchased'] - part['utilized'] - part['scrapped']
+            if available > 0:
+                parts_list.append({
+                    'part_no': part['part_no'],
+                    'part_name': part['part_name'],
+                    'available_quantity': round(available, 2)
+                })
+        
+        # Sort by part_no
+        parts_list.sort(key=lambda x: x['part_no'])
+        
+        return render_template('scrap.html', 
+                             entry_no=entry_no,
+                             vehicles=vehicles.data,
+                             parts=parts_list)
+    except Exception as e:
+        flash(f'Error loading form: {str(e)}', 'danger')
+        return redirect(url_for('dashboard'))
+
+@app.route('/stock-store', methods=['GET', 'POST'])
+@login_required
+def stock_store():
+    """Display form to issue stock items from inventory"""
+    if request.method == 'POST':
+        try:
+            # Get form data
+            issue_data = {
+                'entry_no': request.form.get('entry_no'),
+                'purchase_id': request.form.get('purchase_id'),
+                'part_no': request.form.get('part_no'),
+                'part_name': request.form.get('part_name'),
+                'vehicle_no': request.form.get('vehicle_no'),
+                'vehicle_id': request.form.get('vehicle_id'),
+                'date': request.form.get('date'),
+                'time': request.form.get('time'),
+                'kilometer': request.form.get('kilometer'),
+                'issuing_person_name': request.form.get('issuing_person_name'),
+                'driver_responsible': request.form.get('driver_responsible'),
+                'mechanic_responsible': request.form.get('mechanic_responsible'),
+                'comments': request.form.get('comments'),
+                'status': 'issued'
+            }
+            
+            # Save to stock_issue_register table
+            result = supabase.table('stock_issue_register').insert(issue_data).execute()
+            
+            if result.data:
+                # Update purchase item status to 'issued'
+                supabase.table('purchases').update({'status': 'issued'}).eq('id', issue_data['purchase_id']).execute()
+                flash('Stock issued successfully!', 'success')
+                return redirect(url_for('dashboard'))
+            else:
+                flash('Error issuing stock.', 'danger')
+        except Exception as e:
+            flash(f'Error: {str(e)}', 'danger')
+    
+    # GET request - show form
+    try:
+        # Get next entry number
+        entry_no_result = supabase.rpc('get_next_stock_issue_entry_no').execute()
+        entry_no = entry_no_result.data if entry_no_result.data else '001'
+        
+        # Get all purchase items (include issued rows too) - we'll compute available qty per row
+        items = supabase.table('purchases').select('*').order('created_at', desc=True).execute()
+        
+        return render_template('stock_store.html', 
+                             entry_no=entry_no,
+                             items=items.data)
+    except Exception as e:
+        flash(f'Error loading form: {str(e)}', 'danger')
+        return redirect(url_for('dashboard'))
+
+@app.route('/stock-inventory')
+@login_required
+def stock_inventory():
+    """Display all purchase items in inventory with utilization and scrap details"""
+    try:
+        # Get all purchase items (include active and issued) - we'll compute available qty per row
+        items = supabase.table('purchases').select('*').order('created_at', desc=True).execute()
+        
+        # Get issued items for history
+        issued_items = supabase.table('purchases').select('*').eq('status', 'issued').order('updated_at', desc=True).execute()
+        
+        # Get utilization records
+        utilization_records = supabase.table('material_utilization').select('*').order('created_at', desc=True).execute()
+        # Normalize field names: some inserts use 'part_number' while others use 'part_no'.
+        try:
+            if utilization_records.data:
+                for r in utilization_records.data:
+                    # prefer explicit 'part_no', then 'part_number', then 'part_no ' variants
+                    pn = None
+                    for k in ('part_no', 'part_number', 'part_no '):
+                        if k in r and r.get(k) not in (None, ''):
+                            pn = r.get(k)
+                            break
+                    if pn is None:
+                        # try lowercase keys too
+                        for k in list(r.keys()):
+                            if k.lower().strip() in ('part_no', 'partnumber', 'partno'):
+                                pn = r.get(k)
+                                break
+                    if pn is not None:
+                        try:
+                            r['part_no'] = str(pn).strip()
+                        except Exception:
+                            r['part_no'] = pn
+                    else:
+                        r['part_no'] = ''
+        except Exception:
+            pass
+        
+        # Get scrap records
+        scrap_records = supabase.table('scrap').select('*').order('created_at', desc=True).execute()
+        # Get stock issue register records (issued quantities)
+        issue_register_records = supabase.table('stock_issue_register').select('*').order('created_at', desc=True).execute()
+        
+        # Build dict of utilized quantities by normalized part_no (lowercase trimmed)
+        utilized_by_part = {}
+        if utilization_records.data:
+            for record in utilization_records.data:
+                raw_part = record.get('part_no')
+                if raw_part is None:
+                    continue
+                try:
+                    part_no_key = str(raw_part).strip().lower()
+                except Exception:
+                    part_no_key = str(raw_part)
+                qty = float(record.get('quantity', 0) or 0)
+                utilized_by_part[part_no_key] = utilized_by_part.get(part_no_key, 0) + qty
+        
+        # Build dict of scrapped quantities by normalized part_no
+        scrapped_by_part = {}
+        if scrap_records.data:
+            for record in scrap_records.data:
+                raw_part = record.get('part_no')
+                if raw_part is None:
+                    continue
+                try:
+                    part_no_key = str(raw_part).strip().lower()
+                except Exception:
+                    part_no_key = str(raw_part)
+                qty = float(record.get('quantity', 0) or 0)
+                scrapped_by_part[part_no_key] = scrapped_by_part.get(part_no_key, 0) + qty
+        
+        # Calculate statistics for ALL items and filter for display
+        available_items = []
+        vendors = set()
+        purchase_types = set()
+        total_value_all_purchases = 0  # Total value of ALL purchases (original purchase values)
+        total_current_qty = 0         # Sum of current remaining quantities (purchases.quantity)
+        total_available_qty = 0
+        total_utilized_qty = 0
+        total_scrapped_qty = 0
+        total_issued_qty = 0
+        instock_value = 0  # Value of items with available quantity > 0
+        utilized_value = 0  # Value of utilized quantities
+        scrapped_value = 0  # Value of scrapped quantities
+        
+        # Build cost_per_unit mapping and aggregate purchases by part_no
+        cost_per_unit_map = {}
+        parts_aggregate = {}  # key = part_key (lowercase), value = dict with aggregated data
+        
+        # First pass: aggregate all purchases by part to compute totals
+        for item in items.data:
+            raw_part_no = item.get('part_number') or item.get('part_no') or item.get('part')
+            try:
+                part_no = str(raw_part_no).strip()
+                part_key = part_no.lower()
+            except Exception:
+                part_no = raw_part_no
+                part_key = str(raw_part_no)
+            
+            purchased_qty = float(item.get('quantity', 0) or 0)
+            item_net_payable = float(item.get('net_payable', 0) or 0)
+            
+            # Calculate per-unit cost
+            if purchased_qty > 0:
+                cost_per_unit = item_net_payable / purchased_qty
+            else:
+                cost_per_unit = 0
+            
+            # Store cost per unit for this part (use average if multiple purchases)
+            if part_key in cost_per_unit_map:
+                cost_per_unit_map[part_key] = (cost_per_unit_map[part_key] + cost_per_unit) / 2
+            else:
+                cost_per_unit_map[part_key] = cost_per_unit
+            
+            # Initialize or update aggregates for this part
+            if part_key not in parts_aggregate:
+                parts_aggregate[part_key] = {
+                    'entry_no': item.get('entry_no', ''),
+                    'invoice_no': item.get('invoice_no', ''),
+                    'invoice_date': item.get('invoice_date', item.get('date', '')),
+                    'date': item.get('date', item.get('invoice_date', '')),
+                    'part_number': item.get('part_number') or item.get('part_no'),
+                    'part_no': part_no,
+                    'part_name': item.get('part_name', ''),
+                    'vendor': item.get('vendor', ''),
+                    'type_of_purchase': item.get('type_of_purchase', ''),
+                    'date_created': item.get('created_at', item.get('date', '')),
+                    'current_qty': 0,  # sum of remaining quantities (purchases.quantity after consumption)
+                    'total_payable': 0  # sum of net payable
+                }
+            
+            # Accumulate quantities and cost
+            parts_aggregate[part_key]['current_qty'] += purchased_qty
+            parts_aggregate[part_key]['total_payable'] += item_net_payable
+            total_value_all_purchases += item_net_payable
+        
+        # Second pass: build display rows (one per part) with correct calculations
+        for part_key, part_data in parts_aggregate.items():
+            utilized_qty = utilized_by_part.get(part_key, 0)
+            scrapped_qty = scrapped_by_part.get(part_key, 0)
+            
+            # Original received = current remaining + what was utilized + what was scrapped
+            original_qty = part_data['current_qty'] + utilized_qty + scrapped_qty
+            
+            # Available = original - utilized - scrapped (or simply = current_qty since consumption already updated it)
+            available_qty = original_qty - utilized_qty - scrapped_qty
+            
+            # Only show items that have availability > 0
+            if available_qty > 0:
+                cost_per_unit = cost_per_unit_map.get(part_key, 0)
+                
+                display_row = {
+                    'entry_no': part_data['entry_no'],
+                    'invoice_no': part_data['invoice_no'],
+                    'date': part_data['date'],
+                    'invoice_date': part_data['invoice_date'],
+                    'part_number': part_data['part_number'],
+                    'part_no': part_data['part_no'],
+                    'part_name': part_data['part_name'],
+                    'vendor': part_data['vendor'],
+                    'type_of_purchase': part_data['type_of_purchase'],
+                    'date_created': part_data['date_created'],
+                    'purchased_quantity': round(original_qty, 2),  # Original received (never changes)
+                    'available_quantity': round(available_qty, 2),  # Remaining after utilization/scrap
+                    'utilized_quantity': round(utilized_qty, 2),    # Total utilized
+                    'scrapped_quantity': round(scrapped_qty, 2),    # Total scrapped
+                    'net_payable': round(part_data['total_payable'], 2)
+                }
+                
+                available_items.append(display_row)
+                vendors.add(part_data['vendor'])
+                purchase_types.add(part_data['type_of_purchase'])
+                
+                total_available_qty += available_qty
+                instock_value += available_qty * cost_per_unit
+                total_current_qty += part_data['current_qty']
+        
+        # Note: `items` already contains purchases of all statuses (including issued),
+        # so we do NOT re-add issued purchase rows to totals here to avoid double-counting.
+
+        # Sum issued quantities from stock_issue_register for totals
+        if issue_register_records.data:
+            for rec in issue_register_records.data:
+                try:
+                    total_issued_qty += float(rec.get('quantity_issued', rec.get('quantity', 0) or 0))
+                except Exception:
+                    try:
+                        total_issued_qty += float(rec.get('quantity', 0) or 0)
+                    except Exception:
+                        pass
+        
+        # Calculate utilized and scrapped values using cost mapping
+        if utilization_records.data:
+            for record in utilization_records.data:
+                qty = float(record.get('quantity', 0) or 0)
+                raw_part = record.get('part_no')
+                try:
+                    part_key = str(raw_part).strip().lower()
+                except Exception:
+                    part_key = str(raw_part)
+                total_utilized_qty += qty
+                # Add to utilized value using cost per unit for this part
+                if part_key in cost_per_unit_map:
+                    utilized_value += qty * cost_per_unit_map[part_key]
+
+        if scrap_records.data:
+            for record in scrap_records.data:
+                qty = float(record.get('quantity', 0) or 0)
+                raw_part = record.get('part_no')
+                try:
+                    part_key = str(raw_part).strip().lower()
+                except Exception:
+                    part_key = str(raw_part)
+                total_scrapped_qty += qty
+                # Add to scrapped value using cost per unit for this part
+                if part_key in cost_per_unit_map:
+                    scrapped_value += qty * cost_per_unit_map[part_key]
+        
+        # Calculate final totals using balance formula:
+        # Original Received = Current In-Stock + Utilized + Scrapped + Issued
+        original_received_qty = total_current_qty + total_utilized_qty + total_scrapped_qty + total_issued_qty
+        final_available_qty = total_current_qty  # current in-stock (purchases.quantity reflects remaining)
+        final_instock_value = total_value_all_purchases - utilized_value - scrapped_value
+
+        # Fetch corrected maintenance job cards to show in Maintenance Utilization section
+        try:
+            maint_res = supabase.table('maintenance_entry').select('*').eq('status', 'corrected').order('updated_at', desc=True).execute()
+            maintenance_corrected = maint_res.data if maint_res.data else []
+        except Exception:
+            maintenance_corrected = []
+
+        # Enrich corrected maintenance entries with total utilized qty from material_utilization
+        try:
+            util_res = supabase.table('material_utilization').select('entry_no, description, quantity').execute()
+            util_rows = util_res.data if util_res.data else []
+            util_map = {}
+            import re
+            for u in util_rows:
+                try:
+                    qty = float(u.get('quantity') or 0)
+                except Exception:
+                    qty = 0
+                desc = (u.get('description') or '')
+                entry_no_u = (u.get('entry_no') or '')
+                mid = None
+                m = re.search(r'From maintenance\s*(\d+)', desc)
+                if m:
+                    try:
+                        mid = int(m.group(1))
+                    except Exception:
+                        mid = None
+                else:
+                    m2 = re.search(r'MU/(\d+)/', entry_no_u)
+                    if m2:
+                        try:
+                            mid = int(m2.group(1))
+                        except Exception:
+                            mid = None
+                if mid is not None:
+                    util_map[mid] = util_map.get(mid, 0) + qty
+
+            for e in maintenance_corrected:
+                try:
+                    eid = int(e.get('id')) if e.get('id') is not None else None
+                except Exception:
+                    eid = None
+                # default to 0 so the template shows the entered value instead of blank/None
+                e['utilized_qty'] = util_map.get(eid, 0)
+        except Exception:
+            pass
+
+        # Also fetch pending maintenance job cards so the UI can show them when requested
+        try:
+            maint_pending_res = supabase.table('maintenance_entry').select('*').eq('status', 'pending').order('updated_at', desc=True).execute()
+            maintenance_pending = maint_pending_res.data if maint_pending_res.data else []
+            for e in maintenance_pending:
+                try:
+                    eid = int(e.get('id')) if e.get('id') is not None else None
+                except Exception:
+                    eid = None
+                e['utilized_qty'] = util_map.get(eid, 0)
+        except Exception:
+            maintenance_pending = []
+
+        return render_template('stock_inventory.html', 
+                             items=available_items,
+                             issued_items=issued_items.data,
+                             utilization_records=utilization_records.data if utilization_records.data else [],
+                             scrap_records=scrap_records.data if scrap_records.data else [],
+                             maintenance_corrected=maintenance_corrected,
+                             maintenance_pending=maintenance_pending,
+                             total_items=round(original_received_qty, 2),  # Original total quantity received
+                             active_items=round(final_available_qty, 2),  # Current in-stock quantity
+                             total_value=f"{total_value_all_purchases:,.2f}",  # Total value of ALL purchases
+                             total_utilized=round(total_utilized_qty, 2),
+                             total_scrapped=round(total_scrapped_qty, 2),
+                             instock_value=f"{final_instock_value:,.2f}",
+                             utilized_value=f"{utilized_value:,.2f}",
+                             scrapped_value=f"{scrapped_value:,.2f}",
+                             vendors=sorted(vendors),
+                             purchase_types=sorted(purchase_types))
+    except Exception as e:
+        flash(f'Error loading inventory: {str(e)}', 'danger')
+        return redirect(url_for('dashboard'))
+
+@app.route('/issue-stock-form', methods=['GET', 'POST'])
+@login_required
+def issue_stock_form():
+    """Display form to issue stock items"""
+    if request.method == 'POST':
+        try:
+            # Get form data
+            issue_data = {
+                'entry_no': request.form.get('entry_no'),
+                'purchase_id': request.form.get('purchase_id'),
+                'part_no': request.form.get('part_no'),
+                'part_name': request.form.get('part_name'),
+                'vehicle_no': request.form.get('vehicle_no'),
+                'vehicle_id': request.form.get('vehicle_id'),
+                'date': request.form.get('date'),
+                'time': request.form.get('time'),
+                'kilometer': request.form.get('kilometer'),
+                'issuing_person_name': request.form.get('issuing_person_name'),
+                'driver_responsible': request.form.get('driver_responsible'),
+                'mechanic_responsible': request.form.get('mechanic_responsible'),
+                'comments': request.form.get('comments'),
+                'status': 'issued'
+            }
+            
+            # Save to stock_issue_register table
+            result = supabase.table('stock_issue_register').insert(issue_data).execute()
+            
+            if result.data:
+                # Update purchase item status to 'issued'
+                supabase.table('purchases').update({'status': 'issued'}).eq('id', issue_data['purchase_id']).execute()
+                flash('Stock issued successfully!', 'success')
+                return redirect(url_for('stock_inventory'))
+            else:
+                flash('Error issuing stock.', 'danger')
+        except Exception as e:
+            flash(f'Error: {str(e)}', 'danger')
+    
+    # GET request - show form
+    try:
+        # Get next entry number
+        entry_no_result = supabase.rpc('get_next_stock_issue_entry_no').execute()
+        entry_no = entry_no_result.data if entry_no_result.data else '001'
+        
+        # Get all active purchase items
+        items = supabase.table('purchases').select('*').eq('status', 'active').order('created_at', desc=True).execute()
+        
+        return render_template('stock_issue.html', 
+                             entry_no=entry_no,
+                             items=items.data)
+    except Exception as e:
+        flash(f'Error loading form: {str(e)}', 'danger')
+        return redirect(url_for('stock_inventory'))
+
+@app.route('/issue-stock/<item_id>', methods=['POST'])
+@login_required
+def issue_stock(item_id):
+    """Quick issue - redirect to issue form with item pre-selected"""
+    return redirect(url_for('issue_stock_form') + f'?item_id={item_id}')
+
+@app.route('/stock-issue-history')
+@login_required
+def stock_issue_history():
+    """Display all stock issue records"""
+    try:
+        records = supabase.table('stock_issue_register').select('*').order('created_at', desc=True).execute()
+        return render_template('stock_issue_history.html', records=records.data)
+    except Exception as e:
+        flash(f'Error loading issue history: {str(e)}', 'danger')
+        return redirect(url_for('stock_inventory'))
+
+@app.route('/fuel', methods=['GET', 'POST'])
+@login_required
+@module_required('Fuel')
+def fuel():
+    timings = {}
+    t0 = time.perf_counter()
+    if request.method == 'POST':
+        # Calculate distance traveled and fuel mileage (efficiency)
+        previous_km = float(request.form.get('previous_km', 0) or 0)
+        current_km = float(request.form.get('current_km', 0) or 0)
+        quantity = float(request.form.get('quantity', 0) or 0)
+        distance_traveled = current_km - previous_km
+        mileage_per_liter = distance_traveled / quantity if quantity > 0 else 0
+        
+        # Collect form data
+        data = {
+            'date': request.form.get('date', ''),
+            'time': request.form.get('time', ''),
+            'entry_no': request.form.get('entry_no', ''),
+            'bill_no': request.form.get('bill_no', ''),
+            'type_of_purchase': request.form.get('type_of_purchase', ''),
+            'part_no': request.form.get('part_no', ''),
+            'part_name': request.form.get('part_name', ''),
+            'quantity': request.form.get('quantity', ''),
+            'rate': request.form.get('rate', ''),
+            'amount': request.form.get('amount', ''),
+            'route_id': request.form.get('route_id', ''),
+            'vehicle_id': request.form.get('vehicle_id', ''),
+            'vehicle_no': request.form.get('vehicle_no', ''),
+            'vehicle_reg_no': request.form.get('vehicle_no', ''),
+            'previous_km': previous_km,
+            'current_km': current_km,
+            'km_reading': current_km,
+            'mileage': distance_traveled,  # DB column 'mileage' stores distance traveled
+            'mileage_per_liter': mileage_per_liter,
+            'driver': request.form.get('driver', ''),
+            'user_id': session.get('user_id')
+        }
+        
+        # Save to database
+        result = save_fuel(data)
+        
+        if result:
+            # If a part_no was provided (e.g., Engine oil), consume from purchases FIFO
+            try:
+                part_no = data.get('part_no')
+                qty_to_consume = float(data.get('quantity') or 0)
+                ttype = (data.get('type_of_purchase') or '').lower()
+                # Only attempt consumption for parts (engine oil or other stocked items)
+                if part_no and qty_to_consume > 0:
+                    # allow consumption for engine oil and other stocked parts
+                    if 'engine' in ttype or 'oil' in ttype or True:
+                        try:
+                            consume_res = consume_part_from_purchases(part_no, qty_to_consume)
+                            app.logger.debug('consume_part_from_purchases result for fuel: %s', consume_res)
+                        except Exception as exc2:
+                            app.logger.exception('Error during consume_part_from_purchases for %s: %s', part_no, exc2)
+            except Exception:
+                app.logger.exception('Error while attempting to consume part for fuel')
+
+            flash('Fuel record saved successfully!', 'success')
+            return redirect(url_for('fuel', success='true'))
+        else:
+            flash('Error saving fuel record. Please try again.', 'danger')
+    
+    t_post = time.perf_counter()
+    timings['post_handling_ms'] = int((t_post - t0) * 1000)
+
+    next_entry_no = get_next_fuel_entry_no()
+    t_after_next_entry = time.perf_counter()
+    timings['next_entry_no_ms'] = int((t_after_next_entry - t_post) * 1000)
+    
+    # Get all vehicles for dropdown
+    try:
+        t_veh_start = time.perf_counter()
+        vehicles = supabase.table('vehicles').select('vehicle_id, registration_no').order('vehicle_id').execute()
+        vehicles_data = vehicles.data if vehicles.data else []
+        t_veh_end = time.perf_counter()
+        timings['vehicles_fetch_ms'] = int((t_veh_end - t_veh_start) * 1000)
+    except Exception as e:
+        app.logger.exception('Error fetching vehicles for fuel form')
+        vehicles_data = []
+        timings['vehicles_fetch_ms'] = 0
+    
+    # Get last KM reading for each vehicle grouped by fuel type
+    # NOTE: avoid doing one Supabase query per vehicle-per-fuel-type (n*5 queries) which is slow.
+    # Instead, fetch a small recent set of fuel rows per vehicle and derive the most recent
+    # value for each fuel type locally (1 query per vehicle).
+    vehicle_last_km = {}
+    try:
+        # Batch approach: fetch recent fuel rows once and derive latest km per vehicle+fuel_type.
+        fuel_types = ['DIESEL', 'PETROL', 'Adblue', 'Engine oil', 'OTHERS']
+        t_vlk_start = time.perf_counter()
+
+        # initialize map for vehicles present
+        for vehicle in vehicles_data:
+            vid = vehicle.get('vehicle_id')
+            if vid:
+                vehicle_last_km[vid] = {ft: 0 for ft in fuel_types}
+
+        # Fetch recent fuel entries globally (limit tuned to expected activity)
+        recent = supabase.table('fuel').select('vehicle_id,current_km,type_of_purchase,created_at').order('created_at', desc=True).limit(2000).execute()
+        rows = recent.data if recent.data else []
+
+        # For each row in descending time order, first-seen vehicle+fuel_type is the latest
+        seen = {}
+        for r in rows:
+            vid = r.get('vehicle_id')
+            if not vid or vid not in vehicle_last_km:
+                continue
+            ft = (r.get('type_of_purchase') or '').strip()
+            if not ft:
+                continue
+            key = f"{vid}||{ft}"
+            if key in seen:
+                continue
+            km = r.get('current_km')
+            try:
+                vehicle_last_km[vid][ft] = float(km) if km is not None else 0
+            except Exception:
+                vehicle_last_km[vid][ft] = 0
+            seen[key] = True
+
+        t_vlk_end = time.perf_counter()
+        timings['vehicle_last_km_total_ms'] = int((t_vlk_end - t_vlk_start) * 1000)
+    except Exception as e:
+        print(f"Error fetching last KM: {e}")
+        vehicle_last_km = {}
+    
+    # Get all parts for dropdown
+    try:
+        t_parts_start = time.perf_counter()
+        parts = supabase.table('parts').select('part_id, part_name').eq('status', 'active').order('part_name').execute()
+        parts_data = parts.data if parts.data else []
+        t_parts_end = time.perf_counter()
+        timings['parts_fetch_ms'] = int((t_parts_end - t_parts_start) * 1000)
+    except Exception:
+        parts_data = []
+        timings['parts_fetch_ms'] = 0
+
+    # Render and attach timings in a response header for quick diagnostics
+    t_render_start = time.perf_counter()
+    rendered = render_template('fuel.html', entry_no=next_entry_no, vehicles=vehicles_data, parts=parts_data, vehicle_last_km=vehicle_last_km)
+    t_render_end = time.perf_counter()
+    timings['render_ms'] = int((t_render_end - t_render_start) * 1000)
+    timings['total_ms'] = int((t_render_end - t0) * 1000)
+
+    # log timings
+    try:
+        app.logger.debug('Fuel page timings: %s', json.dumps(timings))
+    except Exception:
+        pass
+
+    from flask import make_response
+    resp = make_response(rendered)
+    try:
+        resp.headers['X-Page-Timings'] = json.dumps(timings)
+    except Exception:
+        pass
+    return resp
+
+@app.route('/statutory', methods=['GET', 'POST'])
+@login_required
+@module_required('Statutory')
+def statutory():
+    if request.method == 'POST':
+        # Collect form data
+        data = {
+            'date': request.form.get('date', ''),
+            'time': request.form.get('time', ''),
+            'entry_no': request.form.get('entry_no', ''),
+            'invoice_no': request.form.get('invoice_no', ''),
+            'invoice_date': request.form.get('invoice_date', ''),
+            'statutory_body_id': request.form.get('statutory_body_id', ''),
+            'type_of_transaction': request.form.get('type_of_transaction', ''),
+            'validity_date': request.form.get('validity_date', ''),
+            'rate': request.form.get('rate', ''),
+            'taxable_amount': request.form.get('taxable_amount', ''),
+            'sgst_percent': request.form.get('sgst_percent', ''),
+            'sgst_amount': request.form.get('sgst_amount', ''),
+            'cgst_percent': request.form.get('cgst_percent', ''),
+            'cgst_amount': request.form.get('cgst_amount', ''),
+            'igst_percent': request.form.get('igst_percent', ''),
+            'igst_amount': request.form.get('igst_amount', ''),
+            'total_amount': request.form.get('total_amount', ''),
+            'entered_by': request.form.get('entered_by', ''),
+            'approved_by': request.form.get('approved_by', ''),
+            'approver_name': request.form.get('approver_name', ''),
+            'rejection_reason': request.form.get('rejection_reason', ''),
+            'user_id': session.get('user_id')
+        }
+        
+        # Save to database
+        result = save_statutory(data)
+        
+        if result:
+            flash('Statutory record saved successfully!', 'success')
+            return redirect(url_for('statutory', success='true'))
+        else:
+            flash('Error saving statutory record. Please try again.', 'danger')
+    
+    next_entry_no = get_next_statutory_entry_no()
+    return render_template('statutory.html', entry_no=next_entry_no)
+
+@app.route('/trip-sheet', methods=['GET', 'POST'])
+@login_required
+@module_required('Trip Sheet')
+def trip_sheet():
+    """Trip Sheet form for recording trip details"""
+    if request.method == 'POST':
+        try:
+            # Calculate totals
+            student_male = int(request.form.get('student_male', 0) or 0)
+            student_female = int(request.form.get('student_female', 0) or 0)
+            student_transgender = int(request.form.get('student_transgender', 0) or 0)
+            student_total = student_male + student_female + student_transgender
+            
+            faculty_male = int(request.form.get('faculty_male', 0) or 0)
+            faculty_female = int(request.form.get('faculty_female', 0) or 0)
+            faculty_transgender = int(request.form.get('faculty_transgender', 0) or 0)
+            faculty_total = faculty_male + faculty_female + faculty_transgender
+            
+            guest_male = int(request.form.get('guest_male', 0) or 0)
+            guest_female = int(request.form.get('guest_female', 0) or 0)
+            guest_transgender = int(request.form.get('guest_transgender', 0) or 0)
+            guest_total = guest_male + guest_female + guest_transgender
+            
+            cumulative_strength = student_total + faculty_total + guest_total
+            
+            # Collect form data
+            data = {
+                'date_time': request.form.get('date_time'),
+                'route_id': request.form.get('route_id'),
+                'driver_id': request.form.get('driver_id'),
+                'driver_name': request.form.get('driver_name'),
+                'vehicle_id': request.form.get('vehicle_id'),
+                'vehicle_no': request.form.get('vehicle_no'),
+                'trip_start_km': request.form.get('trip_start_km'),
+                'trip_close_km': request.form.get('trip_close_km'),
+                'trip_start_time': request.form.get('trip_start_time'),
+                'trip_close_time': request.form.get('trip_close_time'),
+                'student_male': student_male,
+                'student_female': student_female,
+                'student_transgender': student_transgender,
+                'student_total': student_total,
+                'faculty_male': faculty_male,
+                'faculty_female': faculty_female,
+                'faculty_transgender': faculty_transgender,
+                'faculty_total': faculty_total,
+                'guest_male': guest_male,
+                'guest_female': guest_female,
+                'guest_transgender': guest_transgender,
+                'guest_total': guest_total,
+                'cumulative_strength': cumulative_strength,
+                'trip_start_place': request.form.get('trip_start_place'),
+                'trip_close_place': request.form.get('trip_close_place'),
+                'comments': request.form.get('comments'),
+                'entered_by': request.form.get('entered_by')
+            }
+            
+            # Save to trip_sheet table
+            result = supabase.table('trip_sheet').insert(data).execute()
+            
+            if result.data:
+                flash('Trip sheet submitted successfully!', 'success')
+                return redirect(url_for('trip_sheet'))
+            else:
+                flash('Error submitting trip sheet.', 'danger')
+        except Exception as e:
+            flash(f'Error: {str(e)}', 'danger')
+    
+    # GET request - show form
+    try:
+        # Get all vehicles for dropdown
+        vehicles = supabase.table('vehicles').select('vehicle_id, registration_no').order('vehicle_id').execute()
+        return render_template('trip_sheet.html', vehicles=vehicles.data)
+    except Exception as e:
+        flash(f'Error loading form: {str(e)}', 'danger')
+        return redirect(url_for('dashboard'))
+
+@app.route('/home')
+@login_required
+def home():
+    user_name = session.get('user_name', 'USER')
+    return render_template('home.html', user=session.get('user'), user_role=user_name)
+
+@app.route('/admin-dashboard')
+@admin_required
+def admin_dashboard():
+    from datetime import datetime, timedelta
+    
+    users_count = get_users_count()
+    vehicles_count = get_vehicles_count()
+    
+    # Get statutory records and check for upcoming due dates
+    statutory_records = get_all_statutory_records()
+    today = datetime.now().date()
+    due_soon_alerts = []
+    
+    for record in statutory_records:
+        if record.get('validity_date'):
+            try:
+                # Parse validity_date
+                validity_date_str = str(record.get('validity_date'))
+                if 'T' in validity_date_str:
+                    validity_date = datetime.fromisoformat(validity_date_str.split('T')[0]).date()
+                else:
+                    validity_date = datetime.strptime(validity_date_str.split(' ')[0], '%Y-%m-%d').date()
+                
+                days_remaining = (validity_date - today).days
+                
+                # Alert if due within 7 days or overdue
+                if days_remaining <= 7:
+                    alert_type = 'overdue' if days_remaining < 0 else 'warning'
+                    due_soon_alerts.append({
+                        'statutory_body_id': record.get('statutory_body_id', 'Unknown'),
+                        'record_type': record.get('type_of_transaction', 'Statutory'),
+                        'next_due': validity_date.strftime('%d-%m-%Y'),
+                        'days_remaining': days_remaining,
+                        'alert_type': alert_type
+                    })
+            except Exception as e:
+                print(f"Error parsing date for record: {e}")
+                continue
+    
+    # Sort by days remaining (most urgent first)
+    due_soon_alerts.sort(key=lambda x: x['days_remaining'])
+    
+    # Get inventory items count from purchases
+    try:
+        purchases_response = supabase.table('purchases').select('id').eq('status', 'active').execute()
+        inventory_count = len(purchases_response.data) if purchases_response.data else 0
+    except:
+        inventory_count = 0
+    
+    return render_template('admin_dashboard.html', 
+                           admin=session.get('admin'),
+                           users_count=users_count,
+                           vehicles_count=vehicles_count,
+                           reports_count=inventory_count,
+                           due_soon_alerts=due_soon_alerts)
+
+@app.route('/admin/reports')
+@admin_required
+def admin_reports():
+    """Admin reports page showing fuel, statutory, and trip sheet records"""
+    try:
+        # Fetch all records
+        fuel_records = get_all_fuel_records()
+        statutory_records = get_all_statutory_records()
+        trip_records = get_all_trip_sheets()
+        
+        # Calculate summaries
+        fuel_total_liters = sum(float(r.get('quantity', 0) or 0) for r in fuel_records)
+        fuel_total_amount = sum(float(r.get('amount', 0) or 0) for r in fuel_records)
+        
+        statutory_total_amount = sum(float(r.get('total_amount', 0) or 0) for r in statutory_records)
+        
+        trip_total_distance = sum(float(r.get('trip_distance', 0) or 0) for r in trip_records)
+        trip_total_passengers = sum(int(r.get('total_strength', 0) or 0) for r in trip_records)
+        
+        return render_template('admin_reports.html',
+                             fuel_records=fuel_records,
+                             fuel_total_liters=fuel_total_liters,
+                             fuel_total_amount=fuel_total_amount,
+                             statutory_records=statutory_records,
+                             statutory_total_amount=statutory_total_amount,
+                             trip_records=trip_records,
+                             trip_total_distance=trip_total_distance,
+                             trip_total_passengers=trip_total_passengers)
+    except Exception as e:
+        flash(f'Error loading reports: {str(e)}', 'danger')
+        return redirect(url_for('admin_dashboard'))
+
+@app.route('/admin/trip-records')
+@admin_required
+def admin_trip_records():
+    """Admin trip records page with filters"""
+    from datetime import datetime
+    import html
+    import urllib.parse
+    import re
+    
+    def clean_text(text):
+        """Clean up corrupted/encoded text like '& %¶& &k&a&m&a&n&d&o&d' -> 'Kamandod'"""
+        if not text:
+            return '-'
+        try:
+            text = str(text)
+            
+            # Check for the pattern: characters separated by &
+            # Pattern like "&k&a&m&a&n&d&o&d" or "& %¶& &k&a&m&a&n&d&o&d"
+            if '&' in text:
+                # Remove common garbage prefixes
+                text = re.sub(r'^[&\s%¶]+', '', text)
+                
+                # Check if it's the pattern of single chars separated by &
+                parts = text.split('&')
+                # If most parts are single characters, it's the corrupted pattern
+                single_char_parts = [p.strip() for p in parts if len(p.strip()) == 1]
+                if len(single_char_parts) >= len(parts) * 0.7:  # 70% are single chars
+                    # Join the single characters
+                    cleaned = ''.join([p.strip() for p in parts if p.strip()])
+                    return cleaned.title() if cleaned else '-'
+            
+            # Normal text - just return as is
+            return text
+        except:
+            return str(text) if text else '-'
+    
+    try:
+        # Get filter parameters
+        route_filter = request.args.get('route_id', '')
+        vehicle_filter = request.args.get('vehicle_id', '')
+        date_from = request.args.get('date_from', '')
+        date_to = request.args.get('date_to', '')
+        
+        # Fetch all trip records
+        trip_records = get_all_trip_sheets()
+        
+        # Apply filters
+        if route_filter:
+            trip_records = [r for r in trip_records if (r.get('route_id') or '').lower() == route_filter.lower()]
+        
+        if vehicle_filter:
+            trip_records = [r for r in trip_records if (r.get('vehicle_id') or '').lower() == vehicle_filter.lower()]
+        
+        if date_from:
+            try:
+                date_from_obj = datetime.strptime(date_from, '%Y-%m-%d')
+                trip_records = [r for r in trip_records if r.get('date_time') and datetime.fromisoformat(r['date_time'].replace('Z', '+00:00').split('+')[0]) >= date_from_obj]
+            except:
+                pass
+        
+        if date_to:
+            try:
+                date_to_obj = datetime.strptime(date_to, '%Y-%m-%d')
+                trip_records = [r for r in trip_records if r.get('date_time') and datetime.fromisoformat(r['date_time'].replace('Z', '+00:00').split('+')[0]) <= date_to_obj]
+            except:
+                pass
+        
+        # Clean up corrupted text in trip records
+        for record in trip_records:
+            record['trip_start_place'] = clean_text(record.get('trip_start_place'))
+            record['trip_close_place'] = clean_text(record.get('trip_close_place'))
+        
+        # Get unique values for filter dropdowns
+        all_records = get_all_trip_sheets()
+        unique_routes = sorted(set(r.get('route_id', '') for r in all_records if r.get('route_id')))
+        unique_vehicles = sorted(set(r.get('vehicle_id', '') for r in all_records if r.get('vehicle_id')))
+        
+        # Calculate totals
+        total_trips = len(trip_records)
+        total_distance = sum(float(r.get('trip_close_km', 0) or 0) - float(r.get('trip_start_km', 0) or 0) for r in trip_records)
+        total_students = sum(int(r.get('student_total', 0) or 0) for r in trip_records)
+        total_faculty = sum(int(r.get('faculty_total', 0) or 0) for r in trip_records)
+        total_guests = sum(int(r.get('guest_total', 0) or 0) for r in trip_records)
+        total_passengers = sum(int(r.get('cumulative_strength', 0) or r.get('total_strength', 0) or 0) for r in trip_records)
+        
+        # Get all vehicles for dropdown
+        vehicles = supabase.table('vehicles').select('vehicle_id, registration_no').order('vehicle_id').execute()
+        
+        return render_template('admin_trip_records.html',
+                             trip_records=trip_records,
+                             unique_routes=unique_routes,
+                             unique_vehicles=unique_vehicles,
+                             vehicles=vehicles.data,
+                             route_filter=route_filter,
+                             vehicle_filter=vehicle_filter,
+                             date_from=date_from,
+                             date_to=date_to,
+                             total_trips=total_trips,
+                             total_distance=total_distance,
+                             total_students=total_students,
+                             total_faculty=total_faculty,
+                             total_guests=total_guests,
+                             total_passengers=total_passengers)
+    except Exception as e:
+        flash(f'Error loading trip records: {str(e)}', 'danger')
+        return redirect(url_for('admin_dashboard'))
+
+
+@app.route('/admin/trips/add')
+@admin_required
+def admin_add_trip():
+    """Redirect helper for templates linking to add-trip page."""
+    # The application uses `trip_sheet` for creating new trip entries.
+    # Keep a dedicated endpoint so templates can call `url_for('admin_add_trip')`.
+    try:
+        return redirect(url_for('trip_sheet'))
+    except Exception:
+        return redirect(url_for('admin_trip_records'))
+
+@app.route('/admin/analytics-dashboard')
+@admin_required
+def admin_analytics_dashboard():
+    """Analytics dashboard with charts and graphical reports"""
+    from datetime import datetime, timedelta
+    from collections import defaultdict
+    import re
+    
+    def parse_datetime(dt_string):
+        """Helper function to parse datetime strings with various formats"""
+        try:
+            if not dt_string:
+                return None
+            dt_str = str(dt_string).strip()
+            
+            # Try using python-dateutil if available
+            try:
+                from dateutil import parser as date_parser
+                return date_parser.parse(dt_str).date()
+            except ImportError:
+                pass
+            except Exception:
+                pass
+            
+            # Manual parsing: Remove microseconds that cause issues
+            # Pattern: YYYY-MM-DDTHH:MM:SS.microseconds+TZ
+            match = re.match(r'(\d{4}-\d{2}-\d{2})[T\s](\d{2}:\d{2}:\d{2})(?:\.\d+)?([\+\-Z].*)?', dt_str)
+            if match:
+                date_part = match.group(1)
+                time_part = match.group(2)
+                tz_part = match.group(3) or ''
+                
+                # Normalize timezone
+                if tz_part == 'Z':
+                    tz_part = '+00:00'
+                
+                # Try parsing with timezone
+                try:
+                    clean_str = f"{date_part}T{time_part}{tz_part}"
+                    return datetime.fromisoformat(clean_str).date()
+                except:
+                    pass
+                
+                # Try without timezone
+                try:
+                    return datetime.strptime(date_part, '%Y-%m-%d').date()
+                except:
+                    pass
+            
+            # Last resort: extract just the date
+            date_match = re.match(r'(\d{4})-(\d{2})-(\d{2})', dt_str)
+            if date_match:
+                year, month, day = date_match.groups()
+                return datetime(int(year), int(month), int(day)).date()
+                
+            return None
+        except Exception as e:
+            print(f"Error parsing datetime '{dt_string}': {e}")
+            return None
+    
+    try:
+        # Fetch all records
+        fuel_records = get_all_fuel_records()
+        trip_records = get_all_trip_sheets()
+        statutory_records = get_all_statutory_records()
+        purchase_records = get_all_purchases()
+        stock_issue_records = get_all_stock_issues()
+        utilization_records = get_all_utilization()
+        scrap_records = get_all_scrap()
+        
+        # Get today's date
+        today = datetime.now().date()
+        
+        # Calculate daily data (today)
+        daily_trips = [r for r in trip_records if r.get('created_at') and parse_datetime(r['created_at']) == today]
+        daily_fuel = [r for r in fuel_records if r.get('created_at') and parse_datetime(r['created_at']) == today]
+        daily_purchases = [r for r in purchase_records if r.get('created_at') and parse_datetime(r['created_at']) == today]
+        daily_issues = [r for r in stock_issue_records if r.get('created_at') and parse_datetime(r['created_at']) == today]
+        daily_utilization = [r for r in utilization_records if r.get('created_at') and parse_datetime(r['created_at']) == today]
+        daily_scrap = [r for r in scrap_records if r.get('created_at') and parse_datetime(r['created_at']) == today]
+        
+        daily_data = {
+            'total_trips': len(daily_trips),
+            'total_fuel': sum(float(r.get('quantity', 0) or 0) for r in daily_fuel),
+            'total_distance': sum(float(r.get('trip_distance', 0) or 0) for r in daily_trips),
+            'total_expenditure': sum(float(r.get('amount', 0) or 0) for r in daily_fuel),
+            'total_purchases': len(daily_purchases),
+            'total_purchase_value': sum(float(r.get('total_payment', 0) or 0) for r in daily_purchases),
+            'total_issues': len(daily_issues),
+            'total_utilization': len(daily_utilization),
+            'total_scrap': len(daily_scrap),
+            'fuel_labels': ['Today'],
+            'fuel_values': [sum(float(r.get('quantity', 0) or 0) for r in daily_fuel)],
+            'trip_labels': ['Today'],
+            'trip_values': [len(daily_trips)],
+            'vehicle_labels': [],
+            'vehicle_values': [],
+            'expenditure_values': [
+                sum(float(r.get('amount', 0) or 0) for r in daily_fuel),
+                0, 0, 0
+            ],
+            'stock_labels': ['Purchases', 'Issues', 'Utilization', 'Scrap'],
+            'stock_values': [len(daily_purchases), len(daily_issues), len(daily_utilization), len(daily_scrap)]
+        }
+        
+        # Calculate weekly data (last 7 days)
+        week_ago = today - timedelta(days=7)
+        weekly_trips = [r for r in trip_records if r.get('created_at') and parse_datetime(r['created_at']) and parse_datetime(r['created_at']) >= week_ago]
+        weekly_fuel = [r for r in fuel_records if r.get('created_at') and parse_datetime(r['created_at']) and parse_datetime(r['created_at']) >= week_ago]
+        weekly_purchases = [r for r in purchase_records if r.get('created_at') and parse_datetime(r['created_at']) and parse_datetime(r['created_at']) >= week_ago]
+        weekly_issues = [r for r in stock_issue_records if r.get('created_at') and parse_datetime(r['created_at']) and parse_datetime(r['created_at']) >= week_ago]
+        weekly_utilization = [r for r in utilization_records if r.get('created_at') and parse_datetime(r['created_at']) and parse_datetime(r['created_at']) >= week_ago]
+        weekly_scrap = [r for r in scrap_records if r.get('created_at') and parse_datetime(r['created_at']) and parse_datetime(r['created_at']) >= week_ago]
+        
+        # Define month_ago for monthly data
+        month_ago = today - timedelta(days=30)
+        
+        # Group by day for weekly chart
+        daily_fuel_map = defaultdict(float)
+        daily_trip_map = defaultdict(int)
+        for i in range(7):
+            day = today - timedelta(days=i)
+            daily_fuel_map[day.strftime('%a')] = 0
+            daily_trip_map[day.strftime('%a')] = 0
+        
+        for r in weekly_fuel:
+            if r.get('created_at'):
+                day = parse_datetime(r['created_at'])
+                if day:
+                    daily_fuel_map[day.strftime('%a')] += float(r.get('quantity', 0) or 0)
+        
+        for r in weekly_trips:
+            if r.get('created_at'):
+                day = parse_datetime(r['created_at'])
+                if day:
+                    daily_trip_map[day.strftime('%a')] += 1
+        
+        weekly_data = {
+            'total_trips': len(weekly_trips),
+            'total_fuel': sum(float(r.get('quantity', 0) or 0) for r in weekly_fuel),
+            'total_distance': sum(float(r.get('trip_distance', 0) or 0) for r in weekly_trips),
+            'total_expenditure': sum(float(r.get('amount', 0) or 0) for r in weekly_fuel),
+            'total_purchases': len(weekly_purchases),
+            'total_purchase_value': sum(float(r.get('total_payment', 0) or 0) for r in weekly_purchases),
+            'total_issues': len(weekly_issues),
+            'total_utilization': len(weekly_utilization),
+            'total_scrap': len(weekly_scrap),
+            'fuel_labels': list(reversed(list(daily_fuel_map.keys()))),
+            'fuel_values': list(reversed(list(daily_fuel_map.values()))),
+            'trip_labels': list(reversed(list(daily_trip_map.keys()))),
+            'trip_values': list(reversed(list(daily_trip_map.values()))),
+            'vehicle_labels': [],
+            'vehicle_values': [],
+            'expenditure_values': [
+                sum(float(r.get('amount', 0) or 0) for r in weekly_fuel),
+                0, 0, 0
+            ],
+            'stock_labels': ['Purchases', 'Issues', 'Utilization', 'Scrap'],
+            'stock_values': [len(weekly_purchases), len(weekly_issues), len(weekly_utilization), len(weekly_scrap)]
+        }
+        
+        # Calculate monthly data (last 30 days)
+        monthly_trips = [r for r in trip_records if r.get('created_at') and parse_datetime(r['created_at']) and parse_datetime(r['created_at']) >= month_ago]
+        monthly_fuel = [r for r in fuel_records if r.get('created_at') and parse_datetime(r['created_at']) and parse_datetime(r['created_at']) >= month_ago]
+        monthly_purchases = [r for r in purchase_records if r.get('created_at') and parse_datetime(r['created_at']) and parse_datetime(r['created_at']) >= month_ago]
+        monthly_issues = [r for r in stock_issue_records if r.get('created_at') and parse_datetime(r['created_at']) and parse_datetime(r['created_at']) >= month_ago]
+        monthly_utilization = [r for r in utilization_records if r.get('created_at') and parse_datetime(r['created_at']) and parse_datetime(r['created_at']) >= month_ago]
+        monthly_scrap = [r for r in scrap_records if r.get('created_at') and parse_datetime(r['created_at']) and parse_datetime(r['created_at']) >= month_ago]
+        
+        # Group by week for monthly chart
+        weekly_labels = ['Week 1', 'Week 2', 'Week 3', 'Week 4']
+        weekly_fuel_values = [0, 0, 0, 0]
+        weekly_trip_values = [0, 0, 0, 0]
+        
+        for r in monthly_fuel:
+            if r.get('created_at'):
+                day = parse_datetime(r['created_at'])
+                if day:
+                    days_ago = (today - day).days
+                    week_index = min(days_ago // 7, 3)
+                    weekly_fuel_values[3 - week_index] += float(r.get('quantity', 0) or 0)
+        
+        for r in monthly_trips:
+            if r.get('created_at'):
+                day = parse_datetime(r['created_at'])
+                if day:
+                    days_ago = (today - day).days
+                    week_index = min(days_ago // 7, 3)
+                    weekly_trip_values[3 - week_index] += 1
+        
+        monthly_data = {
+            'total_trips': len(monthly_trips),
+            'total_fuel': sum(float(r.get('quantity', 0) or 0) for r in monthly_fuel),
+            'total_distance': sum(float(r.get('trip_distance', 0) or 0) for r in monthly_trips),
+            'total_expenditure': sum(float(r.get('amount', 0) or 0) for r in monthly_fuel),
+            'total_purchases': len(monthly_purchases),
+            'total_purchase_value': sum(float(r.get('total_payment', 0) or 0) for r in monthly_purchases),
+            'total_issues': len(monthly_issues),
+            'total_utilization': len(monthly_utilization),
+            'total_scrap': len(monthly_scrap),
+            'fuel_labels': weekly_labels,
+            'fuel_values': weekly_fuel_values,
+            'trip_labels': weekly_labels,
+            'trip_values': weekly_trip_values,
+            'vehicle_labels': [],
+            'vehicle_values': [],
+            'expenditure_values': [
+                sum(float(r.get('amount', 0) or 0) for r in monthly_fuel),
+                0, 0, 0
+            ],
+            'stock_labels': ['Purchases', 'Issues', 'Utilization', 'Scrap'],
+            'stock_values': [len(monthly_purchases), len(monthly_issues), len(monthly_utilization), len(monthly_scrap)]
+        }
+        
+        # Calculate vehicle utilization
+        vehicle_usage = defaultdict(int)
+        for r in trip_records:
+            if r.get('vehicle_id'):
+                vehicle_usage[r['vehicle_id']] += 1
+        
+        top_vehicles_data = sorted(vehicle_usage.items(), key=lambda x: x[1], reverse=True)[:5]
+        for period_data in [daily_data, weekly_data, monthly_data]:
+            period_data['vehicle_labels'] = [v[0] for v in top_vehicles_data]
+            period_data['vehicle_values'] = [v[1] for v in top_vehicles_data]
+        
+        # Top performing vehicles
+        top_vehicles = []
+        for vehicle_id, trip_count in top_vehicles_data[:5]:
+            vehicle_trips = [r for r in trip_records if r.get('vehicle_id') == vehicle_id]
+            vehicle_fuel = [r for r in fuel_records if r.get('vehicle_id') == vehicle_id]
+            
+            total_distance = sum(float(r.get('trip_distance', 0) or 0) for r in vehicle_trips)
+            total_fuel = sum(float(r.get('quantity', 0) or 0) for r in vehicle_fuel)
+            efficiency = round(total_distance / total_fuel, 2) if total_fuel > 0 else 0
+            
+            top_vehicles.append({
+                'vehicle_id': vehicle_id,
+                'trips': trip_count,
+                'distance': round(total_distance, 2),
+                'fuel': round(total_fuel, 2),
+                'efficiency': efficiency
+            })
+        
+        # Statutory compliance
+        compliant_count = 0
+        due_soon_count = 0
+        overdue_count = 0
+        
+        for record in statutory_records:
+            if record.get('next_due_date'):
+                try:
+                    next_due = datetime.strptime(str(record['next_due_date']), '%Y-%m-%d').date()
+                    days_until = (next_due - today).days
+                    
+                    if days_until < 0:
+                        overdue_count += 1
+                    elif days_until <= 30:
+                        due_soon_count += 1
+                    else:
+                        compliant_count += 1
+                except:
+                    pass
+        
+        return render_template('admin_analytics_dashboard.html',
+                             daily_data=daily_data,
+                             weekly_data=weekly_data,
+                             monthly_data=monthly_data,
+                             total_trips=daily_data['total_trips'],
+                             total_fuel=round(daily_data['total_fuel'], 2),
+                             total_distance=round(daily_data['total_distance'], 2),
+                             total_expenditure=round(daily_data['total_expenditure'], 2),
+                             top_vehicles=top_vehicles,
+                             compliant_count=compliant_count,
+                             due_soon_count=due_soon_count,
+                             overdue_count=overdue_count)
+    
+    except Exception as e:
+        print(f"Error in analytics dashboard: {e}")
+        import traceback
+        traceback.print_exc()
+        flash(f'Error loading analytics: {str(e)}', 'danger')
+        return redirect(url_for('admin_dashboard'))
+
+# =====================================================
+# ADMIN USER MANAGEMENT ROUTES
+# =====================================================
+
+@app.route('/admin/users')
+@admin_required
+def admin_users():
+    users = get_all_users()
+    return render_template('admin_users.html', users=users)
+
+@app.route('/admin/users/add', methods=['GET', 'POST'])
+@admin_required
+def admin_add_user():
+    if request.method == 'POST':
+        user_data = {
+            'email': request.form.get('email'),
+            'password': request.form.get('password'),
+            'full_name': request.form.get('full_name'),
+            'phone': request.form.get('phone') or None,
+            'department': request.form.get('department') or None,
+            'role': request.form.get('role', 'user'),
+            'is_active': request.form.get('is_active') == 'true'
+        }
+        
+        result = admin_create_user(user_data)
+        if result:
+            flash('User created successfully!', 'success')
+            return redirect(url_for('admin_users'))
+        else:
+            flash('Failed to create user. Email may already exist.', 'danger')
+    
+    return render_template('admin_add_user.html')
+
+@app.route('/admin/users/edit/<user_id>', methods=['GET', 'POST'])
+@admin_required
+def admin_edit_user(user_id):
+    user = get_user_by_id(user_id)
+    if not user:
+        flash('User not found!', 'danger')
+        return redirect(url_for('admin_users'))
+    
+    if request.method == 'POST':
+        user_data = {
+            'email': request.form.get('email'),
+            'full_name': request.form.get('full_name'),
+            'phone': request.form.get('phone') or None,
+            'department': request.form.get('department') or None,
+            'role': request.form.get('role', 'user'),
+            'is_active': request.form.get('is_active') == 'true'
+        }
+        
+        # Only update password if provided
+        new_password = request.form.get('password')
+        if new_password:
+            user_data['password'] = new_password
+        
+        result = admin_update_user(user_id, user_data)
+        if result:
+            flash('User updated successfully!', 'success')
+            return redirect(url_for('admin_users'))
+        else:
+            flash('Failed to update user.', 'danger')
+    
+    return render_template('admin_edit_user.html', user=user)
+
+@app.route('/admin/users/toggle/<user_id>', methods=['POST'])
+@admin_required
+def admin_toggle_user(user_id):
+    result = admin_toggle_user_status(user_id)
+    if result:
+        flash('User status updated successfully!', 'success')
+    else:
+        flash('Failed to update user status.', 'danger')
+    return redirect(url_for('admin_users'))
+
+@app.route('/admin/users/delete/<user_id>', methods=['POST'])
+@admin_required
+def admin_delete_user_route(user_id):
+    result = admin_delete_user(user_id)
+    if result:
+        flash('User deleted successfully!', 'success')
+    else:
+        flash('Failed to delete user.', 'danger')
+    return redirect(url_for('admin_users'))
+
+
+@app.route('/admin/users/<user_id>/modules', methods=['POST'])
+@admin_required
+def admin_save_user_modules(user_id):
+    # Expecting form data with multiple modules: modules[]
+    try:
+        modules = request.form.getlist('modules[]') or request.form.getlist('modules') or []
+        # Whitelist known module names to avoid arbitrary data
+        allowed = ['Purchase', 'Utilization', 'Maintenance', 'Internal Audit', 'Part ID', 'Scrap', 'Fuel', 'Statutory', 'Trip Sheet', 'Log Book']
+        selected = [m for m in modules if m in allowed]
+        # Try updating via Supabase directly so we can return any underlying error message
+        try:
+            resp = supabase.table('users').update({'modules': selected}).eq('id', user_id).execute()
+            # Some clients expose an `error` attribute
+            err = getattr(resp, 'error', None)
+            data = getattr(resp, 'data', None)
+            if err:
+                return (f'Failed updating modules: {err}', 400)
+            if data:
+                return jsonify({'success': True}), 200
+            # No rows updated
+            return (f'No rows updated while saving modules. Response: {resp}', 400)
+        except Exception as e:
+            # Fallback to existing helper (keeps older behavior) and include exception text
+            try:
+                result = admin_update_user(user_id, {'modules': selected})
+                if result:
+                    return jsonify({'success': True}), 200
+            except Exception:
+                pass
+            return (f'Error saving modules: {str(e)}', 500)
+    except Exception as e:
+        return (f'Error saving modules: {str(e)}', 500)
+
+# =====================================================
+# ADMIN VEHICLE MANAGEMENT ROUTES
+# =====================================================
+
+@app.route('/admin/vehicles')
+@admin_required
+def admin_vehicles():
+    vehicles = get_all_vehicles()
+    return render_template('admin_vehicles.html', vehicles=vehicles)
+
+@app.route('/admin/vehicles/view/<int:vehicle_id>', methods=['GET'])
+@admin_required
+def admin_view_vehicle(vehicle_id):
+    vehicle = get_vehicle_by_id(vehicle_id)
+    if not vehicle:
+        flash('Vehicle not found!', 'danger')
+        return redirect(url_for('admin_vehicles'))
+    
+    return render_template('admin_view_vehicle.html', vehicle=vehicle)
+
+@app.route('/admin/vehicles/add', methods=['GET', 'POST'])
+@admin_required
+def admin_add_vehicle_page():
+    if request.method == 'POST':
+        vehicle_data = {
+            'vehicle_id': request.form.get('vehicle_id'),
+            'registration_no': request.form.get('registration_no') or None,
+            'date_of_registration': request.form.get('date_of_registration') or None,
+            'chassis_number': request.form.get('chassis_number') or None,
+            'engine_number': request.form.get('engine_number') or None,
+            'fuel_type': request.form.get('fuel_type') or None,
+            'emission_norms': request.form.get('emission_norms') or None,
+            'vehicle_class': request.form.get('vehicle_class') or None,
+            'make': request.form.get('make') or None,
+            'model': request.form.get('model') or None,
+            'color': request.form.get('color') or None,
+            'body_type': request.form.get('body_type') or None,
+            'seating_capacity': request.form.get('seating_capacity') or None,
+            'unladen_weight': request.form.get('unladen_weight') or None,
+            'laden_weight': request.form.get('laden_weight') or None,
+            'horse_power': request.form.get('horse_power') or None,
+            'cubic_capacity': request.form.get('cubic_capacity') or None,
+            'number_of_axles': request.form.get('number_of_axles') or None,
+            'no_of_cylinders': request.form.get('no_of_cylinders') or None,
+            'month_year_manufacturing': request.form.get('month_year_manufacturing') or None,
+            'financier': request.form.get('financier') or None,
+            'fitness_validity': request.form.get('fitness_validity') or None,
+            'insurance_validity': request.form.get('insurance_validity') or None,
+            'insurance_company': request.form.get('insurance_company') or None,
+            'permit_validity': request.form.get('permit_validity') or None,
+            'permit_district': request.form.get('permit_district') or None,
+            'pucc_validity': request.form.get('pucc_validity') or None,
+            'tax_validity': request.form.get('tax_validity') or None
+        }
+        
+        result = admin_add_vehicle(vehicle_data)
+        if result:
+            flash('Vehicle added successfully!', 'success')
+            return redirect(url_for('admin_vehicles'))
+        else:
+            flash('Failed to add vehicle. Vehicle ID may already exist.', 'danger')
+    
+    return render_template('admin_add_vehicle.html')
+
+@app.route('/admin/vehicles/edit/<int:vehicle_id>', methods=['GET', 'POST'])
+@admin_required
+def admin_edit_vehicle(vehicle_id):
+    vehicle = get_vehicle_by_id(vehicle_id)
+    if not vehicle:
+        flash('Vehicle not found!', 'danger')
+        return redirect(url_for('admin_vehicles'))
+    
+    if request.method == 'POST':
+        vehicle_data = {
+            'vehicle_id': request.form.get('vehicle_id'),
+            'registration_no': request.form.get('registration_no') or None,
+            'date_of_registration': request.form.get('date_of_registration') or None,
+            'chassis_number': request.form.get('chassis_number') or None,
+            'engine_number': request.form.get('engine_number') or None,
+            'fuel_type': request.form.get('fuel_type') or None,
+            'emission_norms': request.form.get('emission_norms') or None,
+            'vehicle_class': request.form.get('vehicle_class') or None,
+            'make': request.form.get('make') or None,
+            'model': request.form.get('model') or None,
+            'color': request.form.get('color') or None,
+            'body_type': request.form.get('body_type') or None,
+            'seating_capacity': request.form.get('seating_capacity') or None,
+            'unladen_weight': request.form.get('unladen_weight') or None,
+            'laden_weight': request.form.get('laden_weight') or None,
+            'horse_power': request.form.get('horse_power') or None,
+            'cubic_capacity': request.form.get('cubic_capacity') or None,
+            'number_of_axles': request.form.get('number_of_axles') or None,
+            'no_of_cylinders': request.form.get('no_of_cylinders') or None,
+            'month_year_manufacturing': request.form.get('month_year_manufacturing') or None,
+            'financier': request.form.get('financier') or None,
+            'fitness_validity': request.form.get('fitness_validity') or None,
+            'insurance_validity': request.form.get('insurance_validity') or None,
+            'insurance_company': request.form.get('insurance_company') or None,
+            'permit_validity': request.form.get('permit_validity') or None,
+            'permit_district': request.form.get('permit_district') or None,
+            'pucc_validity': request.form.get('pucc_validity') or None,
+            'tax_validity': request.form.get('tax_validity') or None
+        }
+        
+        result = admin_update_vehicle(vehicle_id, vehicle_data)
+        if result:
+            flash('Vehicle updated successfully!', 'success')
+            return redirect(url_for('admin_vehicles'))
+        else:
+            flash('Failed to update vehicle.', 'danger')
+    
+    return render_template('admin_edit_vehicle.html', vehicle=vehicle)
+
+@app.route('/admin/vehicles/delete/<int:vehicle_id>', methods=['POST'])
+@admin_required
+def admin_delete_vehicle_route(vehicle_id):
+    result = admin_delete_vehicle(vehicle_id)
+    if result:
+        flash('Vehicle deleted successfully!', 'success')
+    else:
+        flash('Failed to delete vehicle.', 'danger')
+    return redirect(url_for('admin_vehicles'))
+
+@app.route('/logout')
+def logout():
+    session.pop('user', None)
+    session.pop('admin', None)
+    flash('Logged out successfully', 'info')
+    return redirect(url_for('login'))
+
+# Menu routes
+@app.route('/vehicle-profile', methods=['GET', 'POST'])
+@login_required
+def vehicle_profile():
+    if request.method == 'POST':
+        # Extract all form data
+        vehicle_data = {
+            'vehicle_id': request.form.get('vehicle_id'),
+            'registration_no': request.form.get('registration_no'),
+            
+            # Fitness Certificate
+            'fitness_due_date': request.form.get('fitness_due') or None,
+            'fitness_executed_date': request.form.get('fitness_executed') or None,
+            'fitness_next_due_date': request.form.get('fitness_next') or None,
+            'fitness_invoice': request.form.get('fitness_invoice'),
+            'fitness_expenditure': request.form.get('fitness_exp'),
+            'fitness_remarks': request.form.get('fitness_remarks'),
+            
+            # Insurance
+            'insurance_due_date': request.form.get('insurance_due') or None,
+            'insurance_executed_date': request.form.get('insurance_executed') or None,
+            'insurance_next_due_date': request.form.get('insurance_next') or None,
+            'insurance_invoice': request.form.get('insurance_invoice'),
+            'insurance_expenditure': request.form.get('insurance_exp'),
+            'insurance_remarks': request.form.get('insurance_remarks'),
+            
+            # Road Tax 1
+            'tax1_due_date': request.form.get('tax1_due') or None,
+            'tax1_executed_date': request.form.get('tax1_executed') or None,
+            'tax1_next_due_date': request.form.get('tax1_next') or None,
+            'tax1_invoice': request.form.get('tax1_invoice'),
+            'tax1_expenditure': request.form.get('tax1_exp'),
+            'tax1_remarks': request.form.get('tax1_remarks'),
+            
+            # Road Tax 2
+            'tax2_due_date': request.form.get('tax2_due') or None,
+            'tax2_executed_date': request.form.get('tax2_executed') or None,
+            'tax2_next_due_date': request.form.get('tax2_next') or None,
+            'tax2_invoice': request.form.get('tax2_invoice'),
+            'tax2_expenditure': request.form.get('tax2_exp'),
+            'tax2_remarks': request.form.get('tax2_remarks'),
+            
+            # Road Tax 3
+            'tax3_due_date': request.form.get('tax3_due') or None,
+            'tax3_executed_date': request.form.get('tax3_executed') or None,
+            'tax3_next_due_date': request.form.get('tax3_next') or None,
+            'tax3_invoice': request.form.get('tax3_invoice'),
+            'tax3_expenditure': request.form.get('tax3_exp'),
+            'tax3_remarks': request.form.get('tax3_remarks'),
+            
+            # Road Tax 4
+            'tax4_due_date': request.form.get('tax4_due') or None,
+            'tax4_executed_date': request.form.get('tax4_executed') or None,
+            'tax4_next_due_date': request.form.get('tax4_next') or None,
+            'tax4_invoice': request.form.get('tax4_invoice'),
+            'tax4_expenditure': request.form.get('tax4_exp'),
+            'tax4_remarks': request.form.get('tax4_remarks'),
+            
+            # Route Permit
+            'permit_due_date': request.form.get('permit_due') or None,
+            'permit_executed_date': request.form.get('permit_executed') or None,
+            'permit_next_due_date': request.form.get('permit_next') or None,
+            'permit_invoice': request.form.get('permit_invoice'),
+            'permit_expenditure': request.form.get('permit_exp'),
+            'permit_remarks': request.form.get('permit_remarks'),
+            
+            # Emission Test 1
+            'emission1_due_date': request.form.get('emission1_due') or None,
+            'emission1_executed_date': request.form.get('emission1_executed') or None,
+            'emission1_next_due_date': request.form.get('emission1_next') or None,
+            'emission1_invoice': request.form.get('emission1_invoice'),
+            'emission1_expenditure': request.form.get('emission1_exp'),
+            'emission1_remarks': request.form.get('emission1_remarks'),
+            
+            # Emission Test 2
+            'emission2_due_date': request.form.get('emission2_due') or None,
+            'emission2_executed_date': request.form.get('emission2_executed') or None,
+            'emission2_next_due_date': request.form.get('emission2_next') or None,
+            'emission2_invoice': request.form.get('emission2_invoice'),
+            'emission2_expenditure': request.form.get('emission2_exp'),
+            'emission2_remarks': request.form.get('emission2_remarks'),
+            
+            # Speed Governor
+            'speed_due_date': request.form.get('speed_due') or None,
+            'speed_executed_date': request.form.get('speed_executed') or None,
+            'speed_next_due_date': request.form.get('speed_next') or None,
+            'speed_invoice': request.form.get('speed_invoice'),
+            'speed_expenditure': request.form.get('speed_exp'),
+            'speed_remarks': request.form.get('speed_remarks'),
+            
+            # Fire Extinguisher
+            'fire_due_date': request.form.get('fire_due') or None,
+            'fire_executed_date': request.form.get('fire_executed') or None,
+            'fire_next_due_date': request.form.get('fire_next') or None,
+            'fire_invoice': request.form.get('fire_invoice'),
+            'fire_expenditure': request.form.get('fire_exp'),
+            'fire_remarks': request.form.get('fire_remarks'),
+            
+            # First Aid
+            'firstaid_due_date': request.form.get('firstaid_due') or None,
+            'firstaid_executed_date': request.form.get('firstaid_executed') or None,
+            'firstaid_next_due_date': request.form.get('firstaid_next') or None,
+            'firstaid_invoice': request.form.get('firstaid_invoice'),
+            'firstaid_expenditure': request.form.get('firstaid_exp'),
+            'firstaid_remarks': request.form.get('firstaid_remarks')
+        }
+        
+        # Validate required fields
+        if not vehicle_data['vehicle_id']:
+            flash('Please select a vehicle ID', 'danger')
+            return redirect(url_for('vehicle_profile'))
+        
+        # Save to database
+        result = save_vehicle_annual_record(vehicle_data)
+        
+        if result:
+            flash('Vehicle annual record saved successfully!', 'success')
+        else:
+            flash('Error saving vehicle record. Please try again.', 'danger')
+        
+        return redirect(url_for('vehicle_profile'))
+    
+    return render_template('vehicle_profile.html')
+
+@app.route('/vehicle-profile-permanent', methods=['GET', 'POST'])
+@login_required
+def vehicle_profile_permanent():
+    if request.method == 'POST':
+        # Extract all form data
+        vehicle_data = {
+            'vehicle_id': request.form.get('vehicle_id'),
+            'registration_no': request.form.get('registration_no'),
+            'registration_number': request.form.get('registration_number'),
+            'route_id': request.form.get('route_id'),
+            'vehicle_type': request.form.get('vehicle_type'),
+            'managing_college': request.form.get('managing_college'),
+            'make': request.form.get('make'),
+            'modal': request.form.get('modal'),
+            'year_manufacturing': request.form.get('year_manufacturing'),
+            'year_purchasing': request.form.get('year_purchasing'),
+            'engine_number': request.form.get('engine_number'),
+            'chassis_number': request.form.get('chassis_number'),
+            'speed_governer_id': request.form.get('speed_governer_id'),
+            'seating_capacity': request.form.get('seating_capacity')
+        }
+        
+        # Validate required fields
+        if not vehicle_data['vehicle_id']:
+            flash('Please enter a vehicle ID', 'danger')
+            return redirect(url_for('vehicle_profile_permanent'))
+        
+        # Save to database
+        result = save_vehicle_permanent_record(vehicle_data)
+        
+        if result:
+            flash('Vehicle permanent record saved successfully!', 'success')
+        else:
+            flash('Error saving vehicle permanent record. Please try again.', 'danger')
+        
+        return redirect(url_for('vehicle_profile_permanent'))
+    
+    return render_template('vehicle_profile_permanent.html')
+
+@app.route('/trip-opening-attention', methods=['GET', 'POST'])
+@login_required
+def trip_opening_attention():
+    if request.method == 'POST':
+        try:
+            vehicle_id = request.form.get('vehicle_id')
+            registration_no = request.form.get('registration_no', '').upper()
+            
+            # Get arrays from form
+            dates = request.form.getlist('date[]')
+            times = request.form.getlist('time[]')
+            driver_names = request.form.getlist('driver_name[]')
+            kilometer_readings = request.form.getlist('kilometer_reading[]')
+            fuel_levels = request.form.getlist('fuel_level[]')
+            engine_oil_levels = request.form.getlist('engine_oil_level[]')
+            radiator_water_levels = request.form.getlist('radiator_water_level[]')
+            vacuum_levels = request.form.getlist('vacuum_level[]')
+            tyre_front_lefts = request.form.getlist('tyre_front_left[]')
+            tyre_front_rights = request.form.getlist('tyre_front_right[]')
+            tyre_rear_lins = request.form.getlist('tyre_rear_lin[]')
+            tyre_rear_louts = request.form.getlist('tyre_rear_lout[]')
+            tyre_rear_rins = request.form.getlist('tyre_rear_rin[]')
+            tyre_rear_routs = request.form.getlist('tyre_rear_rout[]')
+            cleanliness_glasses = request.form.getlist('cleanliness_glass[]')
+            remarks_list = request.form.getlist('remarks[]')
+            
+            # Create list of entries
+            checklist_entries = []
+            for i in range(len(dates)):
+                entry = {
+                    'vehicle_id': vehicle_id,
+                    'registration_no': registration_no,
+                    'check_date': dates[i] if dates[i] else None,
+                    'check_time': times[i] if times[i] else None,
+                    'driver_name': driver_names[i] if i < len(driver_names) else '',
+                    'kilometer_reading': kilometer_readings[i] if i < len(kilometer_readings) else '',
+                    'fuel_level': fuel_levels[i] if i < len(fuel_levels) else '',
+                    'engine_oil_level': engine_oil_levels[i] if i < len(engine_oil_levels) else '',
+                    'radiator_water_level': radiator_water_levels[i] if i < len(radiator_water_levels) else '',
+                    'vacuum_level': vacuum_levels[i] if i < len(vacuum_levels) else '',
+                    'tyre_front_left': tyre_front_lefts[i] if i < len(tyre_front_lefts) else '',
+                    'tyre_front_right': tyre_front_rights[i] if i < len(tyre_front_rights) else '',
+                    'tyre_rear_lin': tyre_rear_lins[i] if i < len(tyre_rear_lins) else '',
+                    'tyre_rear_lout': tyre_rear_louts[i] if i < len(tyre_rear_louts) else '',
+                    'tyre_rear_rin': tyre_rear_rins[i] if i < len(tyre_rear_rins) else '',
+                    'tyre_rear_rout': tyre_rear_routs[i] if i < len(tyre_rear_routs) else '',
+                    'cleanliness_glass': cleanliness_glasses[i] if i < len(cleanliness_glasses) else '',
+                    'remarks': remarks_list[i] if i < len(remarks_list) else ''
+                }
+                checklist_entries.append(entry)
+            
+            # Save all entries
+            saved_count = save_trip_opening_checklist(checklist_entries)
+            
+            if saved_count > 0:
+                flash(f'Successfully saved {saved_count} checklist entry(ies)!', 'success')
+            else:
+                flash('Error saving checklist entries. Please try again.', 'danger')
+        except Exception as e:
+            print(f"Error in trip_opening_attention: {e}")
+            import traceback
+            traceback.print_exc()
+            flash('Error processing checklist submission. Please try again.', 'danger')
+        
+        return redirect(url_for('trip_opening_attention'))
+    
+    return render_template('trip_opening_attention.html')
+
+@app.route('/utilization-record', methods=['GET', 'POST'])
+@login_required
+def utilization_record():
+    if request.method == 'POST':
+        try:
+            vehicle_id = request.form.get('vehicle_id')
+            registration_no = request.form.get('registration_no', '').upper()
+            
+            # Get arrays from form
+            opening_times = request.form.getlist('opening_time[]')
+            opening_kilometers = request.form.getlist('opening_kilometer[]')
+            opening_places = request.form.getlist('opening_place[]')
+            purpose_trips = request.form.getlist('purpose_trip[]')
+            strength_shes = request.form.getlist('strength_she[]')
+            strength_hes = request.form.getlist('strength_he[]')
+            closing_times = request.form.getlist('closing_time[]')
+            closing_kilometers = request.form.getlist('closing_kilometer[]')
+            closing_places = request.form.getlist('closing_place[]')
+            coverage_times = request.form.getlist('coverage_time[]')
+            coverage_kms_list = request.form.getlist('coverage_kms[]')
+            
+            # Create list of entries
+            utilization_entries = []
+            for i in range(len(opening_times)):
+                entry = {
+                    'vehicle_id': vehicle_id,
+                    'registration_no': registration_no,
+                    'opening_time': opening_times[i] if opening_times[i] else None,
+                    'opening_kilometer': opening_kilometers[i] if i < len(opening_kilometers) else '',
+                    'opening_place': opening_places[i] if i < len(opening_places) else '',
+                    'purpose_trip': purpose_trips[i] if i < len(purpose_trips) else '',
+                    'strength_she': strength_shes[i] if i < len(strength_shes) else '',
+                    'strength_he': strength_hes[i] if i < len(strength_hes) else '',
+                    'closing_time': closing_times[i] if i < len(closing_times) and closing_times[i] else None,
+                    'closing_kilometer': closing_kilometers[i] if i < len(closing_kilometers) else '',
+                    'closing_place': closing_places[i] if i < len(closing_places) else '',
+                    'coverage_time': coverage_times[i] if i < len(coverage_times) else '',
+                    'coverage_kms': coverage_kms_list[i] if i < len(coverage_kms_list) else ''
+                }
+                utilization_entries.append(entry)
+            
+            # Save all entries
+            saved_count = save_utilization_record(utilization_entries)
+            
+            if saved_count > 0:
+                flash(f'Successfully saved {saved_count} utilization record(s)!', 'success')
+            else:
+                flash('Error saving utilization records. Please try again.', 'danger')
+        except Exception as e:
+            print(f"Error in utilization_record: {e}")
+            import traceback
+            traceback.print_exc()
+            flash('Error processing utilization record submission. Please try again.', 'danger')
+        
+        return redirect(url_for('utilization_record'))
+    
+    return render_template('utilization_record.html')
+
+@app.route('/fuel-consumption', methods=['GET', 'POST'])
+@login_required
+def fuel_consumption():
+    if request.method == 'POST':
+        try:
+            vehicle_id = request.form.get('vehicle_id', '')
+            registration_no = request.form.get('registration_no', '').upper()
+            route_id = request.form.get('route_id', '')
+            make_model = request.form.get('make_model', '')
+            
+            # Get arrays from form
+            intend_nos = request.form.getlist('intend_no[]')
+            dates = request.form.getlist('date[]')
+            bill_nos = request.form.getlist('bill_no[]')
+            bill_dates = request.form.getlist('bill_date[]')
+            bunk_names = request.form.getlist('bunk_name[]')
+            qtys = request.form.getlist('qty[]')
+            rates = request.form.getlist('rate[]')
+            amounts = request.form.getlist('amount[]')
+            km_readings = request.form.getlist('km_reading[]')
+            driver_names = request.form.getlist('driver_name[]')
+            remarks_list = request.form.getlist('remarks[]')
+            
+            # Create list of entries
+            fuel_entries = []
+            for i in range(len(dates)):
+                entry = {
+                    'vehicle_id': vehicle_id,
+                    'registration_no': registration_no,
+                    'route_id': route_id,
+                    'make_model': make_model,
+                    'intend_no': intend_nos[i] if i < len(intend_nos) else '',
+                    'date': dates[i] if dates[i] else None,
+                    'bill_no': bill_nos[i] if i < len(bill_nos) else '',
+                    'bill_date': bill_dates[i] if i < len(bill_dates) and bill_dates[i] else None,
+                    'bunk_name': bunk_names[i] if i < len(bunk_names) else '',
+                    'qty': qtys[i] if i < len(qtys) else '',
+                    'rate': rates[i] if i < len(rates) else '',
+                    'amount': amounts[i] if i < len(amounts) else '',
+                    'km_reading': km_readings[i] if i < len(km_readings) else '',
+                    'driver_name': driver_names[i] if i < len(driver_names) else '',
+                    'remarks': remarks_list[i] if i < len(remarks_list) else ''
+                }
+                fuel_entries.append(entry)
+            
+            # Save all entries
+            saved_count = save_fuel_consumption(fuel_entries)
+            
+            if saved_count > 0:
+                flash(f'Successfully saved {saved_count} fuel consumption record(s)!', 'success')
+            else:
+                flash('Error saving fuel consumption records. Please try again.', 'danger')
+        except Exception as e:
+            print(f"Error in fuel_consumption: {e}")
+            import traceback
+            traceback.print_exc()
+            flash('Error processing fuel consumption submission. Please try again.', 'danger')
+        
+        return redirect(url_for('fuel_consumption'))
+    
+    return render_template('fuel_consumption.html')
+
+@app.route('/daily-technical-remarks', methods=['GET', 'POST'])
+@login_required
+def daily_technical_remarks():
+    if request.method == 'POST':
+        try:
+            vehicle_id = request.form.get('vehicle_id', '')
+            registration_no = request.form.get('registration_no', '').upper()
+            
+            # Get arrays from form
+            dates = request.form.getlist('date[]')
+            kilometers = request.form.getlist('kilometer[]')
+            drivers_voices = request.form.getlist('drivers_voice[]')
+            technical_observations = request.form.getlist('technical_observation[]')
+            day_end_statuses = request.form.getlist('day_end_status[]')
+            materials_purchased_list = request.form.getlist('materials_purchased[]')
+            supplier_bills = request.form.getlist('supplier_bill[]')
+            amounts = request.form.getlist('amount[]')
+            
+            # Create list of entries
+            remarks_entries = []
+            for i in range(len(dates)):
+                entry = {
+                    'vehicle_id': vehicle_id,
+                    'registration_no': registration_no,
+                    'date': dates[i] if dates[i] else None,
+                    'kilometer': kilometers[i] if i < len(kilometers) else '',
+                    'drivers_voice': drivers_voices[i] if i < len(drivers_voices) else '',
+                    'technical_observation': technical_observations[i] if i < len(technical_observations) else '',
+                    'day_end_status': day_end_statuses[i] if i < len(day_end_statuses) else '',
+                    'materials_purchased': materials_purchased_list[i] if i < len(materials_purchased_list) else '',
+                    'supplier_bill': supplier_bills[i] if i < len(supplier_bills) else '',
+                    'amount': amounts[i] if i < len(amounts) else ''
+                }
+                remarks_entries.append(entry)
+            
+            # Save all entries
+            saved_count = save_daily_technical_remarks(remarks_entries)
+            
+            if saved_count > 0:
+                flash(f'Successfully saved {saved_count} technical remark(s)!', 'success')
+            else:
+                flash('Error saving technical remarks. Please try again.', 'danger')
+        except Exception as e:
+            print(f"Error in daily_technical_remarks: {e}")
+            import traceback
+            traceback.print_exc()
+            flash('Error processing technical remarks submission. Please try again.', 'danger')
+        
+        return redirect(url_for('daily_technical_remarks'))
+    
+    return render_template('daily_technical_remarks.html')
+
+@app.route('/weekly-attention', methods=['GET', 'POST'])
+@login_required
+def weekly_attention():
+    if request.method == 'POST':
+        try:
+            vehicle_id = request.form.get('vehicle_id', '')
+            registration_no = request.form.get('registration_no', '').upper()
+            
+            # List of 20 processes
+            processes = [
+                "FLOOR BROOMING",
+                "COMPLETE WATER WASHING",
+                "TIRONS END GREASING",
+                "TYRE INFLATION PHYSICAL EXAM",
+                "ENGINE OIL CHECKUP & TOPUP",
+                "ANY OTHER OIL SPILLLE CHECKUP",
+                "FAN BELTS TENSION CHECKUP",
+                "RADIATOR HOSES",
+                "FUEL HOSES",
+                "BREAK LINING CHECKUP & ADJUSTMENT",
+                "CLUTCH FLY & OIL CHECK & ADJUSTMENT",
+                "UNDER CHASIS BOLTS CHECK UP",
+                "JOINT BOLTS CHECKUP & GREASING",
+                "SPRING PLSTS CONDITION CHECKUP",
+                "DRINING WATER FROM VACCUM TANK",
+                "WIPER CONDITION CHECKUP",
+                "FIRE EXTINGUISHER LEVEL",
+                "STARTER & ALTERNATOR CHECKUP",
+                "BATTERY WATER LEVEL & CONDITION",
+                "SEATS CONDITION, SCREWS & BOLTS"
+            ]
+            
+            # Create list of entries (one per process)
+            attention_entries = []
+            for i, process in enumerate(processes, start=1):
+                week1_date = request.form.get(f'week1_date_{i}', '')
+                week1_km = request.form.get(f'week1_km_{i}', '')
+                week1_obs = request.form.get(f'week1_obs_{i}', '')
+                week2_date = request.form.get(f'week2_date_{i}', '')
+                week2_km = request.form.get(f'week2_km_{i}', '')
+                week2_obs = request.form.get(f'week2_obs_{i}', '')
+                
+                entry = {
+                    'vehicle_id': vehicle_id,
+                    'registration_no': registration_no,
+                    'process_name': process,
+                    'week1_date': week1_date if week1_date else None,
+                    'week1_km': week1_km,
+                    'week1_obs': week1_obs,
+                    'week2_date': week2_date if week2_date else None,
+                    'week2_km': week2_km,
+                    'week2_obs': week2_obs
+                }
+                attention_entries.append(entry)
+            
+            # Save all entries
+            saved_count = save_weekly_attention(attention_entries)
+            
+            if saved_count > 0:
+                flash(f'Successfully saved {saved_count} weekly attention record(s)!', 'success')
+            else:
+                flash('Error saving weekly attention records. Please try again.', 'danger')
+        except Exception as e:
+            print(f"Error in weekly_attention: {e}")
+            import traceback
+            traceback.print_exc()
+            flash('Error processing weekly attention submission. Please try again.', 'danger')
+        
+        return redirect(url_for('weekly_attention'))
+    
+    return render_template('weekly_attention.html')
+
+@app.route('/job-card')
+@login_required
+def job_card():
+    return render_template('job_card.html')
+
+@app.route('/driver-voice', methods=['GET', 'POST'])
+@login_required
+def driver_voice():
+    if request.method == 'POST':
+        try:
+            vehicle_id = request.form.get('vehicle_id', '')
+            registration_no = request.form.get('registration_no', '').upper()
+            
+            dates = request.form.getlist('date[]')
+            times = request.form.getlist('time[]')
+            complaints = request.form.getlist('complaints[]')
+            suggestions = request.form.getlist('suggestions[]')
+            driver_names = request.form.getlist('driver_name[]')
+            
+            voice_entries = []
+            for i in range(len(dates)):
+                entry = {
+                    'vehicle_id': vehicle_id,
+                    'registration_no': registration_no,
+                    'date': dates[i] if dates[i] else None,
+                    'time': times[i] if times[i] else None,
+                    'complaints': complaints[i] if i < len(complaints) else '',
+                    'suggestions': suggestions[i] if i < len(suggestions) else '',
+                    'driver_name': driver_names[i] if i < len(driver_names) else ''
+                }
+                voice_entries.append(entry)
+            
+            saved_count = save_driver_voice(voice_entries)
+            
+            if saved_count > 0:
+                flash(f'Successfully saved {saved_count} driver voice record(s)!', 'success')
+            else:
+                flash('Error saving driver voice records. Please try again.', 'danger')
+        except Exception as e:
+            print(f"Error in driver_voice: {e}")
+            import traceback
+            traceback.print_exc()
+            flash('Error processing driver voice submission. Please try again.', 'danger')
+        
+        return redirect(url_for('driver_voice'))
+    
+    return render_template('driver_voice.html')
+
+@app.route('/technician-observation')
+@login_required
+def technician_observation():
+    return render_template('technician_observation.html')
+
+@app.route('/technician-observation-works', methods=['POST'])
+@login_required
+def technician_observation_works():
+    try:
+        vehicle_id = request.form.get('vehicle_id', '')
+        registration_no = request.form.get('registration_no', '').upper()
+        
+        dates = request.form.getlist('obs_date[]')
+        times = request.form.getlist('obs_time[]')
+        complaints = request.form.getlist('obs_complaints[]')
+        works = request.form.getlist('obs_works[]')
+        ta_names = request.form.getlist('obs_ta_name[]')
+        
+        works_entries = []
+        for i in range(len(dates)):
+            entry = {
+                'vehicle_id': vehicle_id,
+                'registration_no': registration_no,
+                'date': dates[i] if dates[i] else None,
+                'time': times[i] if times[i] else None,
+                'complaints': complaints[i] if i < len(complaints) else '',
+                'works': works[i] if i < len(works) else '',
+                'ta_name': ta_names[i] if i < len(ta_names) else ''
+            }
+            works_entries.append(entry)
+        
+        saved_count = save_technician_observation_works(works_entries)
+        
+        if saved_count > 0:
+            flash(f'Successfully saved {saved_count} observation work(s)!', 'success')
+        else:
+            flash('Error saving observation works. Please try again.', 'danger')
+    except Exception as e:
+        print(f"Error in technician_observation_works: {e}")
+        import traceback
+        traceback.print_exc()
+        flash('Error processing submission. Please try again.', 'danger')
+    
+    return redirect(url_for('technician_observation'))
+
+@app.route('/technician-observation-materials', methods=['POST'])
+@login_required
+def technician_observation_materials():
+    try:
+        vehicle_id = request.form.get('vehicle_id', '')
+        registration_no = request.form.get('registration_no', '').upper()
+        
+        dates = request.form.getlist('mat_date[]')
+        times = request.form.getlist('mat_time[]')
+        materials = request.form.getlist('mat_materials[]')
+        estimations = request.form.getlist('mat_estimation[]')
+        ta_names = request.form.getlist('mat_ta_name[]')
+        
+        materials_entries = []
+        for i in range(len(dates)):
+            entry = {
+                'vehicle_id': vehicle_id,
+                'registration_no': registration_no,
+                'date': dates[i] if dates[i] else None,
+                'time': times[i] if times[i] else None,
+                'materials': materials[i] if i < len(materials) else '',
+                'estimation': estimations[i] if i < len(estimations) else '',
+                'ta_name': ta_names[i] if i < len(ta_names) else ''
+            }
+            materials_entries.append(entry)
+        
+        saved_count = save_technician_observation_materials(materials_entries)
+        
+        if saved_count > 0:
+            flash(f'Successfully saved {saved_count} material estimation(s)!', 'success')
+        else:
+            flash('Error saving material estimations. Please try again.', 'danger')
+    except Exception as e:
+        print(f"Error in technician_observation_materials: {e}")
+        import traceback
+        traceback.print_exc()
+        flash('Error processing submission. Please try again.', 'danger')
+    
+    return redirect(url_for('technician_observation'))
+
+@app.route('/process-of-works', methods=['GET', 'POST'])
+@login_required
+def process_of_works():
+    if request.method == 'POST':
+        try:
+            vehicle_id = request.form.get('vehicle_id', '')
+            registration_no = request.form.get('registration_no', '').upper()
+            
+            dates = request.form.getlist('date[]')
+            times = request.form.getlist('time[]')
+            nature_of_works = request.form.getlist('nature_of_work[]')
+            rectified_results = request.form.getlist('rectified_results[]')
+            bill_nos = request.form.getlist('bill_no[]')
+            amounts = request.form.getlist('amount[]')
+            
+            process_entries = []
+            for i in range(len(dates)):
+                entry = {
+                    'vehicle_id': vehicle_id,
+                    'registration_no': registration_no,
+                    'date': dates[i] if dates[i] else None,
+                    'time': times[i] if times[i] else None,
+                    'nature_of_work': nature_of_works[i] if i < len(nature_of_works) else '',
+                    'rectified_results': rectified_results[i] if i < len(rectified_results) else '',
+                    'bill_no': bill_nos[i] if i < len(bill_nos) else '',
+                    'amount': amounts[i] if i < len(amounts) else ''
+                }
+                process_entries.append(entry)
+            
+            saved_count = save_process_of_works(process_entries)
+            
+            if saved_count > 0:
+                flash(f'Successfully saved {saved_count} process of work(s)!', 'success')
+            else:
+                flash('Error saving process of works. Please try again.', 'danger')
+        except Exception as e:
+            print(f"Error in process_of_works: {e}")
+            import traceback
+            traceback.print_exc()
+            flash('Error processing submission. Please try again.', 'danger')
+        
+        return redirect(url_for('process_of_works'))
+    
+    return render_template('process_of_works.html')
+
+@app.route('/monthly-maintenance', methods=['GET', 'POST'])
+@login_required
+def monthly_maintenance():
+    if request.method == 'POST':
+        vehicle_id = request.form.get('vehicle_id', '')
+        registration_no = request.form.get('registration_no', '').upper()
+        month = request.form.get('month', '')
+        
+        # Collect data for all 6 processes
+        maintenance_data = {
+            'vehicle_id': vehicle_id,
+            'registration_no': registration_no,
+            'month': month
+        }
+        
+        # Extract data for each of the 6 processes
+        for i in range(1, 7):
+            maintenance_data[f'processed_date_{i}'] = request.form.get(f'processed_date_{i}') or None
+            maintenance_data[f'kilometer_reading_{i}'] = request.form.get(f'kilometer_reading_{i}', '')
+            maintenance_data[f'action_processed_{i}'] = request.form.get(f'action_processed_{i}', '')
+            maintenance_data[f'observation_{i}'] = request.form.get(f'observation_{i}', '')
+            maintenance_data[f'parts_used_{i}'] = request.form.get(f'parts_used_{i}', '')
+            maintenance_data[f'qty_{i}'] = request.form.get(f'qty_{i}', '')
+            maintenance_data[f'supplier_bill_{i}'] = request.form.get(f'supplier_bill_{i}', '')
+            maintenance_data[f'value_{i}'] = request.form.get(f'value_{i}', '')
+        
+        saved_count = save_monthly_maintenance(maintenance_data)
+        
+        if saved_count > 0:
+            flash(f'Successfully saved monthly maintenance record!', 'success')
+        else:
+            flash('Error saving monthly maintenance record. Please try again.', 'danger')
+        
+        return redirect(url_for('monthly_maintenance'))
+    
+    return render_template('monthly_maintenance.html')
+
+
+
+
+@app.route('/halfyearly-maintenance', methods=['GET', 'POST'])
+@login_required
+def halfyearly_maintenance():
+    if request.method == 'POST':
+        vehicle_id = request.form.get('vehicle_id', '')
+        registration_no = request.form.get('registration_no', '').upper()
+        from_month = request.form.get('from_month', '')
+        to_month = request.form.get('to_month', '')
+        
+        # Collect data for all 6 processes
+        maintenance_data = {
+            'vehicle_id': vehicle_id,
+            'registration_no': registration_no,
+            'from_month': from_month,
+            'to_month': to_month
+        }
+        
+        # Extract data for each of the 6 processes
+        for i in range(1, 7):
+            maintenance_data[f'processed_date_{i}'] = request.form.get(f'processed_date_{i}') or None
+            maintenance_data[f'kilometer_reading_{i}'] = request.form.get(f'kilometer_reading_{i}', '')
+            maintenance_data[f'action_processed_{i}'] = request.form.get(f'action_processed_{i}', '')
+            maintenance_data[f'observation_{i}'] = request.form.get(f'observation_{i}', '')
+            maintenance_data[f'parts_used_{i}'] = request.form.get(f'parts_used_{i}', '')
+            maintenance_data[f'qty_{i}'] = request.form.get(f'qty_{i}', '')
+            maintenance_data[f'supplier_bill_{i}'] = request.form.get(f'supplier_bill_{i}', '')
+            maintenance_data[f'value_{i}'] = request.form.get(f'value_{i}', '')
+        
+        saved_count = save_halfyearly_maintenance(maintenance_data)
+        
+        if saved_count > 0:
+            flash(f'Successfully saved half-yearly maintenance record!', 'success')
+        else:
+            flash('Error saving half-yearly maintenance record. Please try again.', 'danger')
+        
+        return redirect(url_for('halfyearly_maintenance'))
+    
+    return render_template('halfyearly_maintenance.html')
+
+@app.route('/annual-maintenance', methods=['GET', 'POST'])
+@login_required
+def annual_maintenance():
+    if request.method == 'POST':
+        vehicle_id = request.form.get('vehicle_id', '')
+        registration_no = request.form.get('registration_no', '').upper()
+        from_month = request.form.get('from_month', '')
+        to_month = request.form.get('to_month', '')
+        
+        # Collect data for all 26 processes
+        maintenance_data = {
+            'vehicle_id': vehicle_id,
+            'registration_no': registration_no,
+            'from_month': from_month,
+            'to_month': to_month
+        }
+        
+        # Extract data for each of the 26 processes
+        for i in range(1, 27):
+            maintenance_data[f'processed_date_{i}'] = request.form.get(f'processed_date_{i}') or None
+            maintenance_data[f'kilometer_reading_{i}'] = request.form.get(f'kilometer_reading_{i}', '')
+            maintenance_data[f'action_processed_{i}'] = request.form.get(f'action_processed_{i}', '')
+            maintenance_data[f'observation_{i}'] = request.form.get(f'observation_{i}', '')
+            maintenance_data[f'parts_used_{i}'] = request.form.get(f'parts_used_{i}', '')
+            maintenance_data[f'qty_{i}'] = request.form.get(f'qty_{i}', '')
+            maintenance_data[f'supplier_bill_{i}'] = request.form.get(f'supplier_bill_{i}', '')
+            maintenance_data[f'value_{i}'] = request.form.get(f'value_{i}', '')
+        
+        saved_count = save_annual_maintenance(maintenance_data)
+        
+        if saved_count > 0:
+            flash(f'Successfully saved annual maintenance record!', 'success')
+        else:
+            flash('Error saving annual maintenance record. Please try again.', 'danger')
+        
+        return redirect(url_for('annual_maintenance'))
+    
+    return render_template('annual_maintenance.html')
+
+@app.route('/annual-summary')
+@login_required
+def annual_summary():
+    return render_template('annual_summary.html')
+
+@app.route('/annual-summary-complaints', methods=['POST'])
+@login_required
+def annual_summary_complaints():
+    vehicle_id = request.form.get('vehicle_id', '')
+    registration_no = request.form.get('registration_no', '').upper()
+    from_year = request.form.get('from_year', '')
+    to_year = request.form.get('to_year', '')
+    
+    # Extract arrays from form
+    dates = request.form.getlist('sum_date[]')
+    complaints = request.form.getlist('sum_complaint[]')
+    actions = request.form.getlist('sum_action[]')
+    statuses = request.form.getlist('sum_status[]')
+    
+    # Create entry dictionaries
+    complaint_entries = []
+    for i in range(len(dates)):
+        entry = {
+            'vehicle_id': vehicle_id,
+            'registration_no': registration_no,
+            'from_year': from_year,
+            'to_year': to_year,
+            'date': dates[i] if dates[i] else None,
+            'complaint': complaints[i] if i < len(complaints) else '',
+            'action_taken': actions[i] if i < len(actions) else '',
+            'status': statuses[i] if i < len(statuses) else ''
+        }
+        complaint_entries.append(entry)
+    
+    saved_count = save_annual_summary_complaints(complaint_entries)
+    
+    if saved_count > 0:
+        flash(f'Successfully saved {saved_count} annual summary complaint(s)!', 'success')
+    else:
+        flash('Error saving annual summary complaints. Please try again.', 'danger')
+    
+    return redirect(url_for('annual_summary'))
+
+@app.route('/annual-summary-recommendations', methods=['POST'])
+@login_required
+def annual_summary_recommendations():
+    vehicle_id = request.form.get('rec_vehicle_id', '')
+    registration_no = request.form.get('rec_registration_no', '').upper()
+    recommendation_year = request.form.get('rec_year', '')
+    
+    # Extract arrays from form
+    dates = request.form.getlist('rec_approx_date[]')
+    complaints = request.form.getlist('rec_complaint[]')
+    preventions = request.form.getlist('rec_prevention[]')
+    remarks = request.form.getlist('rec_remarks[]')
+    
+    # Create entry dictionaries
+    recommendation_entries = []
+    for i in range(len(dates)):
+        entry = {
+            'vehicle_id': vehicle_id,
+            'registration_no': registration_no,
+            'recommendation_year': recommendation_year,
+            'approx_date': dates[i] if dates[i] else None,
+            'anticipated_complaint': complaints[i] if i < len(complaints) else '',
+            'prevention': preventions[i] if i < len(preventions) else '',
+            'remarks': remarks[i] if i < len(remarks) else ''
+        }
+        recommendation_entries.append(entry)
+    
+    saved_count = save_annual_summary_recommendations(recommendation_entries)
+    
+    if saved_count > 0:
+        flash(f'Successfully saved {saved_count} annual summary recommendation(s)!', 'success')
+    else:
+        flash('Error saving annual summary recommendations. Please try again.', 'danger')
+    
+    return redirect(url_for('annual_summary'))
+
+@app.route('/incidents-reports')
+@login_required
+def incidents_reports():
+    return render_template('incidents_reports.html')
+
+@app.route('/incidents-reports-incidents', methods=['POST'])
+@login_required
+def incidents_reports_incidents():
+    vehicle_id = request.form.get('vehicle_id', '')
+    registration_no = request.form.get('registration_no', '').upper()
+    from_year = request.form.get('from_year', '')
+    to_year = request.form.get('to_year', '')
+    
+    # Extract arrays from form
+    dates = request.form.getlist('inc_date[]')
+    natures = request.form.getlist('inc_nature[]')
+    reasons = request.form.getlist('inc_reasons[]')
+    responsibles = request.form.getlist('inc_responsible[]')
+    
+    # Create entry dictionaries
+    incident_entries = []
+    for i in range(len(dates)):
+        entry = {
+            'vehicle_id': vehicle_id,
+            'registration_no': registration_no,
+            'from_year': from_year,
+            'to_year': to_year,
+            'date': dates[i] if dates[i] else None,
+            'nature_of_incident': natures[i] if i < len(natures) else '',
+            'reasons_causes': reasons[i] if i < len(reasons) else '',
+            'responsible': responsibles[i] if i < len(responsibles) else ''
+        }
+        incident_entries.append(entry)
+    
+    saved_count = save_incidents_reports_incidents(incident_entries)
+    
+    if saved_count > 0:
+        flash(f'Successfully saved {saved_count} incident(s)!', 'success')
+    else:
+        flash('Error saving incidents. Please try again.', 'danger')
+    
+    return redirect(url_for('incidents_reports'))
+
+@app.route('/incidents-reports-claims', methods=['POST'])
+@login_required
+def incidents_reports_claims():
+    vehicle_id = request.form.get('claim_vehicle_id', '')
+    registration_no = request.form.get('claim_registration_no', '').upper()
+    from_year = request.form.get('claim_from_year', '')
+    to_year = request.form.get('claim_to_year', '')
+    
+    # Extract arrays from form
+    dates = request.form.getlist('claim_date[]')
+    natures = request.form.getlist('claim_nature[]')
+    modes = request.form.getlist('claim_mode[]')
+    values = request.form.getlist('claim_value[]')
+    
+    # Create entry dictionaries
+    claim_entries = []
+    for i in range(len(dates)):
+        entry = {
+            'vehicle_id': vehicle_id,
+            'registration_no': registration_no,
+            'from_year': from_year,
+            'to_year': to_year,
+            'approx_date': dates[i] if dates[i] else None,
+            'nature_of_claim': natures[i] if i < len(natures) else '',
+            'mode_of_claim': modes[i] if i < len(modes) else '',
+            'claim_value_responsible': values[i] if i < len(values) else ''
+        }
+        claim_entries.append(entry)
+    
+    saved_count = save_incidents_reports_claims(claim_entries)
+    
+    if saved_count > 0:
+        flash(f'Successfully saved {saved_count} claim(s)!', 'success')
+    else:
+        flash('Error saving claims. Please try again.', 'danger')
+    
+    return redirect(url_for('incidents_reports'))
+
+@app.route('/feedback')
+@login_required
+def feedback():
+    return render_template('feedback.html')
+
+@app.route('/feedback-submit', methods=['POST'])
+@login_required
+def feedback_submit():
+    feedback_data = {
+        'name': request.form.get('name', ''),
+        'email': request.form.get('email', ''),
+        'contact': request.form.get('contact', ''),
+        'department': request.form.get('department', ''),
+        'feedback_type': request.form.get('feedback_type', ''),
+        'subject': request.form.get('subject', ''),
+        'message': request.form.get('message', ''),
+        'rating': int(request.form.get('rating')) if request.form.get('rating') else None
+    }
+    
+    saved_count = save_feedback(feedback_data)
+    
+    if saved_count > 0:
+        flash('Thank you for your feedback! We appreciate your input.', 'success')
+    else:
+        flash('Error submitting feedback. Please try again.', 'danger')
+    
+    return redirect(url_for('feedback'))
+
+# =====================================================
+# HR EMPLOYEE MANAGEMENT ROUTES
+# =====================================================
+
+@app.route('/hr/employees')
+@admin_required
+def hr_employees():
+    """Display all employees"""
+    try:
+        response = supabase.table('employees').select('*').order('created_at', desc=True).execute()
+        employees = response.data if response.data else []
+        
+        # Calculate stats
+        total_count = len(employees)
+        active_count = len([e for e in employees if e.get('status') == 'active'])
+        inactive_count = total_count - active_count
+        
+        return render_template('hr_employees.html', 
+                               employees=employees,
+                               total_count=total_count,
+                               active_count=active_count,
+                               inactive_count=inactive_count)
+    except Exception as e:
+        print(f"Error fetching employees: {e}")
+        flash(f'Error loading employees: {str(e)}', 'danger')
+        return render_template('hr_employees.html', 
+                               employees=[],
+                               total_count=0,
+                               active_count=0,
+                               inactive_count=0)
+
+
+@app.route('/api/employee/<path:employee_id>')
+@login_required
+def api_get_employee(employee_id):
+    """Return employee record by employee_id (used for autofill in forms)."""
+    try:
+        # employee_id is a string like 'PMCTECH/LOGI/EMP001' or simple code
+        res = supabase.table('employees').select('*').eq('employee_id', employee_id).limit(1).execute()
+        if res.data and len(res.data) > 0:
+            emp = res.data[0]
+            return jsonify({'success': True, 'employee': emp}), 200
+        return jsonify({'success': False, 'message': 'Employee not found'}), 404
+    except Exception as e:
+        app.logger.exception('Failed to fetch employee %s', employee_id)
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+@app.route('/hr/employees/add', methods=['GET', 'POST'])
+@admin_required
+def hr_add_employee():
+    """Add new employee"""
+    if request.method == 'POST':
+        try:
+            # Get next employee ID in format PMCTECH/LOGI/EMP001
+            try:
+                # Get current count of employees to generate next ID
+                result = supabase.table('employees').select('id').execute()
+                count = len(result.data) if result.data else 0
+                employee_id = f"PMCTECH/LOGI/EMP{str(count + 1).zfill(3)}"
+            except:
+                # Fallback: Get count and generate ID
+                count = len(supabase.table('employees').select('id').execute().data or [])
+                employee_id = f"PMCTECH/LOGI/EMP{str(count + 1).zfill(3)}"
+            
+            # Parse experience data
+            experience_data = []
+            exp_years = request.form.getlist('exp_years[]')
+            exp_designation = request.form.getlist('exp_designation[]')
+            exp_organization = request.form.getlist('exp_organization[]')
+            exp_vehicle = request.form.getlist('exp_vehicle[]')
+            
+            for i in range(len(exp_years)):
+                if exp_years[i]:
+                    experience_data.append({
+                        'years': exp_years[i],
+                        'designation': exp_designation[i] if i < len(exp_designation) else '',
+                        'organization': exp_organization[i] if i < len(exp_organization) else '',
+                        'vehicle_type': exp_vehicle[i] if i < len(exp_vehicle) else ''
+                    })
+            
+            # Parse accidents data
+            accidents_data = []
+            acc_dates = request.form.getlist('acc_date[]')
+            acc_descriptions = request.form.getlist('acc_description[]')
+            acc_types = request.form.getlist('acc_type[]')
+            acc_case_nos = request.form.getlist('acc_case_no[]')
+            acc_statuses = request.form.getlist('acc_status[]')
+            
+            for i in range(len(acc_dates)):
+                if acc_dates[i]:
+                    accidents_data.append({
+                        'date': acc_dates[i],
+                        'description': acc_descriptions[i] if i < len(acc_descriptions) else '',
+                        'type': acc_types[i] if i < len(acc_types) else '',
+                        'case_no': acc_case_nos[i] if i < len(acc_case_nos) else '',
+                        'status': acc_statuses[i] if i < len(acc_statuses) else ''
+                    })
+            
+            # Parse awards data
+            awards_data = []
+            award_dates = request.form.getlist('award_date[]')
+            award_natures = request.form.getlist('award_nature[]')
+            award_remarks = request.form.getlist('award_remarks[]')
+            
+            for i in range(len(award_dates)):
+                if award_dates[i]:
+                    awards_data.append({
+                        'date': award_dates[i],
+                        'nature': award_natures[i] if i < len(award_natures) else '',
+                        'remarks': award_remarks[i] if i < len(award_remarks) else ''
+                    })
+            
+            employee_data = {
+                'employee_id': employee_id,
+                'name': request.form.get('name'),
+                'profile_post': request.form.get('profile_post'),
+                'profile_post_other': request.form.get('profile_post_other'),
+                'blood_group': request.form.get('blood_group'),
+                'age': request.form.get('age') or None,
+                'dl_no': request.form.get('dl_no'),
+                'date_of_birth': request.form.get('date_of_birth') or None,
+                'date_of_issue': request.form.get('date_of_issue') or None,
+                'badge_no': request.form.get('badge_no'),
+                'lmv_date_of_issue': request.form.get('lmv_date_of_issue') or None,
+                'rto_ref': request.form.get('rto_ref'),
+                'hmv_date_of_issue': request.form.get('hmv_date_of_issue') or None,
+                'validity_nt': request.form.get('validity_nt') or None,
+                'validity_tr': request.form.get('validity_tr') or None,
+                'aadhar_no': request.form.get('aadhar_no'),
+                'nativity': request.form.get('nativity'),
+                'experience': experience_data,
+                'accidents': accidents_data,
+                'awards': awards_data,
+                'vision': request.form.get('vision'),
+                'vision_r': request.form.get('vision_r'),
+                'vision_l': request.form.get('vision_l'),
+                'vision_checkup_date': request.form.get('vision_checkup_date') or None,
+                'hearing': request.form.get('hearing'),
+                'hearing_r': request.form.get('hearing_r'),
+                'hearing_l': request.form.get('hearing_l'),
+                'hearing_checkup_date': request.form.get('hearing_checkup_date') or None,
+                'bp': request.form.get('bp'),
+                'bp_checkup_date': request.form.get('bp_checkup_date') or None,
+                'sugar': request.form.get('sugar'),
+                'sugar_checkup_date': request.form.get('sugar_checkup_date') or None,
+                'fractures': request.form.get('fractures'),
+                'fractures_checkup_date': request.form.get('fractures_checkup_date') or None,
+                'alcohol': request.form.get('alcohol'),
+                'gutkha': request.form.get('gutkha'),
+                'smoking': request.form.get('smoking'),
+                'gambling': request.form.get('gambling'),
+                'tobacco': request.form.get('tobacco'),
+                'other_habits': request.form.get('other_habits'),
+                'father_name': request.form.get('father_name'),
+                'father_age': request.form.get('father_age') or None,
+                'father_occupation': request.form.get('father_occupation'),
+                'father_gender': request.form.get('father_gender'),
+                'mother_name': request.form.get('mother_name'),
+                'mother_age': request.form.get('mother_age') or None,
+                'mother_occupation': request.form.get('mother_occupation'),
+                'mother_gender': request.form.get('mother_gender'),
+                'spouse_name': request.form.get('spouse_name'),
+                'spouse_age': request.form.get('spouse_age') or None,
+                'spouse_occupation': request.form.get('spouse_occupation'),
+                'spouse_gender': request.form.get('spouse_gender'),
+                'child1_name': request.form.get('child1_name'),
+                'child1_age': request.form.get('child1_age') or None,
+                'child1_occupation': request.form.get('child1_occupation'),
+                'child1_gender': request.form.get('child1_gender'),
+                'child2_name': request.form.get('child2_name'),
+                'child2_age': request.form.get('child2_age') or None,
+                'child2_occupation': request.form.get('child2_occupation'),
+                'child2_gender': request.form.get('child2_gender'),
+                'child3_name': request.form.get('child3_name'),
+                'child3_age': request.form.get('child3_age') or None,
+                'child3_occupation': request.form.get('child3_occupation'),
+                'child3_gender': request.form.get('child3_gender'),
+                'max_education': request.form.get('max_education'),
+                'school': request.form.get('school'),
+                'mother_tongue': request.form.get('mother_tongue'),
+                'other_lang': request.form.get('other_lang'),
+                'nationality': request.form.get('nationality'),
+                'community_caste': request.form.get('community_caste'),
+                'religion': request.form.get('religion'),
+                'permanent_address': request.form.get('permanent_address'),
+                'present_address': request.form.get('present_address'),
+                'phone_no': request.form.get('phone_no'),
+                'whatsapp_phone_no': request.form.get('whatsapp_phone_no'),
+                'number_phone_no': request.form.get('number_phone_no'),
+                'nominee_name': request.form.get('nominee_name'),
+                'nominee_phone_no': request.form.get('nominee_phone_no'),
+                'nominee_relation': request.form.get('nominee_relation'),
+                'nominee_gender': request.form.get('nominee_gender'),
+                'date_of_joining': request.form.get('date_of_joining') or None,
+                'driving_nature': request.form.get('driving_nature'),
+                'route': request.form.get('route'),
+                'reference': request.form.get('reference'),
+                'expected_salary': request.form.get('expected_salary'),
+                'expected_date_of_joining': request.form.get('expected_date_of_joining') or None,
+                'status': 'active',
+                'bank_name': request.form.get('bank_name'),
+                'account_number': request.form.get('account_number'),
+                'account_holder_name': request.form.get('account_holder_name'),
+                'ifsc_code': request.form.get('ifsc_code'),
+                'branch': request.form.get('branch'),
+                'account_type': request.form.get('account_type'),
+                'created_by': session.get('admin')
+            }
+            
+            response = supabase.table('employees').insert(employee_data).execute()
+            
+            if response.data:
+                # Redirect with success parameter, employee_id and date_of_joining for popup
+                return redirect(url_for('hr_add_employee', success='true', employee_id=employee_id, date_of_joining=employee_data.get('date_of_joining')))
+            else:
+                flash('Error adding employee. Please try again.', 'danger')
+        except Exception as e:
+            print(f"Error adding employee: {e}")
+            flash(f'Error: {str(e)}', 'danger')
+    
+    return render_template('hr_add_employee.html')
+
+@app.route('/hr/employees/<path:employee_id>/profile')
+@admin_required
+def hr_employee_profile(employee_id):
+    """View employee profile"""
+    try:
+        response = supabase.table('employees').select('*').eq('employee_id', employee_id).execute()
+        
+        if response.data and len(response.data) > 0:
+            employee = response.data[0]
+            return render_template('hr_employee_profile.html', employee=employee)
+        else:
+            flash('Employee not found', 'danger')
+            return redirect(url_for('hr_employees'))
+    except Exception as e:
+        print(f"Error fetching employee profile: {e}")
+        flash(f'Error: {str(e)}', 'danger')
+        return redirect(url_for('hr_employees'))
+
+@app.route('/hr/employees/<path:employee_id>/edit', methods=['GET', 'POST'])
+@admin_required
+def hr_edit_employee(employee_id):
+    """Edit employee"""
+    try:
+        response = supabase.table('employees').select('*').eq('employee_id', employee_id).execute()
+        
+        if not response.data or len(response.data) == 0:
+            flash('Employee not found', 'danger')
+            return redirect(url_for('hr_employees'))
+        
+        employee = response.data[0]
+        
+        if request.method == 'POST':
+            # Parse experience data
+            experience_data = []
+            exp_from_date = request.form.getlist('exp_from_date[]')
+            exp_to_date = request.form.getlist('exp_to_date[]')
+            exp_designation = request.form.getlist('exp_designation[]')
+            exp_organization = request.form.getlist('exp_organization[]')
+            exp_vehicle = request.form.getlist('exp_vehicle[]')
+            
+            for i in range(len(exp_from_date)):
+                if exp_from_date[i]:
+                    experience_data.append({
+                        'from_date': exp_from_date[i],
+                        'to_date': exp_to_date[i] if i < len(exp_to_date) else '',
+                        'designation': exp_designation[i] if i < len(exp_designation) else '',
+                        'organization': exp_organization[i] if i < len(exp_organization) else '',
+                        'vehicle_type': exp_vehicle[i] if i < len(exp_vehicle) else ''
+                    })
+            
+            # Parse accidents data
+            accidents_data = []
+            acc_dates = request.form.getlist('acc_date[]')
+            acc_descriptions = request.form.getlist('acc_description[]')
+            acc_types = request.form.getlist('acc_type[]')
+            acc_case_nos = request.form.getlist('acc_case_no[]')
+            acc_statuses = request.form.getlist('acc_status[]')
+            
+            for i in range(len(acc_dates)):
+                if acc_dates[i]:
+                    accidents_data.append({
+                        'date': acc_dates[i],
+                        'description': acc_descriptions[i] if i < len(acc_descriptions) else '',
+                        'type': acc_types[i] if i < len(acc_types) else '',
+                        'case_no': acc_case_nos[i] if i < len(acc_case_nos) else '',
+                        'status': acc_statuses[i] if i < len(acc_statuses) else ''
+                    })
+            
+            # Parse awards data
+            awards_data = []
+            award_dates = request.form.getlist('award_date[]')
+            award_natures = request.form.getlist('award_nature[]')
+            award_remarks = request.form.getlist('award_remarks[]')
+            
+            for i in range(len(award_dates)):
+                if award_dates[i]:
+                    awards_data.append({
+                        'date': award_dates[i],
+                        'nature': award_natures[i] if i < len(award_natures) else '',
+                        'remarks': award_remarks[i] if i < len(award_remarks) else ''
+                    })
+            
+            update_data = {
+                'profile_post': request.form.get('profile_post'),
+                'profile_post_other': request.form.get('profile_post_other'),
+                'blood_group': request.form.get('blood_group'),
+                'name': request.form.get('name'),
+                'age': request.form.get('age') or None,
+                'dl_no': request.form.get('dl_no'),
+                'date_of_birth': request.form.get('date_of_birth') or None,
+                'date_of_issue': request.form.get('date_of_issue') or None,
+                'badge_no': request.form.get('badge_no'),
+                'lmv_date_of_issue': request.form.get('lmv_date_of_issue') or None,
+                'rto_ref': request.form.get('rto_ref'),
+                'hmv_date_of_issue': request.form.get('hmv_date_of_issue') or None,
+                'validity_nt': request.form.get('validity_nt') or None,
+                'validity_tr': request.form.get('validity_tr') or None,
+                'aadhar_no': request.form.get('aadhar_no'),
+                'nativity': request.form.get('nativity'),
+                'experience': experience_data,
+                'accidents': accidents_data,
+                'awards': awards_data,
+                'vision': request.form.get('vision'),
+                'vision_r': request.form.get('vision_r'),
+                'vision_l': request.form.get('vision_l'),
+                'vision_checkup_date': request.form.get('vision_checkup_date') or None,
+                'hearing': request.form.get('hearing'),
+                'hearing_r': request.form.get('hearing_r'),
+                'hearing_l': request.form.get('hearing_l'),
+                'hearing_checkup_date': request.form.get('hearing_checkup_date') or None,
+                'bp': request.form.get('bp'),
+                'bp_checkup_date': request.form.get('bp_checkup_date') or None,
+                'sugar': request.form.get('sugar'),
+                'sugar_checkup_date': request.form.get('sugar_checkup_date') or None,
+                'fractures': request.form.get('fractures'),
+                'fractures_checkup_date': request.form.get('fractures_checkup_date') or None,
+                'alcohol': request.form.get('alcohol'),
+                'gutkha': request.form.get('gutkha'),
+                'smoking': request.form.get('smoking'),
+                'gambling': request.form.get('gambling'),
+                'tobacco': request.form.get('tobacco'),
+                'other_habits': request.form.get('other_habits'),
+                'father_name': request.form.get('father_name'),
+                'father_age': request.form.get('father_age') or None,
+                'father_occupation': request.form.get('father_occupation'),
+                'father_gender': request.form.get('father_gender'),
+                'mother_name': request.form.get('mother_name'),
+                'mother_age': request.form.get('mother_age') or None,
+                'mother_occupation': request.form.get('mother_occupation'),
+                'mother_gender': request.form.get('mother_gender'),
+                'spouse_name': request.form.get('spouse_name'),
+                'spouse_age': request.form.get('spouse_age') or None,
+                'spouse_occupation': request.form.get('spouse_occupation'),
+                'spouse_gender': request.form.get('spouse_gender'),
+                'child1_name': request.form.get('child1_name'),
+                'child1_age': request.form.get('child1_age') or None,
+                'child1_occupation': request.form.get('child1_occupation'),
+                'child1_gender': request.form.get('child1_gender'),
+                'child2_name': request.form.get('child2_name'),
+                'child2_age': request.form.get('child2_age') or None,
+                'child2_occupation': request.form.get('child2_occupation'),
+                'child2_gender': request.form.get('child2_gender'),
+                'child3_name': request.form.get('child3_name'),
+                'child3_age': request.form.get('child3_age') or None,
+                'child3_occupation': request.form.get('child3_occupation'),
+                'child3_gender': request.form.get('child3_gender'),
+                'max_education': request.form.get('max_education'),
+                'school': request.form.get('school'),
+                'mother_tongue': request.form.get('mother_tongue'),
+                'other_lang': request.form.get('other_lang'),
+                'nationality': request.form.get('nationality'),
+                'community_caste': request.form.get('community_caste'),
+                'religion': request.form.get('religion'),
+                'permanent_address': request.form.get('permanent_address'),
+                'present_address': request.form.get('present_address'),
+                'phone_no': request.form.get('phone_no'),
+                'whatsapp_phone_no': request.form.get('whatsapp_phone_no'),
+                'number_phone_no': request.form.get('number_phone_no'),
+                'nominee_name': request.form.get('nominee_name'),
+                'nominee_phone_no': request.form.get('nominee_phone_no'),
+                'nominee_relation': request.form.get('nominee_relation'),
+                'nominee_gender': request.form.get('nominee_gender'),
+                'date_of_joining': request.form.get('date_of_joining') or None,
+                'driving_nature': request.form.get('driving_nature'),
+                'route': request.form.get('route'),
+                'reference': request.form.get('reference'),
+                'expected_salary': request.form.get('expected_salary'),
+                'expected_date_of_joining': request.form.get('expected_date_of_joining') or None,
+                'bank_name': request.form.get('bank_name'),
+                'account_number': request.form.get('account_number'),
+                'account_holder_name': request.form.get('account_holder_name'),
+                'ifsc_code': request.form.get('ifsc_code'),
+                'branch': request.form.get('branch'),
+                'account_type': request.form.get('account_type'),
+                'status': request.form.get('status', 'active')
+            }
+            
+            response = supabase.table('employees').update(update_data).eq('employee_id', employee_id).execute()
+            
+            if response.data:
+                flash(f'Employee {employee_id} updated successfully!', 'success')
+                return redirect(url_for('hr_employee_profile', employee_id=employee_id))
+            else:
+                flash('Error updating employee. Please try again.', 'danger')
+        
+        return render_template('hr_add_employee.html', employee=employee, edit_mode=True)
+    except Exception as e:
+        print(f"Error editing employee: {e}")
+        flash(f'Error: {str(e)}', 'danger')
+        return redirect(url_for('hr_employees'))
+
+# =====================================================
+# VENDOR MANAGEMENT ROUTES (Purchase Head)
+# =====================================================
+
+@app.route('/admin/vendors')
+@admin_required
+def admin_vendors():
+    """Display all vendors"""
+    try:
+        response = supabase.table('vendors').select('*').order('created_at', desc=True).execute()
+        vendors = response.data if response.data else []
+        
+        # Calculate stats
+        total_count = len(vendors)
+        approved_count = len([v for v in vendors if v.get('approval_status') == 'approved'])
+        pending_count = len([v for v in vendors if v.get('approval_status') == 'pending'])
+        active_count = len([v for v in vendors if v.get('status') == 'active'])
+        
+        return render_template('admin_vendors.html', 
+                             vendors=vendors,
+                             total_count=total_count,
+                             approved_count=approved_count,
+                             pending_count=pending_count,
+                             active_count=active_count)
+    except Exception as e:
+        print(f"Error loading vendors: {e}")
+        flash(f'Error loading vendors: {str(e)}', 'danger')
+        return render_template('admin_vendors.html', vendors=[], total_count=0, approved_count=0, pending_count=0, active_count=0)
+
+@app.route('/admin/vendors/add', methods=['GET', 'POST'])
+@admin_required
+def admin_add_vendor():
+    """Add new vendor"""
+    if request.method == 'POST':
+        try:
+            # Get next vendor ID using database function
+            try:
+                vendor_id_response = supabase.rpc('get_next_vendor_id').execute()
+                vendor_id = vendor_id_response.data if vendor_id_response.data else None
+            except:
+                # Fallback: generate manually if function doesn't exist
+                response = supabase.table('vendors').select('vendor_id').order('created_at', desc=True).limit(1).execute()
+                if response.data and len(response.data) > 0:
+                    last_id = response.data[0]['vendor_id']
+                    import re
+                    match = re.search(r'VEN(\d+)', last_id)
+                    if match:
+                        num = int(match.group(1)) + 1
+                        vendor_id = f'PMC-LOGI-VEN{str(num).zfill(3)}'
+                    else:
+                        vendor_id = 'PMC-LOGI-VEN001'
+                else:
+                    vendor_id = 'PMC-LOGI-VEN001'
+            
+            # Prepare vendor data
+            vendor_data = {
+                'vendor_id': vendor_id,
+                'organization_name': request.form.get('organization_name'),
+                'organization_type': request.form.get('organization_type'),
+                'contact_number': request.form.get('contact_number'),
+                'email_id': request.form.get('email_id'),
+                'website': request.form.get('website'),
+                'address': request.form.get('address'),
+                'phone_number': request.form.get('phone_number'),
+                'type_of_purchase': ', '.join(request.form.getlist('type_of_purchase')),  # Get multiple selections
+                'date_of_vendorship': request.form.get('date_of_vendorship') or None,
+                'description': request.form.get('description'),
+                'approval_status': 'pending',
+                'status': 'active',
+                'created_by': session.get('admin')
+            }
+            
+            # Insert into database
+            response = supabase.table('vendors').insert(vendor_data).execute()
+            
+            if response.data:
+                flash(f'Vendor {vendor_id} added successfully!', 'success')
+                return redirect(url_for('admin_add_vendor', success='true', vendor_id=vendor_id))
+            else:
+                flash('Error adding vendor. Please try again.', 'danger')
+        
+        except Exception as e:
+            print(f"Error adding vendor: {e}")
+            flash(f'Error: {str(e)}', 'danger')
+    
+    return render_template('admin_add_vendor.html')
+
+@app.route('/admin/vendors/<path:vendor_id>/view')
+@admin_required
+def admin_view_vendor(vendor_id):
+    """View vendor details"""
+    try:
+        response = supabase.table('vendors').select('*').eq('vendor_id', vendor_id).execute()
+        
+        if response.data and len(response.data) > 0:
+            vendor = response.data[0]
+            return render_template('admin_view_vendor.html', vendor=vendor)
+        else:
+            flash('Vendor not found', 'danger')
+            return redirect(url_for('admin_vendors'))
+    except Exception as e:
+        print(f"Error loading vendor: {e}")
+        flash(f'Error: {str(e)}', 'danger')
+        return redirect(url_for('admin_vendors'))
+
+@app.route('/admin/vendors/<path:vendor_id>/edit', methods=['GET', 'POST'])
+@admin_required
+def admin_edit_vendor(vendor_id):
+    """Edit vendor details"""
+    try:
+        if request.method == 'POST':
+            update_data = {
+                'organization_name': request.form.get('organization_name'),
+                'organization_type': request.form.get('organization_type'),
+                'contact_number': request.form.get('contact_number'),
+                'email_id': request.form.get('email_id'),
+                'website': request.form.get('website'),
+                'address': request.form.get('address'),
+                'phone_number': request.form.get('phone_number'),
+                'type_of_purchase': ', '.join(request.form.getlist('type_of_purchase')),  # Get multiple selections
+                'date_of_vendorship': request.form.get('date_of_vendorship') or None,
+                'description': request.form.get('description'),
+                'status': request.form.get('status', 'active')
+            }
+            
+            response = supabase.table('vendors').update(update_data).eq('vendor_id', vendor_id).execute()
+            
+            if response.data:
+                flash(f'Vendor {vendor_id} updated successfully!', 'success')
+                return redirect(url_for('admin_view_vendor', vendor_id=vendor_id))
+            else:
+                flash('Error updating vendor. Please try again.', 'danger')
+        
+        # GET request - load vendor data
+        response = supabase.table('vendors').select('*').eq('vendor_id', vendor_id).execute()
+        
+        if response.data and len(response.data) > 0:
+            vendor = response.data[0]
+            return render_template('admin_edit_vendor.html', vendor=vendor)
+        else:
+            flash('Vendor not found', 'danger')
+            return redirect(url_for('admin_vendors'))
+            
+    except Exception as e:
+        print(f"Error editing vendor: {e}")
+        flash(f'Error: {str(e)}', 'danger')
+        return redirect(url_for('admin_vendors'))
+
+@app.route('/admin/vendors/<path:vendor_id>/approve', methods=['POST'])
+@admin_required
+def admin_approve_vendor(vendor_id):
+    """Approve vendor"""
+    try:
+        from datetime import datetime
+        
+        update_data = {
+            'approval_status': 'approved',
+            'approved_by': session.get('admin'),
+            'approved_date': datetime.now().isoformat()
+        }
+        
+        response = supabase.table('vendors').update(update_data).eq('vendor_id', vendor_id).execute()
+        
+        if response.data:
+            return jsonify({'success': True, 'message': 'Vendor approved successfully'})
+        else:
+            return jsonify({'success': False, 'message': 'Error approving vendor'})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
+
+# ===== PAYMENT MANAGEMENT ROUTES =====
+@app.route('/admin/payments')
+@admin_required
+def admin_payments():
+    """Display all payments with statistics"""
+    try:
+        # Get all payments
+        response = supabase.table('payments').select('*').order('created_at', desc=True).execute()
+        payments = response.data if response.data else []
+        
+        # Add payment_status for vouchers and fetch associated invoice items
+        for payment in payments:
+            payment['invoices'] = []  # Initialize invoices list
+            
+            if payment.get('payment_type') == 'payment_voucher':
+                inv_no = payment['invoice_no']
+                payable = payment.get('total_payable', 0)
+                paid_resp = supabase.table('payments').select('amount').eq('payment_type', 'payment_details').eq('voucher_entry_no', payment.get('entry_no')).execute()
+                total_paid = sum(float(p.get('amount', 0)) for p in paid_resp.data or [])
+                payment['payment_status'] = 'paid' if total_paid >= payable else 'pending'
+                
+                # Fetch associated invoice items for this payment voucher
+                try:
+                    voucher_items = supabase.table('payment_voucher_items').select('invoice_no').eq('payment_entry_no', payment.get('entry_no')).execute()
+                    # Get unique invoice numbers
+                    invoices = list(set([item.get('invoice_no') for item in (voucher_items.data or []) if item.get('invoice_no')]))
+                    payment['invoices'] = invoices
+                except:
+                    payment['invoices'] = []
+                    
+            elif payment.get('payment_type') == 'payment_details':
+                # For payment_details, fetch invoices from the linked voucher
+                voucher_entry_no = payment.get('voucher_entry_no')
+                if voucher_entry_no:
+                    try:
+                        voucher_items = supabase.table('payment_voucher_items').select('invoice_no').eq('payment_entry_no', voucher_entry_no).execute()
+                        # Get unique invoice numbers
+                        invoices = list(set([item.get('invoice_no') for item in (voucher_items.data or []) if item.get('invoice_no')]))
+                        payment['invoices'] = invoices
+                    except:
+                        payment['invoices'] = []
+                payment['payment_status'] = 'N/A'
+            else:
+                payment['payment_status'] = 'N/A'
+        
+        # Calculate statistics
+        total_payments = len(payments)
+        approved_payments = sum(1 for p in payments if p.get('approval_status') == 'approved')
+        pending_payments = sum(1 for p in payments if p.get('approval_status') == 'pending')
+        total_amount = sum(float(p.get('amount', 0)) for p in payments if p.get('approval_status') == 'approved')
+        
+        return render_template('admin_payments.html',
+                             payments=payments,
+                             total_payments=total_payments,
+                             approved_payments=approved_payments,
+                             pending_payments=pending_payments,
+                             total_amount=f"{total_amount:,.2f}")
+    except Exception as e:
+        print(f"Error loading payments: {e}")
+        flash(f'Error loading payments: {str(e)}', 'danger')
+        return redirect(url_for('admin_dashboard'))
+
+@app.route('/admin/payments/add', methods=['GET', 'POST'])
+@admin_required
+def admin_add_payment():
+    """Add new payment"""
+    try:
+        if request.method == 'POST':
+            from datetime import datetime
+            
+            payment_data = {
+                'invoice_no': request.form.get('invoice_no'),
+                'vendor_id': request.form.get('vendor_id'),
+                'value': float(request.form.get('value', 0)),
+                'dn': request.form.get('dn'),
+                'type_of_entry': request.form.get('type_of_entry'),
+                'mode_of_payment': request.form.get('mode_of_payment'),
+                'payment_advice': request.form.get('payment_advice'),
+                'payment_date': request.form.get('payment_date') or None,
+                'amount': float(request.form.get('amount', 0)),
+                'entered_by': session.get('admin'),
+                'approval_status': 'pending',
+                'status': 'active'
+            }
+            
+            # Try to use RPC function for auto-generated entry_no, with fallback
+            try:
+                result = supabase.rpc('get_next_payment_entry_no').execute()
+                if result.data:
+                    payment_data['entry_no'] = result.data
+            except:
+                # Fallback: generate entry_no manually
+                response = supabase.table('payments').select('entry_no').order('created_at', desc=True).limit(1).execute()
+                if response.data and len(response.data) > 0:
+                    last_entry = response.data[0].get('entry_no', '')
+                    import re
+                    match = re.search(r'PAY(\d+)', last_entry)
+                    if match:
+                        num = int(match.group(1)) + 1
+                    else:
+                        num = 1
+                else:
+                    num = 1
+                payment_data['entry_no'] = f'PMCTECH-LOGI-PAY{str(num).zfill(4)}'
+            
+            response = supabase.table('payments').insert(payment_data).execute()
+            
+            if response.data:
+                entry_no = response.data[0].get('entry_no')
+                flash(f'Payment {entry_no} created successfully!', 'success')
+                return redirect(url_for('admin_payments'))
+            else:
+                flash('Error creating payment. Please try again.', 'danger')
+        
+        # Fetch all purchases with invoice numbers and vendors
+        purchases_response = supabase.table('purchases').select('invoice_no, vendor, total_payment, invoice_date').order('invoice_no').execute()
+        purchases_data = purchases_response.data if purchases_response.data else []
+        
+        # Group by invoice_no and calculate totals
+        invoice_dict = {}
+        for purchase in purchases_data:
+            inv_no = purchase.get('invoice_no')
+            if inv_no:
+                if inv_no not in invoice_dict:
+                    invoice_dict[inv_no] = {
+                        'invoice_no': inv_no,
+                        'vendor': purchase.get('vendor'),
+                        'invoice_date': purchase.get('invoice_date'),
+                        'total_value': 0
+                    }
+                invoice_dict[inv_no]['total_value'] += float(purchase.get('total_payment', 0))
+        
+        invoices_list = list(invoice_dict.values())
+        
+        return render_template('admin_add_payment.html', invoices=invoices_list)
+        
+    except Exception as e:
+        print(f"Error adding payment: {e}")
+        flash(f'Error: {str(e)}', 'danger')
+        return redirect(url_for('admin_payments'))
+
+@app.route('/admin/payments/<entry_no>/approve', methods=['POST'])
+@admin_required
+def admin_approve_payment(entry_no):
+    """Approve payment"""
+    try:
+        from datetime import datetime
+        
+        update_data = {
+            'approval_status': 'approved',
+            'approved_by': session.get('admin'),
+            'approved_date': datetime.now().isoformat()
+        }
+        
+        response = supabase.table('payments').update(update_data).eq('entry_no', entry_no).execute()
+        
+        if response.data:
+            return jsonify({'success': True, 'message': 'Payment approved successfully'})
+        else:
+            return jsonify({'success': False, 'message': 'Error approving payment'})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
+
+@app.route('/admin/payment-voucher/get-next-ref', methods=['GET'])
+@admin_required
+def get_next_ref_number():
+    """Get next reference number based on institution type"""
+    try:
+        institution_type = request.args.get('institution_type', 'Engineering')
+        institution_code = 'ENGG' if institution_type == 'Engineering' else 'POLY'
+        
+        # Try to use RPC function first
+        try:
+            result = supabase.rpc('get_next_ref_number', {'p_institution_type': institution_type}).execute()
+            if result.data:
+                return jsonify({'success': True, 'ref_number': result.data})
+        except:
+            pass
+        
+        # Fallback: generate ref_number manually with VOC- prefix
+        response = supabase.table('payments').select('ref_number').like('ref_number', f'PMC-{institution_code}-LOGI-VOC-%').order('created_at', desc=True).limit(1).execute()
+        
+        if response.data and len(response.data) > 0:
+            last_ref = response.data[0].get('ref_number', '')
+            import re
+            match = re.search(r'VOC-(\d+)', last_ref)
+            if match:
+                num = int(match.group(1)) + 1
+            else:
+                num = 1
+        else:
+            num = 1
+        
+        ref_number = f'PMC-{institution_code}-LOGI-VOC-{str(num).zfill(4)}'
+        return jsonify({'success': True, 'ref_number': ref_number})
+    
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)})
+
+@app.route('/admin/payment-voucher', methods=['GET', 'POST'])
+@admin_required
+def admin_add_payment_voucher():
+    """Add new payment voucher"""
+    try:
+        if request.method == 'POST':
+            from datetime import datetime
+            
+            institution_type = request.form.get('institution_type', 'Engineering')
+            
+            # Capture all invoice numbers from the multi-invoice form
+            invoice_nos_list = request.form.getlist('invoice_no_row[]')
+            # Remove duplicates and empty values, then join with comma
+            unique_invoices = list(set([inv for inv in invoice_nos_list if inv]))
+            invoice_nos_str = ','.join(unique_invoices) if unique_invoices else ''
+            
+            payment_data = {
+                'invoice_no': invoice_nos_str,  # Store as comma-separated string
+                'vendor_id': request.form.get('vendor_id'),
+                'value': float(request.form.get('value', 0)),
+                'dn': request.form.get('dn'),
+                'type_of_entry': 'payment_voucher',
+                'mode_of_payment': request.form.get('mode_of_payment'),
+                'payment_advice': request.form.get('payment_advice'),
+                'payment_date': request.form.get('payment_date') or None,
+                'amount': float(request.form.get('amount', 0)),
+                'entered_by': session.get('admin'),
+                'approval_status': 'pending',
+                'status': 'active',
+                'payment_type': 'payment_voucher',
+                'institution_type': institution_type,
+                'total_parts': float(request.form.get('total_parts', 0)),
+                'total_labour': float(request.form.get('total_labour', 0)),
+                'total_taxable': float(request.form.get('total_taxable', 0)),
+                'total_gst': float(request.form.get('total_gst', 0)),
+                'total_dn': float(request.form.get('total_dn', 0)),
+                'total_payable': float(request.form.get('total_payable', 0))
+            }
+            
+            # Generate reference number based on institution type
+            try:
+                result = supabase.rpc('get_next_ref_number', {'p_institution_type': institution_type}).execute()
+                if result.data:
+                    payment_data['ref_number'] = result.data
+            except:
+                # Fallback: generate ref_number manually with VOC- prefix
+                institution_code = 'ENGG' if institution_type == 'Engineering' else 'POLY'
+                response = supabase.table('payments').select('ref_number').like('ref_number', f'PMC-{institution_code}-LOGI-VOC-%').order('created_at', desc=True).limit(1).execute()
+                if response.data and len(response.data) > 0:
+                    last_ref = response.data[0].get('ref_number', '')
+                    import re
+                    match = re.search(r'VOC-(\d+)', last_ref)
+                    if match:
+                        num = int(match.group(1)) + 1
+                    else:
+                        num = 1
+                else:
+                    num = 1
+                payment_data['ref_number'] = f'PMC-{institution_code}-LOGI-VOC-{str(num).zfill(4)}'
+            
+            # Try to use RPC function for auto-generated entry_no, with fallback
+            try:
+                result = supabase.rpc('get_next_payment_entry_no').execute()
+                if result.data:
+                    payment_data['entry_no'] = result.data
+            except:
+                # Fallback: generate entry_no manually
+                response = supabase.table('payments').select('entry_no').order('created_at', desc=True).limit(1).execute()
+                if response.data and len(response.data) > 0:
+                    last_entry = response.data[0].get('entry_no', '')
+                    import re
+                    match = re.search(r'PAY(\d+)', last_entry)
+                    if match:
+                        num = int(match.group(1)) + 1
+                    else:
+                        num = 1
+                else:
+                    num = 1
+                payment_data['entry_no'] = f'PMCTECH-LOGI-PAY{str(num).zfill(4)}'
+            
+            response = supabase.table('payments').insert(payment_data).execute()
+            
+            if response.data:
+                entry_no = response.data[0].get('entry_no')
+                
+                # Insert voucher items - now with correct invoice numbers per row
+                parts_prices = request.form.getlist('parts_price[]')
+                labour_charges = request.form.getlist('labour_charge[]')
+                gst_amounts = request.form.getlist('gst_amount[]')
+                dn_amounts = request.form.getlist('dn_amount[]')
+                taxable_amounts = request.form.getlist('taxable_amount[]')
+                payable_amounts = request.form.getlist('payable_amount[]')
+                work_descriptions = request.form.getlist('work_description[]')
+                bus_reg_nos = request.form.getlist('bus_reg_no[]')
+                invoice_nos = request.form.getlist('invoice_no_row[]')  # Get individual invoice numbers per row
+                
+                for i in range(len(parts_prices)):
+                    item_data = {
+                        'payment_entry_no': entry_no,
+                        'line_number': i + 1,
+                        'invoice_no': invoice_nos[i] if i < len(invoice_nos) else '',  # Use invoice number from this row
+                        'bus_reg_no': bus_reg_nos[i] if i < len(bus_reg_nos) else '',
+                        'work_description': work_descriptions[i] if i < len(work_descriptions) else '',
+                        'parts_price': float(parts_prices[i] or 0),
+                        'labour_charge': float(labour_charges[i] or 0),
+                        'taxable_amount': float(taxable_amounts[i] or 0),
+                        'gst_amount': float(gst_amounts[i] or 0),
+                        'dn_amount': float(dn_amounts[i] or 0),
+                        'payable_amount': float(payable_amounts[i] or 0)
+                    }
+                    supabase.table('payment_voucher_items').insert(item_data).execute()
+                
+                flash(f'Payment Voucher {entry_no} created successfully!', 'success')
+                return redirect(url_for('admin_payments'))
+            else:
+                flash('Error creating payment voucher. Please try again.', 'danger')
+        
+        # Fetch all purchases with invoice numbers and vendors
+        purchases_response = supabase.table('purchases').select('invoice_no, vendor, total_payment, invoice_date').order('invoice_no').execute()
+        purchases_data = purchases_response.data if purchases_response.data else []
+        
+        # Group by invoice_no and calculate totals
+        invoice_dict = {}
+        for purchase in purchases_data:
+            inv_no = purchase.get('invoice_no')
+            if inv_no:
+                if inv_no not in invoice_dict:
+                    invoice_dict[inv_no] = {
+                        'invoice_no': inv_no,
+                        'vendor': purchase.get('vendor'),
+                        'invoice_date': purchase.get('invoice_date'),
+                        'total_value': 0
+                    }
+                invoice_dict[inv_no]['total_value'] += float(purchase.get('total_payment', 0))
+        
+        invoices_list = list(invoice_dict.values())
+        
+        # Fetch invoice numbers that have payment vouchers
+        voucher_response = supabase.table('payment_voucher_items').select('invoice_no').execute()
+        voucher_invoices = set([item['invoice_no'] for item in voucher_response.data if item['invoice_no']]) if voucher_response.data else set()
+        
+        # Filter out invoices that already have vouchers
+        invoices_list = [inv for inv in invoices_list if inv['invoice_no'] not in voucher_invoices]
+        
+        return render_template('admin_add_payment_voucher.html', invoices=invoices_list)
+        
+    except Exception as e:
+        print(f"Error adding payment voucher: {e}")
+        flash(f'Error: {str(e)}', 'danger')
+        return redirect(url_for('admin_payments'))
+
+@app.route('/admin/payment-details', methods=['GET', 'POST'])
+@admin_required
+def admin_add_payment_details():
+    """Add new payment details for payment vouchers"""
+    try:
+        if request.method == 'POST':
+            from datetime import datetime
+            
+            # Get the selected voucher details
+            voucher_entry_no = request.form.get('voucher_entry_no')
+            voucher_ref_number = request.form.get('voucher_ref_number')
+            institution_type = request.form.get('institution_type', 'Engineering')
+            
+            # Normalize institution_type to match check constraint (Engineering or Polytechnic)
+            if 'poly' in institution_type.lower():
+                institution_type = 'Polytechnic'
+            else:
+                institution_type = 'Engineering'
+            
+            payment_data = {
+                'voucher_entry_no': voucher_entry_no,  # Link to the voucher
+                'ref_number': voucher_ref_number,  # Store voucher ref number for reference
+                'institution_type': institution_type,  # Store the institution type
+                'type_of_entry': request.form.get('type_of_entry'),
+                'mode_of_payment': request.form.get('mode_of_payment'),
+                'payment_advice': request.form.get('payment_advice'),
+                'payment_date': request.form.get('payment_date') or None,
+                'amount': float(request.form.get('amount', 0)),
+                'entered_by': session.get('admin'),
+                'approval_status': request.form.get('approval_status', 'pending'),
+                'status': 'active',
+                'payment_type': 'payment_details',
+                # Payment method specific reference numbers
+                'cheque_number': request.form.get('cheque_number') or None,
+                'utr_number': request.form.get('utr_number') or None,
+                'neft_rtgs_number': request.form.get('neft_rtgs_number') or None,
+                'draft_number': request.form.get('draft_number') or None,
+                'card_number': request.form.get('card_number') or None
+            }
+            
+            # Try to use RPC function to generate PAID entry_no based on institution type
+            try:
+                result = supabase.rpc('get_next_paid_entry_no', {'p_institution_type': institution_type}).execute()
+                if result.data:
+                    payment_data['entry_no'] = result.data
+            except Exception as e:
+                # Fallback: generate entry_no manually
+                import re
+                prefix = 'PMC-POLY-LOGI-PAID' if institution_type == 'Polytechnic' else 'PMC-ENGG-LOGI-PAID'
+                response = supabase.table('payments').select('entry_no').eq('payment_type', 'payment_details').like('entry_no', f'{prefix}-%').order('entry_no', desc=True).limit(1).execute()
+                
+                v_last_num = 0
+                if response.data and len(response.data) > 0:
+                    last_entry = response.data[0].get('entry_no', '')
+                    match = re.search(r'-(\d+)$', last_entry)
+                    if match:
+                        v_last_num = int(match.group(1))
+                
+                v_new_num = v_last_num + 1
+                payment_data['entry_no'] = f'{prefix}-{str(v_new_num).zfill(4)}'
+            
+            response = supabase.table('payments').insert(payment_data).execute()
+            
+            if response.data:
+                entry_no = response.data[0].get('entry_no')
+                flash(f'Payment recorded {entry_no} for voucher {voucher_ref_number}!', 'success')
+                return redirect(url_for('admin_payments'))
+            else:
+                flash('Error recording payment. Please try again.', 'danger')
+        
+        # Fetch all payment vouchers that haven't been fully paid
+        vouchers_response = supabase.table('payments').select('entry_no, ref_number, institution_type, total_payable').eq('payment_type', 'payment_voucher').execute()
+        vouchers_list = []
+        
+        if vouchers_response.data:
+            for voucher in vouchers_response.data:
+                entry_no = voucher.get('entry_no')
+                ref_number = voucher.get('ref_number')
+                total_payable = float(voucher.get('total_payable', 0))
+                
+                # Fetch payment details already recorded for this voucher
+                paid_response = supabase.table('payments').select('amount').eq('payment_type', 'payment_details').eq('voucher_entry_no', entry_no).execute()
+                paid_amount = sum(float(p.get('amount', 0)) for p in (paid_response.data or []))
+                
+                # Only show vouchers that haven't been fully paid
+                remaining = total_payable - paid_amount
+                if remaining > 0:
+                    vouchers_list.append({
+                        'entry_no': entry_no,
+                        'ref_number': ref_number,
+                        'institution_type': voucher.get('institution_type', 'Engineering'),
+                        'total_payable': total_payable,
+                        'paid_amount': paid_amount,
+                        'remaining': remaining
+                    })
+        
+        return render_template('admin_add_payment_details.html', vouchers=vouchers_list)
+        
+    except Exception as e:
+        print(f"Error adding paid details: {e}")
+        flash(f'Error: {str(e)}', 'danger')
+        return redirect(url_for('admin_payments'))
+
+@app.route('/admin/payments/<entry_no>/view', methods=['GET'])
+@admin_required
+def admin_view_payment(entry_no):
+    """View payment details"""
+    try:
+        # Fetch payment record
+        payment_response = supabase.table('payments').select('*').eq('entry_no', entry_no).single().execute()
+        payment = payment_response.data
+        
+        if not payment:
+            flash('Payment not found', 'danger')
+            return redirect(url_for('admin_payments'))
+        
+        # If it's a voucher, fetch line items
+        line_items = []
+        if payment.get('payment_type') == 'payment_voucher':
+            items_response = supabase.table('payment_voucher_items').select('*').eq('payment_entry_no', entry_no).order('line_number').execute()
+            line_items = items_response.data if items_response.data else []
+        
+        return render_template('admin_view_payment.html', payment=payment, line_items=line_items)
+        
+    except Exception as e:
+        print(f"Error viewing payment: {e}")
+        flash(f'Error: {str(e)}', 'danger')
+        return redirect(url_for('admin_payments'))
+
+@app.route('/admin/purchases/invoice/<invoice_no>', methods=['GET'])
+@admin_required
+def admin_get_purchases_by_invoice(invoice_no):
+    """Return purchase line items for a given invoice number."""
+    try:
+        response = supabase.table('purchases').select(
+            'invoice_no, part_name, quantity, rate, taxable_amount, '
+            'sgst_amount, cgst_amount, igst_amount, total_payment'
+        ).eq('invoice_no', invoice_no).order('created_at').execute()
+
+        items = []
+        for row in response.data or []:
+            quantity = float(row.get('quantity') or 0)
+            rate = float(row.get('rate') or 0)
+            parts_price = quantity * rate
+            taxable_amount = float(row.get('taxable_amount') or 0)
+            if parts_price == 0 and taxable_amount:
+                parts_price = taxable_amount
+            gst_amount = float(row.get('sgst_amount') or 0) + float(row.get('cgst_amount') or 0) + float(row.get('igst_amount') or 0)
+            payable_amount = float(row.get('total_payment') or (taxable_amount + gst_amount))
+
+            items.append({
+                'invoice_no': row.get('invoice_no'),
+                'part_or_work_name': row.get('part_name') or '',
+                'parts_price': round(parts_price, 2),
+                'labour_charge': 0,
+                'taxable_amount': round(taxable_amount, 2),
+                'gst_amount': round(gst_amount, 2),
+                'payable_amount': round(payable_amount, 2),
+                'bus_reg_no': ''
+            })
+
+        return jsonify({'success': True, 'items': items})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e), 'items': []})
+
+
+@app.route('/api/internal_audit', methods=['POST'])
+@login_required
+def api_internal_audit():
+    """Receive internal audit payload from client and persist to Supabase.
+    This endpoint is intentionally simple: it accepts JSON and attempts to
+    insert into an `internal_audits` table if available. It always returns
+    JSON with success status and diagnostic info for debugging.
+    """
+    try:
+        data = request.get_json(force=True)
+        app.logger.debug('Received internal_audit payload: %s', data)
+        # Attempt to insert into Supabase table `internal_audits` if present
+        try:
+            # Clean and coerce incoming payload to match expected DB column types.
+            payload = {}
+            payload['audit_date'] = data.get('audit_date')
+            # Normalize month: accept 'February' or '2' -> store integer where DB expects smallint
+            month_val = data.get('month')
+            month_num = None
+            if month_val is not None:
+                try:
+                    month_num = int(month_val)
+                except Exception:
+                    try:
+                        # parse full month name like 'February'
+                        month_num = datetime.strptime(str(month_val), '%B').month
+                    except Exception:
+                        try:
+                            # parse abbreviated month like 'Feb'
+                            month_num = datetime.strptime(str(month_val), '%b').month
+                        except Exception:
+                            month_num = None
+            # If we could parse month to integer, use that. If not, send NULL
+            # (avoids inserting string like 'February' into a smallint column)
+            payload['month'] = month_num if month_num is not None else None
+
+            payload['auditor_1'] = data.get('auditor_1')
+            payload['auditor_2'] = data.get('auditor_2')
+            payload['auditee'] = data.get('auditee')
+            # also store optional name / designation fields if provided
+            payload['auditor_1_name'] = data.get('auditor_1_name') or data.get('auditor1_name') or data.get('auditor1')
+            payload['auditor_1_designation'] = data.get('auditor_1_designation') or data.get('auditor1_designation') or data.get('auditor1_desig')
+            payload['auditor_2_name'] = data.get('auditor_2_name') or data.get('auditor2_name') or data.get('auditor2')
+            payload['auditor_2_designation'] = data.get('auditor_2_designation') or data.get('auditor2_designation') or data.get('auditor2_desig')
+            payload['auditee_name'] = data.get('auditee_name') or data.get('auditeeName') or data.get('auditee_fullname')
+            payload['auditee_designation'] = data.get('auditee_designation') or data.get('auditee_desig')
+            payload['vehicle_id'] = data.get('vehicle_id')
+            payload['registration_no'] = data.get('registration_no')
+            # km_reading -> integer
+            try:
+                payload['km_reading'] = int(data.get('km_reading')) if data.get('km_reading') not in (None, '') else None
+            except Exception:
+                payload['km_reading'] = None
+            # ratings as JSONB (keep as list/dict)
+            payload['ratings'] = data.get('ratings')
+            # overall fields as integers
+            try:
+                payload['overall_rating'] = int(data.get('overall_rating'))
+            except Exception:
+                payload['overall_rating'] = None
+            try:
+                payload['overall_percent'] = int(data.get('overall_percent'))
+            except Exception:
+                payload['overall_percent'] = None
+            # created_at
+            payload['created_at'] = data.get('created_at') or datetime.utcnow().isoformat()
+
+            res = supabase.table('internal_audits').insert(payload).execute()
+            return jsonify({'success': True, 'message': 'Inserted', 'result': res.data}), 201
+        except Exception as e:
+            # Log the exception, then attempt to persist payload locally as a fallback
+            app.logger.exception('Failed to insert internal_audits')
+            fallback_path = os.path.join(os.getcwd(), 'internal_audits_fallback.jsonl')
+            try:
+                        with open(fallback_path, 'a', encoding='utf-8') as fh:
+                            import json
+                            entry = {'error': str(e), 'payload': data, 'ts': datetime.utcnow().isoformat()}
+                            fh.write(json.dumps(entry) + "\n")
+                        # Return the saved payload so client can show it immediately if desired
+                        return jsonify({'success': True, 'message': 'saved_local', 'saved_path': fallback_path, 'insert_error': str(e), 'saved_payload': data, 'saved_ts': entry['ts']}), 201
+            except Exception as fe:
+                app.logger.exception('Failed to write fallback audit file')
+                return jsonify({'success': False, 'message': 'Failed to insert and failed to save locally', 'insert_error': str(e), 'file_error': str(fe)}), 500
+    except Exception as e:
+        app.logger.exception('Bad request for internal_audit')
+        return jsonify({'success': False, 'message': str(e)}), 400
+
+if __name__ == '__main__':
+    app.run(debug=True, host='0.0.0.0', port=5000)
+
+
+# Simple health endpoint for debugging deploy/Supabase connectivity
+@app.route('/_health')
+def _health():
+    result = {'status': 'ok'}
+    # package versions
+    try:
+        try:
+            from importlib import metadata
+        except Exception:
+            import importlib_metadata as metadata
+        result['packages'] = {
+            'supabase': metadata.version('supabase') if metadata.version('supabase') else '(n/a)',
+            'httpx': metadata.version('httpx') if metadata.version('httpx') else '(n/a)',
+            'gotrue': metadata.version('gotrue') if metadata.version('gotrue') else '(n/a)'
+        }
+    except Exception as e:
+        result['packages'] = {'error': str(e)}
+
+    # Supabase connectivity check (safe - does not return secrets)
+    try:
+        resp = None
+        try:
+            resp = supabase.table('users').select('id,email').limit(1).execute()
+        except Exception as e:
+            result['supabase_error'] = str(e)
+        else:
+            result['supabase_rows'] = len(resp.data) if getattr(resp, 'data', None) is not None else 0
+    except Exception as e:
+        result['supabase_error'] = str(e)
+
+    return jsonify(result)

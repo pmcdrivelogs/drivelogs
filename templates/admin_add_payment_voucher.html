@@ -1,0 +1,1511 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Add Payment Voucher - Drive Logs</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <script>
+    // @ts-nocheck
+    /* eslint-disable */
+    /* jshint ignore:start */
+    const invoicesData = {{ invoices|tojson|safe if invoices else '[]' }};
+    let rowCount = 1;
+    let selectedInvoices = []; // Track selected invoices
+    
+    function updateReferenceNumber() {
+      const institutionType = document.getElementById('institutionType').value;
+      const refNumberDisplay = document.getElementById('refNumberDisplay');
+      
+      // Fetch the next reference number from server
+      fetch(`/admin/payment-voucher/get-next-ref?institution_type=${encodeURIComponent(institutionType)}`)
+        .then(response => response.json())
+        .then(data => {
+          if (data.success && data.ref_number) {
+            refNumberDisplay.innerHTML = `<strong style="color: #0c4a6e; font-size: 1.1rem;">Next Reference Number: ${data.ref_number}</strong>`;
+          } else {
+            refNumberDisplay.innerHTML = '<span style="color: #dc2626;">Error fetching reference number</span>';
+          }
+        })
+        .catch(error => {
+          console.error('Error:', error);
+          refNumberDisplay.innerHTML = '<span style="color: #dc2626;">Unable to fetch reference number</span>';
+        });
+    }
+    
+    function showInvoiceDropdown() {
+      document.getElementById('invoiceDropdown').style.display = 'block';
+    }
+
+    function filterInvoices() {
+      const searchInput = document.getElementById('invoiceSearch');
+      const dropdown = document.getElementById('invoiceDropdown');
+      const filter = searchInput.value.toLowerCase();
+      const options = dropdown.getElementsByClassName('invoice-option');
+      
+      let hasVisible = false;
+      for (let i = 0; i < options.length; i++) {
+        const txtValue = options[i].textContent || options[i].innerText;
+        if (txtValue.toLowerCase().indexOf(filter) > -1) {
+          options[i].style.display = '';
+          hasVisible = true;
+        } else {
+          options[i].style.display = 'none';
+        }
+      }
+      dropdown.style.display = hasVisible ? 'block' : 'none';
+    }
+
+    function selectInvoice(element) {
+      const invoiceNo = element.getAttribute('data-invoice');
+      document.getElementById('invoiceSearch').value = invoiceNo;
+      document.getElementById('invoiceDropdown').style.display = 'none';
+      // Just select the invoice, don't populate yet - user will click "Add to Voucher"
+    }
+    
+    function addInvoiceToVoucher() {
+      const invoiceNo = document.getElementById('invoiceSearch').value;
+      if (!invoiceNo) {
+        alert('Please select an invoice first');
+        return;
+      }
+      
+      // Check if invoice already added
+      if (selectedInvoices.includes(invoiceNo)) {
+        alert('This invoice is already added to the voucher');
+        return;
+      }
+      
+      // Add invoice items to table
+      appendInvoiceRowsToTable(invoiceNo);
+      
+      // Add to selected invoices list
+      selectedInvoices.push(invoiceNo);
+      
+      // Update selected invoices display
+      updateSelectedInvoicesDisplay();
+      
+      // Clear search and close dropdown
+      document.getElementById('invoiceSearch').value = '';
+      document.getElementById('invoiceDropdown').style.display = 'none';
+    }
+    
+    function updateSelectedInvoicesDisplay() {
+      const display = document.getElementById('selectedInvoicesDisplay');
+      if (selectedInvoices.length === 0) {
+        display.innerHTML = '<span style="color: #94a3b8;">No invoices added yet</span>';
+      } else {
+        const invoiceList = selectedInvoices.map((inv, idx) => `<span style="display: inline-block; background: #06b6d4; color: white; padding: 4px 12px; border-radius: 6px; margin-right: 6px; margin-bottom: 4px;">${inv} <button type="button" onclick="removeInvoice('${inv}')" style="background: none; border: none; color: white; cursor: pointer; font-weight: bold; margin-left: 6px;">×</button></span>`).join('');
+        display.innerHTML = invoiceList;
+      }
+    }
+    
+    function removeInvoice(invoiceNo) {
+      // Remove all rows belonging to this invoice
+      const tbody = document.getElementById('voucherTableBody');
+      const rows = Array.from(tbody.querySelectorAll('tr'));
+      rows.forEach(row => {
+        const invoiceCell = row.querySelector('input[name="invoice_no_row[]"]');
+        if (invoiceCell && invoiceCell.value === invoiceNo) {
+          row.remove();
+        }
+      });
+      
+      // Remove from selected list
+      selectedInvoices = selectedInvoices.filter(inv => inv !== invoiceNo);
+      updateSelectedInvoicesDisplay();
+      renumberRows();
+      updateTableTotals();
+    }
+    
+    async function appendInvoiceRowsToTable(invoiceNo) {
+      if (!invoiceNo) {
+        return;
+      }
+
+      try {
+        const response = await fetch(`/admin/purchases/invoice/${encodeURIComponent(invoiceNo)}`);
+        const result = await response.json();
+        if (!result || !result.success) {
+          alert('Error loading invoice items');
+          return;
+        }
+
+        const items = result.items || [];
+        const tbody = document.getElementById('voucherTableBody');
+        
+        // Get current row count
+        const existingRows = tbody.querySelectorAll('tr').length;
+        let newRowIndex = existingRows + 1;
+
+        if (items.length === 0) {
+          // If no items, add a blank row for this invoice
+          const row = document.createElement('tr');
+          row.innerHTML = `
+            <td style="text-align: center;">${newRowIndex}</td>
+            <td>
+              <input type="text" name="bus_reg_no[]" class="form-input-table" placeholder="Bus reg. no.">
+            </td>
+            <td>
+              <input type="text" name="invoice_no_row[]" class="form-input-table" placeholder="Invoice no." value="${invoiceNo}">
+            </td>
+            <td>
+              <input type="text" name="work_description[]" class="form-input-table" placeholder="Part or work name" required>
+            </td>
+            <td>
+              <input type="number" name="parts_price[]" class="form-input-table calc-field parts-price" placeholder="0.00" step="0.01">
+            </td>
+            <td>
+              <input type="number" name="labour_charge[]" class="form-input-table calc-field labour-charge" placeholder="0.00" step="0.01">
+            </td>
+            <td>
+              <input type="number" name="taxable_amount[]" class="form-input-table taxable-amount" placeholder="0.00" step="0.01" readonly style="background: #f8fafc;">
+            </td>
+            <td>
+              <input type="number" name="gst_amount[]" class="form-input-table calc-field gst-amount" placeholder="0.00" step="0.01">
+            </td>
+            <td>
+              <input type="number" name="dn_amount[]" class="form-input-table dn-amount" placeholder="0.00" step="0.01">
+            </td>
+            <td>
+              <input type="number" name="payable_amount[]" class="form-input-table payable-amount" placeholder="0.00" step="0.01" readonly style="background: #f8fafc;">
+            </td>
+            <td style="text-align: center;">
+              <button type="button" onclick="removeRow(this)" class="btn-remove">Remove</button>
+            </td>
+          `;
+          tbody.appendChild(row);
+        } else {
+          // Add each item as a new row
+          items.forEach((item) => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+              <td style="text-align: center;">${newRowIndex}</td>
+              <td>
+                <input type="text" name="bus_reg_no[]" class="form-input-table" placeholder="Bus reg. no." value="${item.bus_reg_no || ''}">
+              </td>
+              <td>
+                <input type="text" name="invoice_no_row[]" class="form-input-table" placeholder="Invoice no." value="${item.invoice_no || invoiceNo}">
+              </td>
+              <td>
+                <input type="text" name="work_description[]" class="form-input-table" placeholder="Part or work name" value="${item.part_or_work_name || ''}" required>
+              </td>
+              <td>
+                <input type="number" name="parts_price[]" class="form-input-table calc-field parts-price" placeholder="0.00" step="0.01" value="${item.parts_price || 0}">
+              </td>
+              <td>
+                <input type="number" name="labour_charge[]" class="form-input-table calc-field labour-charge" placeholder="0.00" step="0.01" value="${item.labour_charge || 0}">
+              </td>
+              <td>
+                <input type="number" name="taxable_amount[]" class="form-input-table taxable-amount" placeholder="0.00" step="0.01" readonly style="background: #f8fafc;" value="${item.taxable_amount || 0}">
+              </td>
+              <td>
+                <input type="number" name="gst_amount[]" class="form-input-table calc-field gst-amount" placeholder="0.00" step="0.01" value="${item.gst_amount || 0}">
+              </td>
+              <td>
+                <input type="number" name="dn_amount[]" class="form-input-table dn-amount" placeholder="0.00" step="0.01" value="${item.dn_amount || 0}">
+              </td>
+              <td>
+                <input type="number" name="payable_amount[]" class="form-input-table payable-amount" placeholder="0.00" step="0.01" readonly style="background: #f8fafc;" value="${item.payable_amount || 0}">
+              </td>
+              <td style="text-align: center;">
+                <button type="button" onclick="removeRow(this)" class="btn-remove">Remove</button>
+              </td>
+            `;
+            tbody.appendChild(row);
+            newRowIndex++;
+          });
+        }
+        
+        renumberRows();
+        updateTableTotals();
+      } catch (error) {
+        console.error('Error loading invoice items:', error);
+        alert('Error loading invoice items');
+      }
+    }
+
+    function addRow(prefillInvoiceNo = '') {
+      const tbody = document.getElementById('voucherTableBody');
+      const newRow = document.createElement('tr');
+      rowCount++;
+      const selectedInvoice = document.getElementById('invoiceValue')?.value || '';
+      const invoiceValue = prefillInvoiceNo || selectedInvoice;
+      
+      newRow.innerHTML = `
+        <td style="text-align: center;">${rowCount - 1}</td>
+        <td>
+          <input type="text" name="bus_reg_no[]" class="form-input-table" placeholder="Bus reg. no.">
+        </td>
+        <td>
+          <input type="text" name="invoice_no_row[]" class="form-input-table" placeholder="Invoice no." value="${invoiceValue}">
+        </td>
+        <td>
+          <input type="text" name="work_description[]" class="form-input-table" placeholder="Part or work name">
+        </td>
+        <td>
+          <input type="number" name="parts_price[]" class="form-input-table calc-field parts-price" placeholder="0.00" step="0.01">
+        </td>
+        <td>
+          <input type="number" name="labour_charge[]" class="form-input-table calc-field labour-charge" placeholder="0.00" step="0.01">
+        </td>
+        <td>
+          <input type="number" name="taxable_amount[]" class="form-input-table taxable-amount" placeholder="0.00" step="0.01" readonly style="background: #f8fafc;">
+        </td>
+        <td>
+          <input type="number" name="gst_amount[]" class="form-input-table calc-field gst-amount" placeholder="0.00" step="0.01">
+        </td>
+        <td>
+          <input type="number" name="dn_amount[]" class="form-input-table dn-amount" placeholder="0.00" step="0.01">
+        </td>
+        <td>
+          <input type="number" name="payable_amount[]" class="form-input-table payable-amount" placeholder="0.00" step="0.01" readonly style="background: #f8fafc;">
+        </td>
+        <td style="text-align: center;">
+          <button type="button" onclick="removeRow(this)" class="btn-remove">Remove</button>
+        </td>
+      `;
+      
+      tbody.appendChild(newRow);
+      updateRowTotals(newRow);
+      updateTableTotals();
+    }
+
+    async function populateRowsFromInvoice(invoiceNo) {
+      if (!invoiceNo) {
+        return;
+      }
+
+      try {
+        const response = await fetch(`/admin/purchases/invoice/${encodeURIComponent(invoiceNo)}`);
+        const result = await response.json();
+        if (!result || !result.success) {
+          return;
+        }
+
+        const items = result.items || [];
+        const tbody = document.getElementById('voucherTableBody');
+        tbody.innerHTML = '';
+
+        if (items.length === 0) {
+          addRow(invoiceNo);
+          renumberRows();
+          updateTableTotals();
+          return;
+        }
+
+        items.forEach((item, index) => {
+          const row = document.createElement('tr');
+          row.innerHTML = `
+            <td style="text-align: center;">${index + 1}</td>
+            <td>
+              <input type="text" name="bus_reg_no[]" class="form-input-table" placeholder="Bus reg. no." value="${item.bus_reg_no || ''}">
+            </td>
+            <td>
+              <input type="text" name="invoice_no_row[]" class="form-input-table" placeholder="Invoice no." value="${item.invoice_no || invoiceNo}">
+            </td>
+            <td>
+              <input type="text" name="work_description[]" class="form-input-table" placeholder="Part or work name" value="${item.part_or_work_name || ''}" required>
+            </td>
+            <td>
+              <input type="number" name="parts_price[]" class="form-input-table calc-field parts-price" placeholder="0.00" step="0.01" value="${item.parts_price || 0}">
+            </td>
+            <td>
+              <input type="number" name="labour_charge[]" class="form-input-table calc-field labour-charge" placeholder="0.00" step="0.01" value="${item.labour_charge || 0}">
+            </td>
+            <td>
+              <input type="number" name="taxable_amount[]" class="form-input-table taxable-amount" placeholder="0.00" step="0.01" readonly style="background: #f8fafc;" value="${item.taxable_amount || 0}">
+            </td>
+            <td>
+              <input type="number" name="gst_amount[]" class="form-input-table calc-field gst-amount" placeholder="0.00" step="0.01" value="${item.gst_amount || 0}">
+            </td>
+            <td>
+              <input type="number" name="dn_amount[]" class="form-input-table dn-amount" placeholder="0.00" step="0.01" value="${item.dn_amount || 0}">
+            </td>
+            <td>
+              <input type="number" name="payable_amount[]" class="form-input-table payable-amount" placeholder="0.00" step="0.01" readonly style="background: #f8fafc;" value="${item.payable_amount || 0}">
+            </td>
+            <td style="text-align: center;">
+              <button type="button" onclick="removeRow(this)" class="btn-remove">Remove</button>
+            </td>
+          `;
+          tbody.appendChild(row);
+        });
+
+        renumberRows();
+        updateTableTotals();
+      } catch (error) {
+        console.error('Error loading invoice items:', error);
+      }
+    }
+
+    function removeRow(button) {
+      button.closest('tr').remove();
+      renumberRows();
+      updateTableTotals();
+    }
+
+    function renumberRows() {
+      const rows = document.querySelectorAll('#voucherTableBody tr');
+      rows.forEach((row, index) => {
+        const slCell = row.querySelector('td');
+        if (slCell) {
+          slCell.textContent = index + 1;
+        }
+      });
+      rowCount = rows.length + 1;
+    }
+
+    function updateRowTotals(row) {
+      const parts = parseFloat(row.querySelector('.parts-price')?.value) || 0;
+      const labour = parseFloat(row.querySelector('.labour-charge')?.value) || 0;
+      const gst = parseFloat(row.querySelector('.gst-amount')?.value) || 0;
+      const dn = parseFloat(row.querySelector('.dn-amount')?.value) || 0;
+      const taxable = parts + labour;
+      const payable = taxable + gst - dn;
+
+      const taxableInput = row.querySelector('.taxable-amount');
+      const payableInput = row.querySelector('.payable-amount');
+      if (taxableInput) {
+        taxableInput.value = taxable.toFixed(2);
+      }
+      if (payableInput) {
+        payableInput.value = payable.toFixed(2);
+      }
+    }
+
+    function updateTableTotals() {
+      const rows = document.querySelectorAll('#voucherTableBody tr');
+      let partsTotal = 0;
+      let labourTotal = 0;
+      let taxableTotal = 0;
+      let gstTotal = 0;
+      let dnTotal = 0;
+      let payableTotal = 0;
+
+      rows.forEach(row => {
+        updateRowTotals(row);
+        partsTotal += parseFloat(row.querySelector('.parts-price')?.value) || 0;
+        labourTotal += parseFloat(row.querySelector('.labour-charge')?.value) || 0;
+        taxableTotal += parseFloat(row.querySelector('.taxable-amount')?.value) || 0;
+        gstTotal += parseFloat(row.querySelector('.gst-amount')?.value) || 0;
+        dnTotal += parseFloat(row.querySelector('.dn-amount')?.value) || 0;
+        payableTotal += parseFloat(row.querySelector('.payable-amount')?.value) || 0;
+      });
+
+      document.getElementById('totalParts').textContent = partsTotal.toFixed(2);
+      document.getElementById('totalLabour').textContent = labourTotal.toFixed(2);
+      document.getElementById('totalTaxable').textContent = taxableTotal.toFixed(2);
+      document.getElementById('totalGst').textContent = gstTotal.toFixed(2);
+      document.getElementById('totalDn').textContent = dnTotal.toFixed(2);
+      document.getElementById('totalPayable').textContent = payableTotal.toFixed(2);
+
+      document.getElementById('totalPartsHidden').value = partsTotal.toFixed(2);
+      document.getElementById('totalLabourHidden').value = labourTotal.toFixed(2);
+      document.getElementById('totalTaxableHidden').value = taxableTotal.toFixed(2);
+      document.getElementById('totalGstHidden').value = gstTotal.toFixed(2);
+      document.getElementById('totalDnHidden').value = dnTotal.toFixed(2);
+      document.getElementById('totalPayableHidden').value = payableTotal.toFixed(2);
+    }
+
+    // Hide dropdown when clicking outside
+    document.addEventListener('DOMContentLoaded', function() {
+      // Load initial reference number on page load
+      updateReferenceNumber();
+      
+      document.addEventListener('click', function(e) {
+        const invoiceSearch = document.getElementById('invoiceSearch');
+        const invoiceDropdown = document.getElementById('invoiceDropdown');
+        
+        if (e.target !== invoiceSearch && !invoiceDropdown.contains(e.target)) {
+          invoiceDropdown.style.display = 'none';
+        }
+      });
+      
+      // Add event listeners to existing amount fields
+      document.addEventListener('input', function(e) {
+        if (e.target.classList.contains('calc-field') || e.target.classList.contains('dn-amount')) {
+          const row = e.target.closest('tr');
+          if (row) {
+            updateRowTotals(row);
+          }
+          updateTableTotals();
+        }
+      });
+      updateTableTotals();
+    });
+  </script>
+  <style>
+    * { 
+      font-family: 'Inter', sans-serif;
+      box-sizing: border-box;
+    }
+    body { 
+      background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+      margin: 0;
+      padding: 0;
+    }
+    
+    .form-section {
+      background: linear-gradient(135deg, #0891b2 0%, #06b6d4 100%);
+      color: white;
+      padding: 16px 24px;
+      font-weight: 800;
+      font-size: 1.05rem;
+      text-transform: uppercase;
+      letter-spacing: 1.2px;
+      border-radius: 12px;
+      margin-bottom: 24px;
+      box-shadow: 0 6px 20px rgba(6, 182, 212, 0.35);
+      border: 2px solid rgba(255, 255, 255, 0.2);
+      position: relative;
+      overflow: hidden;
+    }
+    
+    .form-section::before {
+      content: '';
+      position: absolute;
+      top: -50%;
+      right: -50%;
+      width: 200%;
+      height: 200%;
+      background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%);
+      animation: shimmer 3s infinite;
+    }
+    
+    @keyframes shimmer {
+      0%, 100% { transform: translate(-50%, -50%); }
+      50% { transform: translate(-30%, -30%); }
+    }
+    
+    .form-group { 
+      margin-bottom: 24px;
+      position: relative;
+    }
+    
+    .form-label {
+      display: block;
+      font-size: 0.875rem;
+      font-weight: 700;
+      color: #0f172a;
+      margin-bottom: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    
+    .form-label::before {
+      content: '▸';
+      color: #06b6d4;
+      font-weight: 900;
+    }
+    
+    .form-input, .form-select, .form-textarea {
+      width: 100%;
+      padding: 14px 18px;
+      border: 2px solid #cbd5e1;
+      border-radius: 10px;
+      font-size: 0.95rem;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      background: white;
+      font-weight: 500;
+    }
+    
+    .form-input:focus, .form-select:focus, .form-textarea:focus {
+      outline: none;
+      border-color: #06b6d4;
+      box-shadow: 0 0 0 4px rgba(6, 182, 212, 0.15);
+      transform: translateY(-1px);
+    }
+    
+    .btn-primary {
+      background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+      color: white;
+      padding: 16px 40px;
+      border-radius: 12px;
+      font-weight: 800;
+      font-size: 1.05rem;
+      border: none;
+      cursor: pointer;
+      box-shadow: 0 6px 20px rgba(16, 185, 129, 0.4);
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      text-transform: uppercase;
+      letter-spacing: 1.2px;
+      position: relative;
+      overflow: hidden;
+    }
+    
+    .btn-primary::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+      transition: left 0.5s;
+    }
+    
+    .btn-primary:hover::before {
+      left: 100%;
+    }
+    
+    .btn-primary:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 8px 25px rgba(16, 185, 129, 0.5);
+    }
+    
+    .btn-primary:active {
+      transform: translateY(-1px);
+    }
+    
+    .btn-secondary {
+      background: linear-gradient(135deg, #64748b 0%, #475569 100%);
+      color: white;
+      padding: 16px 40px;
+      border-radius: 12px;
+      font-weight: 800;
+      font-size: 1.05rem;
+      border: none;
+      cursor: pointer;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      text-transform: uppercase;
+      letter-spacing: 1.2px;
+      box-shadow: 0 4px 15px rgba(100, 116, 139, 0.3);
+    }
+    
+    .btn-secondary:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 8px 20px rgba(100, 116, 139, 0.4);
+      background: linear-gradient(135deg, #475569 0%, #334155 100%);
+    }
+    
+    .search-dropdown-container {
+      position: relative;
+      flex: 1;
+    }
+    
+    .search-input {
+      width: 100%;
+      padding: 14px 18px;
+      border: 2px solid #cbd5e1;
+      border-radius: 10px;
+      font-size: 0.95rem;
+      cursor: pointer;
+      background: white;
+      font-weight: 500;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    
+    .search-input:focus {
+      outline: none;
+      border-color: #06b6d4;
+      box-shadow: 0 0 0 4px rgba(6, 182, 212, 0.15);
+      transform: translateY(-1px);
+    }
+    
+    .custom-dropdown {
+      position: absolute;
+      top: 100%;
+      left: 0;
+      right: 0;
+      max-height: 350px;
+      overflow-y: auto;
+      background: white;
+      border: 2px solid #06b6d4;
+      border-radius: 12px;
+      margin-top: 8px;
+      z-index: 1000;
+      display: none;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+      animation: slideDown 0.3s ease;
+    }
+    
+    @keyframes slideDown {
+      from {
+        opacity: 0;
+        transform: translateY(-10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+    
+    .invoice-option {
+      padding: 14px 18px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      border-bottom: 1px solid #e2e8f0;
+    }
+    
+    .invoice-option:hover {
+      background: linear-gradient(90deg, #ecfeff 0%, #cffafe 100%);
+      padding-left: 24px;
+    }
+    
+    .invoice-option:last-child {
+      border-bottom: none;
+    }
+    
+    .invoice-info {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    
+    .invoice-number {
+      font-weight: 600;
+      color: #1e293b;
+    }
+    
+    .invoice-vendor {
+      font-size: 0.85rem;
+      color: #64748b;
+      margin-top: 2px;
+    }
+    
+    .invoice-value {
+      font-weight: 700;
+      color: #06b6d4;
+      font-size: 0.95rem;
+    }
+
+    .voucher-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 24px 0;
+      background: white;
+      border: 3px solid #06b6d4;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+    }
+
+    .voucher-table thead {
+      background: linear-gradient(135deg, #0891b2 0%, #06b6d4 100%);
+      color: white;
+      box-shadow: 0 4px 10px rgba(6, 182, 212, 0.3);
+    }
+
+    .voucher-table th {
+      padding: 16px 12px;
+      text-align: center;
+      font-weight: 800;
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      border-right: 1px solid rgba(255, 255, 255, 0.3);
+      white-space: nowrap;
+    }
+
+    .voucher-table th:last-child {
+      border-right: none;
+    }
+
+    .voucher-table td {
+      padding: 10px 8px;
+      border-bottom: 1px solid #e2e8f0;
+      vertical-align: middle;
+    }
+
+    .voucher-table tbody tr {
+      transition: all 0.2s ease;
+    }
+
+    .voucher-table tbody tr:hover {
+      background: linear-gradient(90deg, #f0f9ff 0%, #e0f2fe 100%);
+      box-shadow: inset 0 0 0 2px #06b6d4;
+    }
+
+    .form-input-table {
+      width: 100%;
+      padding: 10px 8px;
+      border: 2px solid #e2e8f0;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      transition: all 0.2s ease;
+      background: white;
+      font-weight: 500;
+    }
+
+    .form-input-table:focus {
+      outline: none;
+      border-color: #06b6d4;
+      box-shadow: 0 0 0 3px rgba(6, 182, 212, 0.15);
+      background: #f0f9ff;
+    }
+
+    .btn-remove {
+      background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+      color: white;
+      padding: 8px 16px;
+      border-radius: 8px;
+      border: none;
+      cursor: pointer;
+      font-weight: 700;
+      font-size: 0.75rem;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3);
+    }
+
+    .btn-remove:hover {
+      background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+      transform: scale(1.05) translateY(-2px);
+      box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4);
+    }
+
+    .btn-add-row {
+      background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+      color: white;
+      padding: 12px 28px;
+      border-radius: 10px;
+      border: none;
+      cursor: pointer;
+      font-weight: 700;
+      font-size: 0.95rem;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      margin-bottom: 20px;
+      box-shadow: 0 4px 15px rgba(59, 130, 246, 0.4);
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+    }
+
+    .btn-add-row:hover {
+      background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+      transform: translateY(-3px);
+      box-shadow: 0 6px 20px rgba(59, 130, 246, 0.5);
+    }
+
+    .total-row {
+      background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
+      font-weight: 800;
+      box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    .total-row td {
+      padding: 16px 12px;
+      border-bottom: none;
+      border-top: 3px solid #06b6d4;
+      font-size: 0.95rem;
+      color: #0c4a6e;
+    }
+    
+    .table-container {
+      overflow-x: auto;
+      border-radius: 12px;
+      box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15);
+    }
+    
+    .section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      padding: 16px;
+      background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+      border-radius: 10px;
+      border: 2px solid #bae6fd;
+    }
+    
+    .section-title {
+      font-size: 1.15rem;
+      font-weight: 800;
+      color: #0c4a6e;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    
+    .section-title::before {
+      content: '📊';
+      font-size: 1.5rem;
+    }
+    
+    @media (max-width: 768px) {
+      .voucher-table th,
+      .voucher-table td {
+        padding: 8px 4px;
+        font-size: 0.75rem;
+      }
+      
+      .form-input-table {
+        padding: 6px 4px;
+        font-size: 0.75rem;
+      }
+      
+      .btn-primary,
+      .btn-secondary {
+        padding: 12px 24px;
+        font-size: 0.9rem;
+      }
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col pt-20">
+  
+  <!-- Logo Bar -->
+  <div class="logo-bar w-full flex items-center justify-between px-4 py-3 fixed top-0 left-0 z-50" style="background: #eab308;">
+    <img src="{{ url_for('static', filename='img/drive-logs.png') }}" alt="Drive Logs Logo" class="h-12 md:h-14 w-auto ml-2">
+    <div class="flex items-center gap-4">
+      <a href="{{ url_for('admin_dashboard') }}" class="bg-white text-yellow-700 px-3 py-2 rounded-full text-sm font-semibold transition-colors hover:bg-gray-100 flex items-center gap-1">
+        <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+          <path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z"/>
+        </svg>
+      </a>
+      <a href="{{ url_for('logout') }}" class="bg-white text-yellow-700 px-4 py-2 rounded-full text-sm font-semibold hover:bg-gray-100 transition-colors">
+        Logout
+      </a>
+    </div>
+  </div>
+
+  <!-- College Header -->
+  <div class="w-full flex justify-center items-center border-b border-gray-300 bg-white">
+    <img src="{{ url_for('static', filename='img/header_full.png') }}" alt="College Header" class="w-full max-w-5xl h-auto p-0 md:p-0" style="object-fit: contain;">
+  </div>
+
+  <!-- Main Content -->
+  <div class="flex-1 py-8 px-4">
+    <div class="max-w-4xl mx-auto">
+      
+      <!-- Flash Messages -->
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          {% for category, message in messages %}
+            <div class="mb-4 p-4 rounded-lg {% if category == 'success' %}bg-green-100 text-green-800 border border-green-300{% elif category == 'danger' %}bg-red-100 text-red-800 border border-red-300{% else %}bg-blue-100 text-blue-800 border border-blue-300{% endif %}">
+              {{ message }}
+            </div>
+          {% endfor %}
+        {% endif %}
+      {% endwith %}
+
+      <!-- Form Container -->
+      <div class="bg-white rounded-2xl shadow-2xl p-8 md:p-12" style="border: 3px solid #06b6d4;">
+        
+        <div class="text-center mb-10" style="padding: 24px; background: linear-gradient(135deg, #ecfeff 0%, #cffafe 100%); border-radius: 16px; border: 2px solid #67e8f9;">
+          <h1 class="text-4xl font-extrabold mb-3" style="color: #0c4a6e; text-transform: uppercase; letter-spacing: 2px; text-shadow: 2px 2px 4px rgba(0,0,0,0.1);">📋 PAYMENT VOUCHER</h1>
+          <p class="text-lg font-semibold" style="color: #0e7490;">REF: <strong class="text-cyan-700" style="font-size: 1.1rem;">PMCTECH/LOGI/FORM 11/VOUCHER</strong></p>
+          <p class="text-sm mt-3" style="color: #475569; font-weight: 600; background: white; display: inline-block; padding: 8px 20px; border-radius: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">✨ Entry Number will be auto-generated ✨</p>
+        </div>
+
+        <form method="POST" action="{{ url_for('admin_add_payment_voucher') }}" id="voucherForm">
+          
+          <!-- PAYMENT VOUCHER DETAILS -->
+          <div class="form-section">Payment Voucher Details</div>
+          
+          <!-- Header Info -->
+          <div class="grid grid-cols-1 gap-6 mb-8">
+            <div class="form-group">
+              <label class="form-label">Institution Type *</label>
+              <select name="institution_type" id="institutionType" class="form-input" required onchange="updateReferenceNumber()">
+                <option value="Engineering" selected>Engineering</option>
+                <option value="Polytechnic">Polytechnic</option>
+              </select>
+              <div id="refNumberDisplay" style="margin-top: 12px; padding: 10px; background: #ecfeff; border-radius: 8px; border-left: 4px solid #06b6d4; font-weight: 600; color: #0c4a6e;">Loading reference number...</div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Add Invoices to Voucher</label>
+              <div style="display: flex; gap: 8px; margin-bottom: 10px;">
+                <div class="search-dropdown-container" style="flex: 1;">
+                  <input type="text" id="invoiceSearch" class="search-input" placeholder="Search invoice number..." onclick="showInvoiceDropdown()" onkeyup="filterInvoices()" autocomplete="off">
+                  <div id="invoiceDropdown" class="custom-dropdown">
+                    {% for invoice in invoices %}
+                    <div class="invoice-option" data-invoice="{{ invoice.invoice_no }}" data-vendor="{{ invoice.vendor }}" data-value="{{ '%.2f'|format(invoice.total_value) }}" onclick="selectInvoice(this)">
+                      <div class="invoice-info">
+                        <div>
+                          <div class="invoice-number">{{ invoice.invoice_no }}</div>
+                          <div class="invoice-vendor">Vendor: {{ invoice.vendor }}</div>
+                        </div>
+                        <div class="invoice-value">₹{{ '%.2f'|format(invoice.total_value) }}</div>
+                      </div>
+                    </div>
+                    {% endfor %}
+                  </div>
+                </div>
+                <button type="button" onclick="addInvoiceToVoucher()" style="background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); color: white; padding: 12px 24px; border-radius: 10px; border: none; cursor: pointer; font-weight: 700; font-size: 0.95rem; white-space: nowrap; box-shadow: 0 4px 15px rgba(59, 130, 246, 0.4); transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); margin-top: 0;">➕ Add Invoice</button>
+              </div>
+              <div id="selectedInvoicesDisplay" style="padding: 12px; background: #f8fafc; border-radius: 8px; border: 2px dashed #cbd5e1; min-height: 40px; display: flex; align-items: center; flex-wrap: wrap; gap: 6px;">
+                <span style="color: #94a3b8;">No invoices added yet</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Voucher Items Table -->
+          <div style="margin: 36px 0;">
+            <div class="section-header">
+              <h3 class="section-title">Voucher Line Items</h3>
+              <button type="button" onclick="addRow()" class="btn-add-row">
+                ➕ Add Row
+              </button>
+            </div>
+
+            <div class="table-container">
+            <table class="voucher-table">
+              <thead>
+                <tr>
+                  <th style="width: 4%;">Sl. No.</th>
+                  <th style="width: 12%;">Bus Reg. No.</th>
+                  <th style="width: 12%;">Invoice No.</th>
+                  <th style="width: 22%;">Part or Work Name</th>
+                  <th style="width: 10%;">Parts Price</th>
+                  <th style="width: 10%;">Labour Charge</th>
+                  <th style="width: 10%;">Taxable Amount</th>
+                  <th style="width: 9%;">Add GST</th>
+                  <th style="width: 9%;">DN</th>
+                  <th style="width: 9%;">Payable Amount</th>
+                  <th style="width: 6%;">Action</th>
+                </tr>
+              </thead>
+              <tbody id="voucherTableBody">
+                <tr>
+                  <td style="text-align: center;">1</td>
+                  <td>
+                    <input type="text" name="bus_reg_no[]" class="form-input-table" placeholder="Bus reg. no.">
+                  </td>
+                  <td>
+                    <input type="text" name="invoice_no_row[]" class="form-input-table" placeholder="Invoice no.">
+                  </td>
+                  <td>
+                    <input type="text" name="work_description[]" class="form-input-table" placeholder="Part or work name" required>
+                  </td>
+                  <td>
+                    <input type="number" name="parts_price[]" class="form-input-table calc-field parts-price" placeholder="0.00" step="0.01" required>
+                  </td>
+                  <td>
+                    <input type="number" name="labour_charge[]" class="form-input-table calc-field labour-charge" placeholder="0.00" step="0.01">
+                  </td>
+                  <td>
+                    <input type="number" name="taxable_amount[]" class="form-input-table taxable-amount" placeholder="0.00" step="0.01" readonly style="background: #f8fafc;">
+                  </td>
+                  <td>
+                    <input type="number" name="gst_amount[]" class="form-input-table calc-field gst-amount" placeholder="0.00" step="0.01">
+                  </td>
+                  <td>
+                    <input type="number" name="dn_amount[]" class="form-input-table dn-amount" placeholder="0.00" step="0.01">
+                  </td>
+                  <td>
+                    <input type="number" name="payable_amount[]" class="form-input-table payable-amount" placeholder="0.00" step="0.01" readonly style="background: #f8fafc;">
+                  </td>
+                  <td style="text-align: center;">
+                    <button type="button" onclick="removeRow(this)" class="btn-remove">Remove</button>
+                  </td>
+                </tr>
+              </tbody>
+              <tfoot>
+                <tr class="total-row">
+                  <td colspan="4" style="text-align: right; font-weight: 800;">Total Value inclusive of Taxes</td>
+                  <td style="text-align: right;"><span id="totalParts">0.00</span></td>
+                  <td style="text-align: right;"><span id="totalLabour">0.00</span></td>
+                  <td style="text-align: right;"><span id="totalTaxable">0.00</span></td>
+                  <td style="text-align: right;"><span id="totalGst">0.00</span></td>
+                  <td style="text-align: right;"><span id="totalDn">0.00</span></td>
+                  <td style="text-align: right;"><span id="totalPayable">0.00</span></td>
+                  <td></td>
+                </tr>
+              </tfoot>
+            </table>
+            </div>
+
+            <input type="hidden" id="totalPartsHidden" name="total_parts" value="0.00">
+            <input type="hidden" id="totalLabourHidden" name="total_labour" value="0.00">
+            <input type="hidden" id="totalTaxableHidden" name="total_taxable" value="0.00">
+            <input type="hidden" id="totalGstHidden" name="total_gst" value="0.00">
+            <input type="hidden" id="totalDnHidden" name="total_dn" value="0.00">
+            <input type="hidden" id="totalPayableHidden" name="total_payable" value="0.00">
+            <!-- Hidden fields to capture preview edits for form submission -->
+            <input type="hidden" id="supplierHidden" name="supplier_name" value="">
+            <input type="hidden" id="productHidden" name="product" value="">
+            <input type="hidden" id="instituteHidden" name="institute" value="">
+            <input type="hidden" id="paymentModeHidden" name="payment_mode" value="">
+          </div>
+
+          <!-- Form Actions -->
+          <div class="flex gap-6 mt-12 justify-center" style="padding: 24px; background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%); border-radius: 12px; border: 2px solid #cbd5e1;">
+            <button type="button" onclick="previewVoucher()" class="btn-primary">
+              ✅ Create Voucher
+            </button>
+            <a href="{{ url_for('admin_payments') }}" class="btn-secondary" style="display: inline-block; text-decoration: none;">
+              ❌ Cancel
+            </a>
+          </div>
+
+        </form>
+      </div>
+  <!-- Preview & Print Modal -->
+  <div id="previewModal" style="display: none;" class="fixed inset-0 bg-black bg-opacity-50 z-50 overflow-y-auto">
+    <div class="w-full max-w-4xl mx-auto my-8">
+      <div class="bg-white rounded-2xl shadow-2xl" style="max-height: 90vh; overflow-y-auto;">
+        
+        <!-- Modal Header -->
+        <div class="sticky top-0 bg-gradient-to-r from-cyan-600 to-cyan-700 text-white p-6 flex justify-between items-center z-10">
+          <div>
+            <h2 class="text-2xl font-bold">📋 PAYMENT VOUCHER PREVIEW</h2>
+            <p class="text-cyan-100 text-sm mt-1">Review and print before creating the voucher</p>
+          </div>
+          <button onclick="closePreviewModal()" class="text-white hover:bg-cyan-800 p-2 rounded-lg transition">
+            ✕
+          </button>
+        </div>
+
+        <!-- Preview Content -->
+        <div class="p-8 bg-white" id="printableContent">
+          
+          <!-- College Header: use full-width header image if available -->
+          <div style="text-align: center; margin-bottom: 0;">
+            <img src="{{ url_for('static', filename='img/header_full.png') }}" alt="PMC TECH Header" style="width:100%; max-height:140px; object-fit: contain; display:block; margin:0 auto;" onerror="this.style.display='none'">
+          </div>
+
+          <!-- No textual fallback: use full-width header image only -->
+
+          <!-- Department Header -->
+          <div style="text-align: center; border: none; border-bottom: 2px solid #000; padding: 12px; background: #f3f4f6;">
+            <h1 style="font-size: 1.3rem; font-weight: 800; margin: 0; color: #000; text-decoration: underline; letter-spacing: 1px;">DEPARTMENT OF LOGISTICS</h1>
+            <h2 style="font-size: 1.1rem; font-weight: 700; margin: 8px 0 0 0; color: #000; text-decoration: underline; letter-spacing: 0.5px;">INVOICE SUMMARY OF MAINTENANCE WORK :<span id="previewMonth">NOVEMBER 2025</span></h2>
+          </div>
+
+          <!-- Header Details -->
+          <div style="border: none; padding: 0;">
+            <table style="width: 100%; border-collapse: collapse;">
+              <tr>
+                <td style="padding: 10px 16px; border-bottom: 2px solid #000; border-right: 2px solid #000; width: 60%; font-weight: 600; font-size: 0.9rem;">
+                  <span style="display: inline-block; width: 140px;">Supplier Name</span>
+                  <input id="previewSupplierInput" type="text" value="" style="border: none; border-bottom: 1px solid #000; display: inline-block; min-width: 250px; background: transparent; font-weight:600; padding:2px 4px;">
+                </td>
+                <td style="padding: 10px 16px; border-bottom: 2px solid #000; width: 40%; font-weight: 600; font-size: 0.9rem;">
+                  <span style="display: inline-block; width: 60px;">Date:</span>
+                  <input id="previewDateInput" type="text" value="" style="border: none; border-bottom: 1px solid #000; display: inline-block; min-width: 120px; background: transparent; font-weight:600; padding:2px 4px;">
+                </td>
+              </tr>
+              <tr>
+                <td style="padding: 10px 16px; border-bottom: 2px solid #000; border-right: 2px solid #000; font-weight: 600; font-size: 0.9rem;">
+                  <span style="display: inline-block; width: 140px;">Product</span>
+                  <input id="previewProductInput" type="text" value="Bus Maintenance / Parts" style="border: none; border-bottom: 1px solid #000; display: inline-block; min-width: 250px; background: transparent; font-weight:600; padding:2px 4px;">
+                </td>
+                <td style="padding: 10px 16px; border-bottom: 2px solid #000; font-weight: 600; font-size: 0.9rem;">
+                  <span style="display: inline-block; width: 60px;">Institute</span>
+                  <input id="previewInstituteInput" type="text" value="PMC TECH" style="border: none; display: inline-block; min-width: 120px; background: transparent; font-weight:700; padding:2px 4px;">
+                </td>
+              </tr>
+              <tr>
+                <td colspan="2" style="padding: 10px 16px; font-weight: 600; font-size: 0.9rem;">
+                  <span style="display: inline-block; width: 140px;">Payment Mode</span>
+                  <input id="previewPaymentModeInput" type="text" value="Bank Transfer / Cheque" style="border: none; border-bottom: 1px solid #000; display: inline-block; min-width: 250px; background: transparent; font-weight:600; padding:2px 4px;">
+                </td>
+              </tr>
+            </table>
+          </div>
+
+          <!-- Line Items Table -->
+          <div style="border: none;">
+            <table style="width: 100%; border-collapse: collapse;">
+              <thead style="background: #e5e7eb;">
+                <tr>
+                  <th style="padding: 10px 6px; text-align: center; font-size: 0.8rem; border-right: 2px solid #000; border-bottom: 2px solid #000; font-weight: 700;">SI<br>No</th>
+                  <th style="padding: 10px 6px; text-align: center; font-size: 0.8rem; border-right: 2px solid #000; border-bottom: 2px solid #000; font-weight: 700;">Bus Reg.No</th>
+                  <th style="padding: 10px 6px; text-align: center; font-size: 0.8rem; border-right: 2px solid #000; border-bottom: 2px solid #000; font-weight: 700;">Invoice No.</th>
+                  <th style="padding: 10px 6px; text-align: center; font-size: 0.8rem; border-right: 2px solid #000; border-bottom: 2px solid #000; font-weight: 700;">Part or work Name</th>
+                  <th style="padding: 10px 6px; text-align: center; font-size: 0.8rem; border-right: 2px solid #000; border-bottom: 2px solid #000; font-weight: 700;">Parts<br>Price</th>
+                  <th style="padding: 10px 6px; text-align: center; font-size: 0.8rem; border-right: 2px solid #000; border-bottom: 2px solid #000; font-weight: 700;">Labour<br>Charge</th>
+                  <th style="padding: 10px 6px; text-align: center; font-size: 0.8rem; border-right: 2px solid #000; border-bottom: 2px solid #000; font-weight: 700;">Target<br>Amount</th>
+                  <th style="padding: 10px 6px; text-align: center; font-size: 0.8rem; border-right: 2px solid #000; border-bottom: 2px solid #000; font-weight: 700;">Add<br>GST</th>
+                  <th style="padding: 10px 6px; text-align: center; font-size: 0.8rem; border-right: 2px solid #000; border-bottom: 2px solid #000; font-weight: 700;">DN<br>Amount</th>
+                  <th style="padding: 10px 6px; text-align: center; font-size: 0.8rem; border-bottom: 2px solid #000; font-weight: 700;">Payable<br>Amount</th>
+                </tr>
+              </thead>
+              <tbody id="previewTableBody">
+              </tbody>
+              <tr style="background: #f9fafb;">
+                <td colspan="4" style="padding: 12px; text-align: center; border-top: 3px solid #000; border-right: 2px solid #000; font-weight: 700; font-size: 0.95rem;">Total Value inclusive of Taxes</td>
+                <td style="padding: 12px; text-align: center; border-top: 3px solid #000; border-right: 2px solid #000; font-weight: 700;" id="previewTotalParts">-</td>
+                <td style="padding: 12px; text-align: center; border-top: 3px solid #000; border-right: 2px solid #000; font-weight: 700;" id="previewTotalLabour">-</td>
+                <td style="padding: 12px; text-align: center; border-top: 3px solid #000; border-right: 2px solid #000; font-weight: 700;" id="previewTotalTaxable">-</td>
+                <td style="padding: 12px; text-align: center; border-top: 3px solid #000; border-right: 2px solid #000; font-weight: 700;" id="previewTotalGST">-</td>
+                <td style="padding: 12px; text-align: center; border-top: 3px solid #000; border-right: 2px solid #000; font-weight: 700;" id="previewTotalDN">-</td>
+                <td style="padding: 12px; text-align: center; border-top: 3px solid #000; font-weight: 700; font-size: 1rem;" id="previewGrandTotal">-</td>
+              </tr>
+            </table>
+          </div>
+
+          <!-- Submission Text -->
+          <div style="border: none; padding: 16px;">
+            <p style="margin: 0 0 8px 0; font-weight: 600; font-size: 0.9rem;">Submitted to</p>
+            <p style="margin: 0; font-weight: 700; font-size: 0.9rem;">The Honourable Secretary Madam and The Honourable Chairman Sir for kind approval</p>
+          </div>
+
+          <!-- Signature Section -->
+          <div style="border: none; padding: 24px 16px;">
+            <table style="width: 100%; border-collapse: collapse;">
+              <tr>
+                <td style="width: 33.33%; text-align: center; vertical-align: top; padding: 0 12px;">
+                  <p style="font-weight: 700; font-size: 0.9rem; margin: 0 0 60px 0; text-decoration: underline;">Signature of the Verified Authority<br>(Technical)</p>
+                  <p style="font-weight: 700; font-size: 0.9rem; margin: 0;">Mr.Ramachandran<br>(Coordinator)</p>
+                </td>
+                <td style="width: 33.33%; text-align: center; vertical-align: top; padding: 0 12px; border-left: 2px solid #000; border-right: 2px solid #000;">
+                  <p style="font-weight: 700; font-size: 0.9rem; margin: 0 0 60px 0; text-decoration: underline;">Signature of the Forwarding<br>Authority</p>
+                  <p style="font-weight: 700; font-size: 0.9rem; margin: 0;">Mr.N.Sudhakaran<br>(Director)</p>
+                </td>
+                <td style="width: 33.33%; text-align: center; vertical-align: top; padding: 0 12px;">
+                  <p style="font-weight: 700; font-size: 0.9rem; margin: 0 0 60px 0; text-decoration: underline;">Signature of the Approving<br>Authority</p>
+                  <p style="font-weight: 700; font-size: 0.9rem; margin: 0;">The Honourable Chairman<br>PMC TECH</p>
+                </td>
+              </tr>
+            </table>
+          </div>
+        </div>
+
+        <!-- Modal Footer -->
+        <div class="sticky bottom-0 bg-gray-100 border-t border-gray-200 p-6 flex gap-4 justify-center z-10">
+          <button id="printButton" onclick="printVoucher()" style="display:none;" class="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-semibold transition">
+            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+              <path fill-rule="evenodd" d="M5 4v3H4a2 2 0 00-2 2v3a2 2 0 002 2h1v2a2 2 0 002 2h6a2 2 0 002-2v-2h1a2 2 0 002-2V9a2 2 0 00-2-2h-1V4a2 2 0 00-2-2H7a2 2 0 00-2 2zm8 0H7v3h6V4zm0 8H7v4h6v-4z" clip-rule="evenodd"/>
+            </svg>
+            🖨️ Print Voucher
+          </button>
+          <button id="confirmButton" onclick="submitVoucherWithNotes()" class="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-lg font-semibold transition">
+            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+              <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/>
+            </svg>
+            ✅ Confirm & Create
+          </button>
+          <button onclick="closePreviewModal()" class="flex items-center gap-2 bg-gray-500 hover:bg-gray-600 text-white px-6 py-3 rounded-lg font-semibold transition">
+            ❌ Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Post-create Print/Download Modal -->
+  <div id="postCreateModal" style="display:none;" class="fixed inset-0 bg-black bg-opacity-50 z-60 flex items-center justify-center">
+    <div style="width:420px; background:white; border-radius:12px; overflow:hidden; box-shadow:0 10px 40px rgba(0,0,0,0.4);">
+      <div style="background:#0f172a; color:white; padding:12px 16px; font-weight:700;">Voucher Created</div>
+      <div style="padding:18px;">
+        <p style="margin:0 0 12px 0;">Voucher created successfully. You can print or download the voucher now.</p>
+        <div style="display:flex; gap:10px; justify-content:center; margin-top:8px;">
+          <button onclick="printVoucher()" style="background:#2563eb; color:white; padding:10px 14px; border-radius:8px; border:none; font-weight:700;">🖨️ Print</button>
+          <button onclick="downloadVoucher()" style="background:#059669; color:white; padding:10px 14px; border-radius:8px; border:none; font-weight:700;">⬇️ Download (Save as PDF)</button>
+          <button onclick="closePostCreateModal()" style="background:#6b7280; color:white; padding:10px 14px; border-radius:8px; border:none; font-weight:700;">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function previewVoucher() {
+      const form = document.getElementById('voucherForm');
+      
+      // Set current month/year
+      const now = new Date();
+      const monthNames = ["JANUARY", "FEBRUARY", "MARCH", "APRIL", "MAY", "JUNE",
+              "JULY", "AUGUST", "SEPTEMBER", "OCTOBER", "NOVEMBER", "DECEMBER"];
+      document.getElementById('previewMonth').textContent = monthNames[now.getMonth()] + ' ' + now.getFullYear();
+
+      // Set date input value
+      const dateStr = now.toLocaleDateString('en-GB');
+      const dateInput = document.getElementById('previewDateInput');
+      if (dateInput) dateInput.value = dateStr;
+
+      // Populate editable preview fields from form if available, otherwise use defaults
+      const supplierVal = document.getElementById('vendor')?.value || '';
+      const supplierInput = document.getElementById('previewSupplierInput');
+      if (supplierInput) supplierInput.value = supplierVal;
+
+      const productInput = document.getElementById('previewProductInput');
+      if (productInput && !productInput.value) productInput.value = 'Bus Maintenance / Parts';
+
+      const instituteInput = document.getElementById('previewInstituteInput');
+      if (instituteInput && !instituteInput.value) instituteInput.value = 'PMC TECH';
+
+      const paymentModeInput = document.getElementById('previewPaymentModeInput');
+      if (paymentModeInput && !paymentModeInput.value) paymentModeInput.value = 'Bank Transfer / Cheque';
+      
+      // Populate table from current form data
+      const tbody = document.getElementById('previewTableBody');
+      tbody.innerHTML = '';
+      
+      const rows = document.querySelectorAll('#voucherTableBody tr');
+      let totalPayable = 0;
+      let totalParts = 0;
+      let totalLabour = 0;
+      let totalTaxable = 0;
+      let totalGST = 0;
+      let totalDN = 0;
+      
+      rows.forEach((row, index) => {
+        const cells = row.querySelectorAll('input, textarea');
+        const busReg = cells[0]?.value || '';
+        const inv = cells[1]?.value || '';
+        const desc = cells[2]?.value || '';
+        const parts = parseFloat(cells[3]?.value) || 0;
+        const labour = parseFloat(cells[4]?.value) || 0;
+        const taxable = parseFloat(cells[5]?.value) || 0;
+        const gst = parseFloat(cells[6]?.value) || 0;
+        const dn = parseFloat(cells[7]?.value) || 0;
+        const payable = parseFloat(cells[8]?.value) || 0;
+        
+        totalParts += parts;
+        totalLabour += labour;
+        totalTaxable += taxable;
+        totalGST += gst;
+        totalDN += dn;
+        totalPayable += payable;
+        
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td style="padding: 8px 6px; border-right: 2px solid #000; border-bottom: 2px solid #000; text-align: center; font-size: 0.85rem;">${index + 1}</td>
+          <td style="padding: 8px 6px; border-right: 2px solid #000; border-bottom: 2px solid #000; text-align: center; font-size: 0.85rem;">${busReg}</td>
+          <td style="padding: 8px 6px; border-right: 2px solid #000; border-bottom: 2px solid #000; text-align: center; font-size: 0.85rem;">${inv}</td>
+          <td style="padding: 8px 6px; border-right: 2px solid #000; border-bottom: 2px solid #000; text-align: left; font-size: 0.85rem;">${desc}</td>
+          <td style="padding: 8px 6px; border-right: 2px solid #000; border-bottom: 2px solid #000; text-align: center; font-size: 0.85rem;">${parts.toFixed(2)}</td>
+          <td style="padding: 8px 6px; border-right: 2px solid #000; border-bottom: 2px solid #000; text-align: center; font-size: 0.85rem;">${labour.toFixed(2)}</td>
+          <td style="padding: 8px 6px; border-right: 2px solid #000; border-bottom: 2px solid #000; text-align: center; font-size: 0.85rem;">${taxable.toFixed(2)}</td>
+          <td style="padding: 8px 6px; border-right: 2px solid #000; border-bottom: 2px solid #000; text-align: center; font-size: 0.85rem;">${gst.toFixed(2)}</td>
+          <td style="padding: 8px 6px; border-right: 2px solid #000; border-bottom: 2px solid #000; text-align: center; font-size: 0.85rem;">${dn.toFixed(2)}</td>
+          <td style="padding: 8px 6px; border-bottom: 2px solid #000; text-align: center; font-size: 0.85rem; font-weight: 600;">${payable.toFixed(2)}</td>
+        `;
+        tbody.appendChild(tr);
+      });
+      
+      // Update totals
+      document.getElementById('previewTotalParts').textContent = totalParts.toFixed(2);
+      document.getElementById('previewTotalLabour').textContent = totalLabour.toFixed(2);
+      document.getElementById('previewTotalTaxable').textContent = totalTaxable.toFixed(2);
+      document.getElementById('previewTotalGST').textContent = totalGST.toFixed(2);
+      document.getElementById('previewTotalDN').textContent = totalDN.toFixed(2);
+      document.getElementById('previewGrandTotal').textContent = totalPayable.toFixed(2);
+      
+      // Show modal
+      document.getElementById('previewModal').style.display = 'flex';
+    }
+    
+    function closePreviewModal() {
+      document.getElementById('previewModal').style.display = 'none';
+    }
+    
+    function printVoucher() {
+      // Clone printable content and replace input fields with plain text for clean printing
+      const printable = document.getElementById('printableContent');
+      const clone = printable.cloneNode(true);
+      // replace input elements inside clone with their text values
+      const inputs = clone.querySelectorAll('input');
+      inputs.forEach(inp => {
+        const span = document.createElement('span');
+        span.textContent = inp.value || '';
+        try {
+          const cs = window.getComputedStyle(inp);
+          // copy key layout and font properties so printed text matches preview
+          span.style.display = cs.display === 'inline' ? 'inline-block' : cs.display;
+          span.style.width = cs.width;
+          span.style.minWidth = cs.minWidth;
+          span.style.maxWidth = cs.maxWidth;
+          span.style.height = cs.height;
+          span.style.padding = cs.padding;
+          span.style.margin = cs.margin;
+          span.style.fontSize = cs.fontSize;
+          span.style.fontWeight = cs.fontWeight;
+          span.style.lineHeight = cs.lineHeight;
+          span.style.textAlign = cs.textAlign;
+          span.style.verticalAlign = cs.verticalAlign;
+          span.style.boxSizing = cs.boxSizing;
+          // preserve underline if input used bottom border
+          const bb = cs.borderBottomWidth && cs.borderBottomStyle ? (cs.borderBottomWidth + ' ' + cs.borderBottomStyle + ' ' + cs.borderBottomColor) : '';
+          if (bb) span.style.borderBottom = bb;
+        } catch (e) {
+          span.style.borderBottom = '1px solid #000';
+          span.style.display = 'inline-block';
+        }
+        inp.parentNode.replaceChild(span, inp);
+      });
+      const printContent = clone.innerHTML;
+      const printWindow = window.open('', '', 'height=900,width=1200');
+      
+      printWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>Invoice Summary - Payment Voucher</title>
+          <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+          <style>
+            * { 
+              font-family: 'Inter', sans-serif; 
+              margin: 0;
+              padding: 0;
+              box-sizing: border-box;
+            }
+            html, body {
+              width: 210mm;
+            }
+            /* Remove margins and padding for full-bleed printing as requested */
+            body {
+              margin: 0;
+              padding: 0;
+              background: white;
+              -webkit-print-color-adjust: exact;
+              print-color-adjust: exact;
+            }
+            /* Printable wrapper uses full A4 width (edge-to-edge) */
+            #printableContent { width: 100%; max-width: 210mm; margin: 0; padding: 0; }
+            img { max-width: 100%; height: auto; display: block; }
+            /* Ensure header image fills the printable width and isn't cropped */
+            #printableContent img[alt="PMC TECH Header"],
+            #printableContent img[src*="header_full.png"] {
+              width: 100%;
+              max-height: 120px;
+              object-fit: contain;
+              display: block;
+            }
+            /* Table styling to match preview: solid borders, tight cells */
+            table { width: 100%; border-collapse: collapse; }
+            table th, table td { border: 2px solid #000; padding: 4px 6px; vertical-align: middle; }
+            thead th { background: #e5e7eb; font-weight: 800; }
+            /* Totals row styling */
+            tr.total-row, tr[style*="background: #f9fafb"] { background: #f9fafb; font-weight: 800; }
+            /* Column width hints to stabilize alignment */
+            table th:nth-child(1), table td:nth-child(1) { width: 6%; text-align: center; }
+            table th:nth-child(2), table td:nth-child(2) { width: 12%; text-align: center; }
+            table th:nth-child(3), table td:nth-child(3) { width: 12%; text-align: center; }
+            table th:nth-child(4), table td:nth-child(4) { width: 26%; }
+            table th:nth-child(5), table td:nth-child(5) { width: 10%; text-align: right; }
+            table th:nth-child(6), table td:nth-child(6) { width: 10%; text-align: right; }
+            table th:nth-child(7), table td:nth-child(7) { width: 10%; text-align: right; }
+            table th:nth-child(8), table td:nth-child(8) { width: 8%; text-align: right; }
+            table th:nth-child(9), table td:nth-child(9) { width: 8%; text-align: right; }
+            table th:nth-child(10), table td:nth-child(10) { width: 10%; text-align: right; }
+            /* Header section (department/title) adjustments */
+            #printableContent h1, #printableContent h2 { text-align: center; margin: 6px 0; }
+            #printableContent > div[style*="DEPARTMENT OF LOGISTICS"],
+            #printableContent div[style*="DEPARTMENT OF LOGISTICS"] { }
+            @page { size: A4; margin: 0; }
+            @media print {
+              body { margin: 0; padding: 0; }
+              tr { page-break-inside: avoid; }
+            }
+          </style>
+        </head>
+        <body>
+          ${printContent}
+        </body>
+        </html>
+      `);
+      printWindow.document.close();
+      setTimeout(() => printWindow.print(), 500);
+    }
+    
+    function submitVoucherWithNotes() {
+      // copy preview editable values into hidden form fields before submitting
+      const supplier = document.getElementById('previewSupplierInput')?.value || '';
+      const product = document.getElementById('previewProductInput')?.value || '';
+      const institute = document.getElementById('previewInstituteInput')?.value || '';
+      const paymentMode = document.getElementById('previewPaymentModeInput')?.value || '';
+      document.getElementById('supplierHidden').value = supplier;
+      document.getElementById('productHidden').value = product;
+      document.getElementById('instituteHidden').value = institute;
+      document.getElementById('paymentModeHidden').value = paymentMode;
+
+      // Submit via AJAX so we can enable printing only after successful create
+      const form = document.getElementById('voucherForm');
+      const action = form.getAttribute('action') || window.location.href;
+      const formData = new FormData(form);
+
+      // Disable confirm button while submitting
+      const confirmBtn = document.getElementById('confirmButton');
+      if (confirmBtn) { confirmBtn.disabled = true; confirmBtn.textContent = 'Creating...'; }
+
+      fetch(action, {
+        method: 'POST',
+        body: formData,
+        credentials: 'same-origin'
+      }).then(response => {
+        if (!response.ok) throw new Error('Server error');
+        return response.text();
+      }).then(() => {
+        // On success, show the print button and update confirm button text
+        const printBtn = document.getElementById('printButton');
+        if (printBtn) { printBtn.style.display = 'inline-flex'; }
+        if (confirmBtn) { confirmBtn.textContent = 'Created'; confirmBtn.disabled = true; }
+        // Show post-create modal offering Print and Download options
+        showPostCreateModal();
+      }).catch(err => {
+        alert('Failed to create voucher. Please try again.');
+        if (confirmBtn) { confirmBtn.disabled = false; confirmBtn.textContent = '✅ Confirm & Create'; }
+        console.error(err);
+      });
+    }
+
+    function showPostCreateModal() {
+      const modal = document.getElementById('postCreateModal');
+      if (modal) modal.style.display = 'flex';
+    }
+
+    function closePostCreateModal() {
+      const modal = document.getElementById('postCreateModal');
+      if (modal) modal.style.display = 'none';
+    }
+
+    function downloadVoucher() {
+      // Open printable content in a new window; user can choose Save as PDF from print dialog
+      const printable = document.getElementById('printableContent');
+      const clone = printable.cloneNode(true);
+      const inputs = clone.querySelectorAll('input');
+      inputs.forEach(inp => {
+        const span = document.createElement('span');
+        span.textContent = inp.value || '';
+        try {
+          const cs = window.getComputedStyle(inp);
+          span.style.display = cs.display === 'inline' ? 'inline-block' : cs.display;
+          span.style.width = cs.width;
+          span.style.minWidth = cs.minWidth;
+          span.style.padding = cs.padding;
+          span.style.fontSize = cs.fontSize;
+          span.style.fontWeight = cs.fontWeight;
+          span.style.lineHeight = cs.lineHeight;
+        } catch (e) {
+          span.style.borderBottom = '1px solid #000';
+          span.style.display = 'inline-block';
+        }
+        inp.parentNode.replaceChild(span, inp);
+      });
+
+      const printWindow = window.open('', '', 'height=900,width=1200');
+      printWindow.document.write(`
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <title>Voucher - Download</title>
+          <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+          <style>
+            *{box-sizing:border-box;font-family:Inter, sans-serif}
+            body{margin:0;padding:8px}
+            img{max-width:100%;height:auto;display:block}
+            table{width:100%;border-collapse:collapse}
+            table th, table td{border:2px solid #000;padding:6px 8px}
+          </style>
+        </head>
+        <body>
+          ${clone.innerHTML}
+        </body>
+        </html>
+      `);
+      printWindow.document.close();
+      // Trigger print dialog so user can Save as PDF
+      setTimeout(() => printWindow.print(), 500);
+    }
+    
+    // Close modal when clicking outside
+    document.getElementById('previewModal').addEventListener('click', function(e) {
+      if (e.target === this) {
+        closePreviewModal();
+      }
+    });
+  </script>
+
+{% include 'footer.html' %}
+</body>
+</html>

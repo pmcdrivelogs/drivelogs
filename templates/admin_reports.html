@@ -1,0 +1,1353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Reports - Admin Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <style>
+    * { font-family: 'Inter', sans-serif; }
+    
+    body {
+      background: #fffbeb;
+    }
+    
+    .glass-card {
+      background: rgba(255, 255, 255, 0.85);
+      backdrop-filter: blur(20px);
+      border: 1px solid rgba(255, 255, 255, 0.8);
+    }
+    
+    .report-section {
+      background: white;
+      border-radius: 16px;
+      padding: 24px;
+      margin-bottom: 24px;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+      border: 1px solid #e5e7eb;
+    }
+    
+    .section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      padding-bottom: 12px;
+      border-bottom: 2px solid #eab308;
+    }
+    
+    .section-title {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: #1e293b;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    
+    .section-icon {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #eab308;
+      color: white;
+    }
+    
+    .data-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 16px;
+    }
+    
+    .data-table thead {
+      background: #fef2f2;
+    }
+    
+    .data-table th {
+      padding: 12px 16px;
+      text-align: left;
+      font-weight: 600;
+      color: #92400e;
+      border-bottom: 2px solid #eab308;
+      font-size: 0.875rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    
+    .data-table td {
+      padding: 12px 16px;
+      border-bottom: 1px solid #f3f4f6;
+      color: #374151;
+      font-size: 0.875rem;
+    }
+    
+    .data-table tbody tr:hover {
+      background-color: #fef2f2;
+      transition: background-color 0.2s ease;
+    }
+    
+    .data-table tbody tr:last-child td {
+      border-bottom: none;
+    }
+    
+    .export-btn {
+      background: #10b981;
+      color: white;
+      padding: 10px 24px;
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 0.875rem;
+      border: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.3s ease;
+      box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+    }
+    
+    .export-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(16, 185, 129, 0.4);
+    }
+    
+    .export-btn svg {
+      width: 18px;
+      height: 18px;
+    }
+    
+    .stat-badge {
+      display: inline-block;
+      background: #fef3c7;
+      color: #92400e;
+      padding: 6px 16px;
+      border-radius: 20px;
+      font-weight: 600;
+      font-size: 0.875rem;
+      border: 1px solid #fcd34d;
+    }
+    
+    .no-data {
+      text-align: center;
+      padding: 40px 20px;
+      color: #9ca3af;
+      font-size: 1rem;
+    }
+    
+    .filter-section {
+      display: flex;
+      gap: 16px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+    
+    .filter-input {
+      padding: 10px 16px;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      font-size: 0.875rem;
+      color: #374151;
+      min-width: 200px;
+      transition: all 0.3s ease;
+    }
+    
+    .filter-input:focus {
+      outline: none;
+      border-color: #eab308;
+      box-shadow: 0 0 0 3px rgba(234, 179, 8, 0.1);
+    }
+    
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+    
+    .summary-card {
+      background: #ffffff;
+      padding: 20px;
+      border-radius: 12px;
+      border: 1px solid #fef3c7;
+      text-align: center;
+    }
+    
+    .summary-value {
+      font-size: 2rem;
+      font-weight: 800;
+      color: #eab308;
+    }
+    
+    .summary-label {
+      color: #6b7280;
+      font-size: 0.875rem;
+      font-weight: 500;
+      margin-top: 8px;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col pt-20">
+  
+  <!-- Logo Bar -->
+  <div class="logo-bar w-full flex items-center justify-between px-4 py-3 fixed top-0 left-0 z-50" style="background: #eab308;">
+    <img src="{{ url_for('static', filename='img/drive-logs.png') }}" alt="Drive Logs Logo" class="h-12 md:h-14 w-auto ml-2">
+    <div class="flex items-center gap-4">
+      <a href="{{ url_for('admin_dashboard') }}" class="bg-white text-yellow-700 px-4 py-2 rounded-full text-sm font-semibold hover:bg-gray-100 transition-colors">
+        ← Dashboard
+      </a>
+      <a href="{{ url_for('logout') }}" class="bg-white text-yellow-700 px-4 py-2 rounded-full text-sm font-semibold hover:bg-gray-100 transition-colors">
+        Logout
+      </a>
+    </div>
+  </div>
+
+  <!-- College Header -->
+  <div class="w-full flex justify-center items-center border-b border-gray-300 bg-white">
+    <img src="{{ url_for('static', filename='img/pmc-logo.png') }}" alt="College Header" class="w-full max-w-5xl h-auto p-2 md:p-4">
+  </div>
+
+  <!-- Main Content -->
+  <div class="flex-1 py-8 px-4">
+    <div class="max-w-7xl mx-auto">
+      
+      <!-- Page Header -->
+      <div class="glass-card rounded-3xl p-8 mb-8 shadow-xl">
+        <div class="flex items-center justify-between">
+          <div>
+            <h1 class="text-3xl font-bold text-gray-800 mb-2">📊 Comprehensive Reports</h1>
+            <p class="text-gray-600">View and export detailed reports for Fuel, Statutory, and Trip Sheets</p>
+          </div>
+          <button onclick="exportAllToPDF()" class="export-btn">
+            <svg fill="currentColor" viewBox="0 0 24 24">
+              <path d="M19 12v7H5v-7H3v7c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2v-7h-2zm-6 .67l2.59-2.58L17 11.5l-5 5-5-5 1.41-1.41L11 12.67V3h2z"/>
+            </svg>
+            Export All as PDF
+          </button>
+        </div>
+      </div>
+
+      <!-- Fuel Records Section -->
+      <div class="report-section" id="fuel-section">
+        <div class="section-header">
+          <div class="section-title">
+            <div class="section-icon">
+              <svg fill="currentColor" viewBox="0 0 24 24" width="20" height="20">
+                <path d="M19.77 7.23l.01-.01-3.72-3.72L15 4.56l2.11 2.11c-.94.36-1.61 1.26-1.61 2.33 0 1.38 1.12 2.5 2.5 2.5.36 0 .69-.08 1-.21v7.21c0 .55-.45 1-1 1s-1-.45-1-1V14c0-1.1-.9-2-2-2h-1V5c0-1.1-.9-2-2-2H6c-1.1 0-2 .9-2 2v16h10v-7.5h1.5v5c0 1.38 1.12 2.5 2.5 2.5s2.5-1.12 2.5-2.5V9c0-.69-.28-1.32-.73-1.77zM12 10H6V5h6v5z"/>
+              </svg>
+            </div>
+            Fuel Records
+          </div>
+          <div class="flex items-center gap-3">
+            <span class="stat-badge">{{ fuel_records|length }} Records</span>
+            <button onclick="exportFuelToPDF()" class="export-btn">
+              <svg fill="currentColor" viewBox="0 0 24 24">
+                <path d="M19 12v7H5v-7H3v7c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2v-7h-2zm-6 .67l2.59-2.58L17 11.5l-5 5-5-5 1.41-1.41L11 12.67V3h2z"/>
+              </svg>
+              PDF
+            </button>
+            <button onclick="exportFuelToExcel()" class="export-btn" style="background: #16a34a; border-color: #15803d;">
+              <svg fill="currentColor" viewBox="0 0 24 24">
+                <path d="M19 12v7H5v-7H3v7c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2v-7h-2zm-6 .67l2.59-2.58L17 11.5l-5 5-5-5 1.41-1.41L11 12.67V3h2z"/>
+              </svg>
+              Excel
+            </button>
+          </div>
+        </div>
+        
+        <div class="filter-section">
+          <input type="date" class="filter-input" id="fuelDateFilter" placeholder="Filter by date">
+          <input type="text" class="filter-input" id="fuelVehicleFilter" placeholder="Filter by Vehicle ID">
+          <select class="filter-input" id="fuelTypeFilter">
+            <option value="">All Fuel Types</option>
+            <option value="DIESEL">DIESEL</option>
+            <option value="PETROL">PETROL</option>
+            <option value="Adblue">Adblue</option>
+            <option value="Engine oil">Engine oil</option>
+            <option value="OTHERS">OTHERS</option>
+          </select>
+        </div>
+
+        <div class="summary-grid">
+          <div class="summary-card">
+            <div class="summary-value">{{ fuel_records|length }}</div>
+            <div class="summary-label">Total Fuel Entries</div>
+          </div>
+          <div class="summary-card">
+            <div class="summary-value">{{ fuel_total_liters|default(0)|round(2) }}</div>
+            <div class="summary-label">Total Liters</div>
+          </div>
+          <div class="summary-card">
+            <div class="summary-value">₹{{ fuel_total_amount|default(0)|round(2) }}</div>
+            <div class="summary-label">Total Amount</div>
+          </div>
+        </div>
+
+        {% if fuel_records %}
+        <div style="overflow-x: auto;">
+          <table class="data-table" id="fuel-table">
+            <thead>
+              <tr>
+                <th>Entry No</th>
+                <th>Date</th>
+                <th>Vehicle ID</th>
+                <th>Reg No</th>
+                <th>Fuel Type</th>
+                <th>Quantity (L)</th>
+                <th>Rate</th>
+                <th>Amount</th>
+                <th>Vendor</th>
+                <th>Invoice</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for record in fuel_records %}
+              <tr>
+                <td>{{ record.entry_no }}</td>
+                <td>{{ record.date }}</td>
+                <td>{{ record.vehicle_id }}</td>
+                <td>{{ record.registration_no }}</td>
+                <td>{{ record.fuel_type }}</td>
+                <td>{{ record.quantity }}</td>
+                <td data-rate="{{ record.rate }}">₹{{ record.rate }}</td>
+                <td data-amount="{{ record.amount }}">₹{{ record.amount }}</td>
+                <td>{{ record.vendor_name }}</td>
+                <td>{{ record.invoice_no }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <div id="fuelPagination" class="flex items-center justify-center gap-2 mt-4"></div>
+        {% else %}
+        <div class="no-data">No fuel records found</div>
+        {% endif %}
+      </div>
+
+      <!-- Statutory Records Section -->
+      <div class="report-section" id="statutory-section">
+        <div class="section-header">
+          <div class="section-title">
+            <div class="section-icon">
+              <svg fill="currentColor" viewBox="0 0 24 24" width="20" height="20">
+                <path d="M12 7V3H2v18h20V7H12zM6 19H4v-2h2v2zm0-4H4v-2h2v2zm0-4H4V9h2v2zm0-4H4V5h2v2zm4 12H8v-2h2v2zm0-4H8v-2h2v2zm0-4H8V9h2v2zm0-4H8V5h2v2zm10 12h-8v-2h2v-2h-2v-2h2v-2h-2V9h8v10zm-2-8h-2v2h2v-2zm0 4h-2v2h2v-2z"/>
+              </svg>
+            </div>
+            Statutory Records
+          </div>
+          <div class="flex items-center gap-3">
+            <span class="stat-badge">{{ statutory_records|length }} Records</span>
+            <button onclick="exportStatutoryToPDF()" class="export-btn">
+              <svg fill="currentColor" viewBox="0 0 24 24">
+                <path d="M19 12v7H5v-7H3v7c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2v-7h-2zm-6 .67l2.59-2.58L17 11.5l-5 5-5-5 1.41-1.41L11 12.67V3h2z"/>
+              </svg>
+              PDF
+            </button>
+            <button onclick="exportStatutoryToExcel()" class="export-btn" style="background: #16a34a; border-color: #15803d;">
+              <svg fill="currentColor" viewBox="0 0 24 24">
+                <path d="M19 12v7H5v-7H3v7c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2v-7h-2zm-6 .67l2.59-2.58L17 11.5l-5 5-5-5 1.41-1.41L11 12.67V3h2z"/>
+              </svg>
+              Excel
+            </button>
+          </div>
+        </div>
+        
+        <div class="filter-section">
+          <input type="date" class="filter-input" id="statutoryDateFilter" placeholder="Filter by date">
+          <input type="text" class="filter-input" id="statutoryVehicleFilter" placeholder="Filter by Vehicle ID">
+        </div>
+
+        <div class="summary-grid">
+          <div class="summary-card">
+            <div class="summary-value">{{ statutory_records|length }}</div>
+            <div class="summary-label">Total Statutory Entries</div>
+          </div>
+          <div class="summary-card">
+            <div class="summary-value">₹{{ statutory_total_amount|default(0)|round(2) }}</div>
+            <div class="summary-label">Total Expenditure</div>
+          </div>
+        </div>
+
+        {% if statutory_records %}
+        <div style="overflow-x: auto;">
+          <table class="data-table" id="statutory-table">
+            <thead>
+              <tr>
+                <th>Entry No</th>
+                <th>Date</th>
+                <th>Invoice No</th>
+                <th>Invoice Date</th>
+                <th>Statutory Body</th>
+                <th>Transaction Type</th>
+                <th>Validity Date</th>
+                <th>Rate</th>
+                <th>Taxable Amount</th>
+                <th>SGST</th>
+                <th>CGST</th>
+                <th>Total Amount</th>
+                <th>Entered By</th>
+                <th>Approved</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for record in statutory_records %}
+              <tr>
+                <td>{{ record.entry_no }}</td>
+                <td>{{ record.date }}</td>
+                <td>{{ record.invoice_no }}</td>
+                <td>{{ record.invoice_date }}</td>
+                <td>{{ record.statutory_body_id }}</td>
+                <td>{{ record.type_of_transaction }}</td>
+                <td>{{ record.validity_date }}</td>
+                <td>₹{{ record.rate }}</td>
+                <td>₹{{ record.taxable_amount }}</td>
+                <td>₹{{ record.sgst_amount }} ({{ record.sgst_percent }}%)</td>
+                <td>₹{{ record.cgst_amount }} ({{ record.cgst_percent }}%)</td>
+                <td data-expenditure="{{ record.total_amount }}">₹{{ record.total_amount }}</td>
+                <td>{{ record.entered_by }}</td>
+                <td>{{ record.approved_by }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <div id="statutoryPagination" class="flex items-center justify-center gap-2 mt-4"></div>
+        {% else %}
+        <div class="no-data">No statutory records found</div>
+        {% endif %}
+      </div>
+
+      <!-- Trip Sheet Records Section -->
+      <div class="report-section" id="trip-section">
+        <div class="section-header">
+          <div class="section-title">
+            <div class="section-icon">
+              <svg fill="currentColor" viewBox="0 0 24 24" width="20" height="20">
+                <path d="M19 3h-4.18C14.4 1.84 13.3 1 12 1c-1.3 0-2.4.84-2.82 2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 0c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zm2 14H7v-2h7v2zm3-4H7v-2h10v2zm0-4H7V7h10v2z"/>
+              </svg>
+            </div>
+            Trip Sheet Records
+          </div>
+          <div class="flex items-center gap-3">
+            <span class="stat-badge">{{ trip_records|length }} Records</span>
+            <button onclick="exportTripSheetToPDF()" class="export-btn">
+              <svg fill="currentColor" viewBox="0 0 24 24">
+                <path d="M19 12v7H5v-7H3v7c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2v-7h-2zm-6 .67l2.59-2.58L17 11.5l-5 5-5-5 1.41-1.41L11 12.67V3h2z"/>
+              </svg>
+              PDF
+            </button>
+            <button onclick="exportTripSheetToExcel()" class="export-btn" style="background: #16a34a; border-color: #15803d;">
+              <svg fill="currentColor" viewBox="0 0 24 24">
+                <path d="M19 12v7H5v-7H3v7c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2v-7h-2zm-6 .67l2.59-2.58L17 11.5l-5 5-5-5 1.41-1.41L11 12.67V3h2z"/>
+              </svg>
+              Excel
+            </button>
+          </div>
+        </div>
+        
+        <div class="filter-section">
+          <input type="date" class="filter-input" id="tripDateFilter" placeholder="Filter by date">
+          <input type="text" class="filter-input" id="tripVehicleFilter" placeholder="Filter by Vehicle ID">
+          <input type="text" class="filter-input" id="tripDriverFilter" placeholder="Filter by Driver ID">
+        </div>
+
+        <div class="summary-grid">
+          <div class="summary-card">
+            <div class="summary-value">{{ trip_records|length }}</div>
+            <div class="summary-label">Total Trips</div>
+          </div>
+          <div class="summary-card">
+            <div class="summary-value">{{ trip_total_distance|default(0)|round(2) }}</div>
+            <div class="summary-label">Total Distance (KM)</div>
+          </div>
+          <div class="summary-card">
+            <div class="summary-value">{{ trip_total_passengers|default(0) }}</div>
+            <div class="summary-label">Total Passengers</div>
+          </div>
+        </div>
+
+        {% if trip_records %}
+        <div style="overflow-x: auto;">
+          <table class="data-table" id="trip-table">
+            <thead>
+              <tr>
+                <th>Date & Time</th>
+                <th>Driver ID</th>
+                <th>Driver Name</th>
+                <th>Vehicle ID</th>
+                <th>Vehicle No</th>
+                <th>Start KM</th>
+                <th>Close KM</th>
+                <th>Distance</th>
+                <th>Start Time</th>
+                <th>Close Time</th>
+                <th>Passengers</th>
+                <th>Start Place</th>
+                <th>Close Place</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for record in trip_records %}
+              <tr>
+                <td>{{ record.date_time }}</td>
+                <td>{{ record.driver_id }}</td>
+                <td>{{ record.driver_name }}</td>
+                <td>{{ record.vehicle_id }}</td>
+                <td>{{ record.vehicle_no }}</td>
+                <td>{{ record.trip_start_km }}</td>
+                <td>{{ record.trip_close_km }}</td>
+                <td>{{ record.trip_distance }}</td>
+                <td>{{ record.trip_start_time }}</td>
+                <td>{{ record.trip_close_time }}</td>
+                <td>{{ record.total_strength }}</td>
+                <td>{{ record.trip_start_place }}</td>
+                <td>{{ record.trip_close_place }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <div id="tripPagination" class="flex items-center justify-center gap-2 mt-4"></div>
+        {% else %}
+        <div class="no-data">No trip sheet records found</div>
+        {% endif %}
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+    // PDF Export Functions
+    const { jsPDF } = window.jspdf;
+
+    function setupPagination(tableId, paginationId, rowsPerPage = 10) {
+      const table = document.getElementById(tableId);
+      const pagination = document.getElementById(paginationId);
+      if (!table || !pagination) return;
+
+      const rows = Array.from(table.querySelectorAll('tbody tr'));
+      const visibleRows = rows.filter(row => row.dataset.filtered !== '0');
+      const totalPages = Math.max(1, Math.ceil(visibleRows.length / rowsPerPage));
+
+      let currentPage = parseInt(pagination.getAttribute('data-page') || '1', 10);
+      if (currentPage > totalPages) currentPage = totalPages;
+      pagination.setAttribute('data-page', String(currentPage));
+
+      rows.forEach((row) => {
+        row.style.display = 'none';
+      });
+
+      visibleRows.forEach((row, index) => {
+        const start = (currentPage - 1) * rowsPerPage;
+        const end = start + rowsPerPage;
+        row.style.display = index >= start && index < end ? '' : 'none';
+      });
+
+      pagination.innerHTML = '';
+      const createButton = (label, page, disabled = false, isActive = false) => {
+        const btn = document.createElement('button');
+        btn.textContent = label;
+        btn.className = `px-3 py-1 rounded ${isActive ? 'bg-yellow-600 text-white' : 'bg-white text-gray-700 border border-gray-300'}`;
+        btn.disabled = disabled;
+        btn.onclick = () => {
+          pagination.setAttribute('data-page', String(page));
+          setupPagination(tableId, paginationId, rowsPerPage);
+        };
+        return btn;
+      };
+
+      const windowSize = 5;
+      let startPage = Math.max(1, currentPage - Math.floor(windowSize / 2));
+      let endPage = Math.min(totalPages, startPage + windowSize - 1);
+      if (endPage - startPage + 1 < windowSize) {
+        startPage = Math.max(1, endPage - windowSize + 1);
+      }
+
+      pagination.appendChild(createButton('Prev', Math.max(1, currentPage - 1), currentPage === 1));
+      for (let page = startPage; page <= endPage; page += 1) {
+        pagination.appendChild(createButton(String(page), page, false, page === currentPage));
+      }
+      pagination.appendChild(createButton('Next', Math.min(totalPages, currentPage + 1), currentPage === totalPages));
+    }
+
+    function exportFuelToPDF() {
+      const doc = new jsPDF('landscape');
+      
+      // Load header image
+      const headerImg = new Image();
+      headerImg.src = '{{ url_for("static", filename="img/header_full.png") }}';
+      
+      headerImg.onload = function() {
+        // Add header image
+        doc.addImage(headerImg, 'PNG', 10, 5, 277, 25);
+        
+        // Add title
+        doc.setFontSize(18);
+        doc.setTextColor(234, 179, 8);
+        doc.text('Fuel Records Report', 14, 35);
+        
+        doc.setFontSize(10);
+        doc.setTextColor(100);
+        doc.text('Generated on: ' + new Date().toLocaleDateString(), 14, 42);
+        
+        // Get table data manually to avoid encoding issues
+        const table = document.getElementById('fuel-table');
+        if (table) {
+          const rows = table.querySelectorAll('tbody tr');
+          const tableData = [];
+          
+          rows.forEach(row => {
+            const cells = row.querySelectorAll('td');
+            if (cells.length > 0) {
+              tableData.push([
+                cells[0].textContent.trim(), // Entry No
+                cells[1].textContent.trim(), // Date
+                cells[2].textContent.trim(), // Vehicle ID
+                cells[3].textContent.trim(), // Reg No
+                cells[4].textContent.trim(), // Fuel Type
+                cells[5].textContent.trim(), // Quantity
+                'Rs.' + cells[6].getAttribute('data-rate'), // Rate
+                'Rs.' + cells[7].getAttribute('data-amount'), // Amount
+                cells[8].textContent.trim(), // Vendor
+                cells[9].textContent.trim()  // Invoice
+              ]);
+            }
+          });
+          
+          doc.autoTable({
+            head: [['Entry No', 'Date', 'Vehicle ID', 'Reg No', 'Fuel Type', 'Quantity (L)', 'Rate', 'Amount', 'Vendor', 'Invoice']],
+            body: tableData,
+            startY: 50,
+            theme: 'grid',
+            headStyles: { fillColor: [234, 179, 8], textColor: 255 },
+            styles: { fontSize: 8 },
+            margin: { top: 50 }
+          });
+        }
+        
+        doc.save('Fuel_Records_Report.pdf');
+      };
+      
+      headerImg.onerror = function() {
+        console.error('Failed to load header image');
+        // Fallback without image
+        doc.setFontSize(18);
+        doc.setTextColor(234, 179, 8);
+        doc.text('Fuel Records Report', 14, 15);
+        
+        doc.setFontSize(10);
+        doc.setTextColor(100);
+        doc.text('Generated on: ' + new Date().toLocaleDateString(), 14, 22);
+        
+        const table = document.getElementById('fuel-table');
+        if (table) {
+          const rows = table.querySelectorAll('tbody tr');
+          const tableData = [];
+          
+          rows.forEach(row => {
+            const cells = row.querySelectorAll('td');
+            if (cells.length > 0) {
+              tableData.push([
+                cells[0].textContent.trim(),
+                cells[1].textContent.trim(),
+                cells[2].textContent.trim(),
+                cells[3].textContent.trim(),
+                cells[4].textContent.trim(),
+                cells[5].textContent.trim(),
+                'Rs.' + cells[6].getAttribute('data-rate'),
+                'Rs.' + cells[7].getAttribute('data-amount'),
+                cells[8].textContent.trim(),
+                cells[9].textContent.trim()
+              ]);
+            }
+          });
+          
+          doc.autoTable({
+            head: [['Entry No', 'Date', 'Vehicle ID', 'Reg No', 'Fuel Type', 'Quantity (L)', 'Rate', 'Amount', 'Vendor', 'Invoice']],
+            body: tableData,
+            startY: 28,
+            theme: 'grid',
+            headStyles: { fillColor: [234, 179, 8], textColor: 255 },
+            styles: { fontSize: 8 },
+            margin: { top: 28 }
+          });
+        }
+        
+        doc.save('Fuel_Records_Report.pdf');
+      };
+    }
+
+    function exportStatutoryToPDF() {
+      const doc = new jsPDF('landscape');
+      
+      // Load header image
+      const headerImg = new Image();
+      headerImg.src = '{{ url_for("static", filename="img/header_full.png") }}';
+      
+      headerImg.onload = function() {
+        // Add header image
+        doc.addImage(headerImg, 'PNG', 10, 5, 277, 25);
+        
+        doc.setFontSize(18);
+        doc.setTextColor(234, 179, 8);
+        doc.text('Statutory Records Report', 14, 35);
+        
+        doc.setFontSize(10);
+        doc.setTextColor(100);
+        doc.text('Generated on: ' + new Date().toLocaleDateString(), 14, 42);
+        
+        // Get table data manually to avoid encoding issues
+        const table = document.getElementById('statutory-table');
+        if (table) {
+          const rows = table.querySelectorAll('tbody tr');
+          const tableData = [];
+          
+          rows.forEach(row => {
+            const cells = row.querySelectorAll('td');
+            if (cells.length > 0) {
+              // Helper function to clean currency values
+              const cleanCurrency = (text) => {
+                return 'Rs.' + text.replace(/[₹,]/g, '').trim();
+              };
+              
+              tableData.push([
+                cells[0].textContent.trim(), // Entry No
+                cells[1].textContent.trim(), // Date
+                cells[2].textContent.trim(), // Invoice No
+                cells[3].textContent.trim(), // Invoice Date
+                cells[4].textContent.trim(), // Statutory Body
+                cells[5].textContent.trim(), // Transaction Type
+                cells[6].textContent.trim(), // Validity Date
+                cleanCurrency(cells[7].textContent), // Rate
+                cleanCurrency(cells[8].textContent), // Taxable Amount
+                cells[9].textContent.replace(/[₹]/g, 'Rs.').trim(), // SGST
+                cells[10].textContent.replace(/[₹]/g, 'Rs.').trim(), // CGST
+                'Rs.' + (cells[11].getAttribute('data-expenditure') || '0'), // Total Amount
+                cells[12].textContent.trim(), // Entered By
+                cells[13].textContent.trim()  // Approved
+              ]);
+            }
+          });
+          
+          doc.autoTable({
+            head: [['Entry No', 'Date', 'Invoice No', 'Invoice Date', 'Statutory Body', 'Transaction Type', 'Validity Date', 'Rate', 'Taxable Amt', 'SGST', 'CGST', 'Total', 'Entered By', 'Approved']],
+            body: tableData,
+            startY: 50,
+            theme: 'grid',
+            headStyles: { fillColor: [220, 38, 38], textColor: 255 },
+            styles: { fontSize: 6 },
+            margin: { top: 50 }
+          });
+        }
+        
+        doc.save('Statutory_Records_Report.pdf');
+      };
+      
+      headerImg.onerror = function() {
+        console.error('Failed to load header image');
+        // Fallback without image
+        doc.setFontSize(18);
+        doc.setTextColor(234, 179, 8);
+        doc.text('Statutory Records Report', 14, 15);
+        
+        doc.setFontSize(10);
+        doc.setTextColor(100);
+        doc.text('Generated on: ' + new Date().toLocaleDateString(), 14, 22);
+        
+        const table = document.getElementById('statutory-table');
+        if (table) {
+          const rows = table.querySelectorAll('tbody tr');
+          const tableData = [];
+          
+          rows.forEach(row => {
+            const cells = row.querySelectorAll('td');
+            if (cells.length > 0) {
+              const cleanCurrency = (text) => {
+                return 'Rs.' + text.replace(/[₹,]/g, '').trim();
+              };
+              
+              tableData.push([
+                cells[0].textContent.trim(),
+                cells[1].textContent.trim(),
+                cells[2].textContent.trim(),
+                cells[3].textContent.trim(),
+                cells[4].textContent.trim(),
+                cells[5].textContent.trim(),
+                cells[6].textContent.trim(),
+                cleanCurrency(cells[7].textContent),
+                cleanCurrency(cells[8].textContent),
+                cells[9].textContent.replace(/[₹]/g, 'Rs.').trim(),
+                cells[10].textContent.replace(/[₹]/g, 'Rs.').trim(),
+                'Rs.' + (cells[11].getAttribute('data-expenditure') || '0'),
+                cells[12].textContent.trim(),
+                cells[13].textContent.trim()
+              ]);
+            }
+          });
+          
+          doc.autoTable({
+            head: [['Entry No', 'Date', 'Invoice No', 'Invoice Date', 'Statutory Body', 'Transaction Type', 'Validity Date', 'Rate', 'Taxable Amt', 'SGST', 'CGST', 'Total', 'Entered By', 'Approved']],
+            body: tableData,
+            startY: 28,
+            theme: 'grid',
+            headStyles: { fillColor: [220, 38, 38], textColor: 255 },
+            styles: { fontSize: 6 },
+            margin: { top: 28 }
+          });
+        }
+        
+        doc.save('Statutory_Records_Report.pdf');
+      };
+    }
+
+    function exportTripSheetToPDF() {
+      const doc = new jsPDF('landscape');
+      
+      // Load header image
+      const headerImg = new Image();
+      headerImg.src = '{{ url_for("static", filename="img/header_full.png") }}';
+      
+      headerImg.onload = function() {
+        // Add header image
+        doc.addImage(headerImg, 'PNG', 10, 5, 277, 25);
+        
+        doc.setFontSize(18);
+        doc.setTextColor(234, 179, 8);
+        doc.text('Trip Sheet Records Report', 14, 35);
+        
+        doc.setFontSize(10);
+        doc.setTextColor(100);
+        doc.text('Generated on: ' + new Date().toLocaleDateString(), 14, 42);
+        
+        // Get table data manually to avoid encoding issues
+        const table = document.getElementById('trip-table');
+        if (table) {
+          const rows = table.querySelectorAll('tbody tr');
+          const tableData = [];
+          
+          rows.forEach(row => {
+            const cells = row.querySelectorAll('td');
+            if (cells.length > 0) {
+              tableData.push([
+                cells[0].textContent.trim(), // Date & Time
+                cells[1].textContent.trim(), // Driver ID
+                cells[2].textContent.trim(), // Driver Name
+                cells[3].textContent.trim(), // Vehicle ID
+                cells[4].textContent.trim(), // Vehicle No
+                cells[5].textContent.trim(), // Start KM
+                cells[6].textContent.trim(), // Close KM
+                cells[7].textContent.trim(), // Distance
+                cells[8].textContent.trim(), // Start Time
+                cells[9].textContent.trim(), // Close Time
+                cells[10].textContent.trim(), // Passengers
+                cells[11].textContent.trim(), // Start Place
+                cells[12].textContent.trim()  // Close Place
+              ]);
+            }
+          });
+          
+          doc.autoTable({
+            head: [['Date & Time', 'Driver ID', 'Driver Name', 'Vehicle ID', 'Vehicle No', 'Start KM', 'Close KM', 'Distance', 'Start Time', 'Close Time', 'Passengers', 'Start Place', 'Close Place']],
+            body: tableData,
+            startY: 50,
+            theme: 'grid',
+            headStyles: { fillColor: [220, 38, 38], textColor: 255 },
+            styles: { fontSize: 7 },
+            margin: { top: 50 }
+          });
+        }
+        
+        doc.save('Trip_Sheet_Records_Report.pdf');
+      };
+      
+      headerImg.onerror = function() {
+        console.error('Failed to load header image');
+        // Fallback without image
+        doc.setFontSize(18);
+        doc.setTextColor(234, 179, 8);
+        doc.text('Trip Sheet Records Report', 14, 15);
+        
+        doc.setFontSize(10);
+        doc.setTextColor(100);
+        doc.text('Generated on: ' + new Date().toLocaleDateString(), 14, 22);
+        
+        const table = document.getElementById('trip-table');
+        if (table) {
+          const rows = table.querySelectorAll('tbody tr');
+          const tableData = [];
+          
+          rows.forEach(row => {
+            const cells = row.querySelectorAll('td');
+            if (cells.length > 0) {
+              tableData.push([
+                cells[0].textContent.trim(),
+                cells[1].textContent.trim(),
+                cells[2].textContent.trim(),
+                cells[3].textContent.trim(),
+                cells[4].textContent.trim(),
+                cells[5].textContent.trim(),
+                cells[6].textContent.trim(),
+                cells[7].textContent.trim(),
+                cells[8].textContent.trim(),
+                cells[9].textContent.trim(),
+                cells[10].textContent.trim(),
+                cells[11].textContent.trim(),
+                cells[12].textContent.trim()
+              ]);
+            }
+          });
+          
+          doc.autoTable({
+            head: [['Date & Time', 'Driver ID', 'Driver Name', 'Vehicle ID', 'Vehicle No', 'Start KM', 'Close KM', 'Distance', 'Start Time', 'Close Time', 'Passengers', 'Start Place', 'Close Place']],
+            body: tableData,
+            startY: 28,
+            theme: 'grid',
+            headStyles: { fillColor: [220, 38, 38], textColor: 255 },
+            styles: { fontSize: 7 },
+            margin: { top: 28 }
+          });
+        }
+        
+        doc.save('Trip_Sheet_Records_Report.pdf');
+      };
+    }
+
+    function exportAllToPDF() {
+      const doc = new jsPDF('landscape');
+      
+      // Load header image
+      const headerImg = new Image();
+      headerImg.src = '{{ url_for("static", filename="img/header_full.png") }}';
+      
+      headerImg.onload = function() {
+        let currentY = 35;
+        
+        // Add header image to first page
+        doc.addImage(headerImg, 'PNG', 10, 5, 277, 25);
+        
+        // Title page
+        doc.setFontSize(22);
+        doc.setTextColor(234, 179, 8);
+        doc.text('Comprehensive Reports', 14, currentY);
+        
+        doc.setFontSize(12);
+        doc.setTextColor(100);
+        currentY += 10;
+        doc.text('Generated on: ' + new Date().toLocaleDateString(), 14, currentY);
+        
+        currentY += 15;
+        
+        // Fuel Records
+        const fuelTable = document.getElementById('fuel-table');
+        if (fuelTable) {
+          doc.setFontSize(14);
+          doc.setTextColor(234, 179, 8);
+          doc.text('Fuel Records', 14, currentY);
+          currentY += 7;
+          
+          const fuelRows = fuelTable.querySelectorAll('tbody tr');
+          const fuelData = [];
+          fuelRows.forEach(row => {
+            const cells = row.querySelectorAll('td');
+            if (cells.length > 0) {
+              fuelData.push([
+                cells[0].textContent.trim(),
+                cells[1].textContent.trim(),
+                cells[2].textContent.trim(),
+                cells[3].textContent.trim(),
+                cells[4].textContent.trim(),
+                cells[5].textContent.trim(),
+                'Rs.' + cells[6].getAttribute('data-rate'),
+                'Rs.' + cells[7].getAttribute('data-amount'),
+                cells[8].textContent.trim(),
+                cells[9].textContent.trim()
+              ]);
+            }
+          });
+          
+          doc.autoTable({
+            head: [['Entry No', 'Date', 'Vehicle ID', 'Reg No', 'Fuel Type', 'Quantity (L)', 'Rate', 'Amount', 'Vendor', 'Invoice']],
+            body: fuelData,
+            startY: currentY,
+            theme: 'grid',
+            headStyles: { fillColor: [220, 38, 38], textColor: 255 },
+            styles: { fontSize: 7 },
+          });
+          currentY = doc.lastAutoTable.finalY + 15;
+        }
+        
+        // Add new page for statutory
+        doc.addPage();
+        doc.addImage(headerImg, 'PNG', 10, 5, 277, 25);
+        currentY = 35;
+        
+        // Statutory Records
+        const statutoryTable = document.getElementById('statutory-table');
+        if (statutoryTable) {
+          doc.setFontSize(14);
+          doc.setTextColor(220, 38, 38);
+          doc.text('Statutory Records', 14, currentY);
+          currentY += 7;
+          
+          const statutoryRows = statutoryTable.querySelectorAll('tbody tr');
+          const statutoryData = [];
+          statutoryRows.forEach(row => {
+            const cells = row.querySelectorAll('td');
+            if (cells.length > 0) {
+              statutoryData.push([
+                cells[0].textContent.trim(),
+                cells[1].textContent.trim(),
+                cells[2].textContent.trim(),
+                cells[3].textContent.trim(),
+                cells[4].textContent.trim(),
+                cells[5].textContent.trim(),
+                cells[6].textContent.trim(),
+                cells[7].textContent.trim(),
+                cells[8].textContent.trim(),
+                'Rs.' + cells[9].getAttribute('data-expenditure'),
+                cells[10].textContent.trim()
+              ]);
+            }
+          });
+          
+          doc.autoTable({
+            head: [['Entry No', 'Date', 'Vehicle ID', 'Reg No', 'Statutory Body', 'Due Date', 'Executed Date', 'Next Due', 'Invoice', 'Expenditure', 'Remarks']],
+            body: statutoryData,
+            startY: currentY,
+            theme: 'grid',
+            headStyles: { fillColor: [220, 38, 38], textColor: 255 },
+            styles: { fontSize: 7 },
+          });
+        }
+        
+        // Add new page for trip sheets
+        doc.addPage();
+        doc.addImage(headerImg, 'PNG', 10, 5, 277, 25);
+        currentY = 35;
+        
+        // Trip Sheet Records
+        const tripTable = document.getElementById('trip-table');
+        if (tripTable) {
+          doc.setFontSize(14);
+          doc.setTextColor(220, 38, 38);
+          doc.text('Trip Sheet Records', 14, currentY);
+          currentY += 7;
+          
+          const tripRows = tripTable.querySelectorAll('tbody tr');
+          const tripData = [];
+          tripRows.forEach(row => {
+            const cells = row.querySelectorAll('td');
+            if (cells.length > 0) {
+              tripData.push([
+                cells[0].textContent.trim(),
+                cells[1].textContent.trim(),
+                cells[2].textContent.trim(),
+                cells[3].textContent.trim(),
+                cells[4].textContent.trim(),
+                cells[5].textContent.trim(),
+                cells[6].textContent.trim(),
+                cells[7].textContent.trim(),
+                cells[8].textContent.trim(),
+                cells[9].textContent.trim(),
+                cells[10].textContent.trim(),
+                cells[11].textContent.trim(),
+                cells[12].textContent.trim()
+              ]);
+            }
+          });
+          
+          doc.autoTable({
+            head: [['Date & Time', 'Driver ID', 'Driver Name', 'Vehicle ID', 'Vehicle No', 'Start KM', 'Close KM', 'Distance', 'Start Time', 'Close Time', 'Passengers', 'Start Place', 'Close Place']],
+            body: tripData,
+            startY: currentY,
+            theme: 'grid',
+            headStyles: { fillColor: [220, 38, 38], textColor: 255 },
+            styles: { fontSize: 6 },
+          });
+        }
+        
+        doc.save('Comprehensive_Reports.pdf');
+      };
+      
+      headerImg.onerror = function() {
+        console.error('Failed to load header image');
+        // Fallback without image
+        let currentY = 15;
+        
+        doc.setFontSize(22);
+        doc.setTextColor(234, 179, 8);
+        doc.text('Comprehensive Reports', 14, currentY);
+        
+        doc.setFontSize(12);
+        doc.setTextColor(100);
+        currentY += 10;
+        doc.text('Generated on: ' + new Date().toLocaleDateString(), 14, currentY);
+        
+        currentY += 15;
+        
+        const fuelTable = document.getElementById('fuel-table');
+        if (fuelTable) {
+          doc.setFontSize(14);
+          doc.setTextColor(234, 179, 8);
+          doc.text('Fuel Records', 14, currentY);
+          currentY += 7;
+          
+          const fuelRows = fuelTable.querySelectorAll('tbody tr');
+          const fuelData = [];
+          fuelRows.forEach(row => {
+            const cells = row.querySelectorAll('td');
+            if (cells.length > 0) {
+              fuelData.push([
+                cells[0].textContent.trim(),
+                cells[1].textContent.trim(),
+                cells[2].textContent.trim(),
+                cells[3].textContent.trim(),
+                cells[4].textContent.trim(),
+                cells[5].textContent.trim(),
+                'Rs.' + cells[6].getAttribute('data-rate'),
+                'Rs.' + cells[7].getAttribute('data-amount'),
+                cells[8].textContent.trim(),
+                cells[9].textContent.trim()
+              ]);
+            }
+          });
+          
+          doc.autoTable({
+            head: [['Entry No', 'Date', 'Vehicle ID', 'Reg No', 'Fuel Type', 'Quantity (L)', 'Rate', 'Amount', 'Vendor', 'Invoice']],
+            body: fuelData,
+            startY: currentY,
+            theme: 'grid',
+            headStyles: { fillColor: [220, 38, 38], textColor: 255 },
+            styles: { fontSize: 7 },
+          });
+          currentY = doc.lastAutoTable.finalY + 15;
+        }
+        
+        doc.addPage();
+        currentY = 15;
+        
+        const statutoryTable = document.getElementById('statutory-table');
+        if (statutoryTable) {
+          doc.setFontSize(14);
+          doc.setTextColor(220, 38, 38);
+          doc.text('Statutory Records', 14, currentY);
+          currentY += 7;
+          
+          const statutoryRows = statutoryTable.querySelectorAll('tbody tr');
+          const statutoryData = [];
+          statutoryRows.forEach(row => {
+            const cells = row.querySelectorAll('td');
+            if (cells.length > 0) {
+              statutoryData.push([
+                cells[0].textContent.trim(),
+                cells[1].textContent.trim(),
+                cells[2].textContent.trim(),
+                cells[3].textContent.trim(),
+                cells[4].textContent.trim(),
+                cells[5].textContent.trim(),
+                cells[6].textContent.trim(),
+                cells[7].textContent.trim(),
+                cells[8].textContent.trim(),
+                'Rs.' + cells[9].getAttribute('data-expenditure'),
+                cells[10].textContent.trim()
+              ]);
+            }
+          });
+          
+          doc.autoTable({
+            head: [['Entry No', 'Date', 'Vehicle ID', 'Reg No', 'Statutory Body', 'Due Date', 'Executed Date', 'Next Due', 'Invoice', 'Expenditure', 'Remarks']],
+            body: statutoryData,
+            startY: currentY,
+            theme: 'grid',
+            headStyles: { fillColor: [220, 38, 38], textColor: 255 },
+            styles: { fontSize: 7 },
+          });
+        }
+        
+        doc.addPage();
+        currentY = 15;
+        
+        const tripTable = document.getElementById('trip-table');
+        if (tripTable) {
+          doc.setFontSize(14);
+          doc.setTextColor(220, 38, 38);
+          doc.text('Trip Sheet Records', 14, currentY);
+          currentY += 7;
+          
+          const tripRows = tripTable.querySelectorAll('tbody tr');
+          const tripData = [];
+          tripRows.forEach(row => {
+            const cells = row.querySelectorAll('td');
+            if (cells.length > 0) {
+              tripData.push([
+                cells[0].textContent.trim(),
+                cells[1].textContent.trim(),
+                cells[2].textContent.trim(),
+                cells[3].textContent.trim(),
+                cells[4].textContent.trim(),
+                cells[5].textContent.trim(),
+                cells[6].textContent.trim(),
+                cells[7].textContent.trim(),
+                cells[8].textContent.trim(),
+                cells[9].textContent.trim(),
+                cells[10].textContent.trim(),
+                cells[11].textContent.trim(),
+                cells[12].textContent.trim()
+              ]);
+            }
+          });
+          
+          doc.autoTable({
+            head: [['Date & Time', 'Driver ID', 'Driver Name', 'Vehicle ID', 'Vehicle No', 'Start KM', 'Close KM', 'Distance', 'Start Time', 'Close Time', 'Passengers', 'Start Place', 'Close Place']],
+            body: tripData,
+            startY: currentY,
+            theme: 'grid',
+            headStyles: { fillColor: [220, 38, 38], textColor: 255 },
+            styles: { fontSize: 6 },
+          });
+        }
+        
+        doc.save('Comprehensive_Reports.pdf');
+      };
+    }
+
+    // Multi-filter function for fuel table
+    function filterFuelTable() {
+      const table = document.getElementById('fuel-table');
+      if (!table) return;
+      
+      const dateFilter = (document.getElementById('fuelDateFilter')?.value || '').toLowerCase();
+      const vehicleFilter = (document.getElementById('fuelVehicleFilter')?.value || '').toLowerCase();
+      const typeFilter = (document.getElementById('fuelTypeFilter')?.value || '').toLowerCase();
+      
+      const rows = table.getElementsByTagName('tbody')[0].getElementsByTagName('tr');
+      
+      for (let row of rows) {
+        const cells = row.getElementsByTagName('td');
+        if (cells.length === 0) continue;
+        
+        // Get cell values (columnIndex: 0=Entry, 1=Date, 2=Vehicle ID, 3=Reg No, 4=Fuel Type, 5=Quantity, 6=Rate, 7=Amount, 8=Vendor, 9=Invoice)
+        const dateValue = (cells[1]?.textContent || '').toLowerCase();
+        const vehicleValue = (cells[2]?.textContent || '').toLowerCase();
+        const typeValue = (cells[4]?.textContent || '').toLowerCase();
+        
+        // Check all filters - row passes if ALL active filters match
+        let passDate = !dateFilter || dateValue.indexOf(dateFilter) > -1;
+        let passVehicle = !vehicleFilter || vehicleValue.indexOf(vehicleFilter) > -1;
+        let passType = !typeFilter || typeValue.indexOf(typeFilter) > -1;
+        
+        row.dataset.filtered = (passDate && passVehicle && passType) ? '1' : '0';
+      }
+      
+      setupPagination('fuel-table', 'fuelPagination', 10);
+    }
+    
+    // Filter functionality
+    document.getElementById('fuelDateFilter')?.addEventListener('change', function(e) {
+      filterFuelTable();
+    });
+    
+    document.getElementById('fuelVehicleFilter')?.addEventListener('input', function(e) {
+      filterFuelTable();
+    });
+    
+    document.getElementById('fuelTypeFilter')?.addEventListener('change', function(e) {
+      filterFuelTable();
+    });
+
+    document.getElementById('statutoryDateFilter')?.addEventListener('change', function(e) {
+      filterTable('statutory-table', 1, e.target.value);
+    });
+    
+    document.getElementById('statutoryVehicleFilter')?.addEventListener('input', function(e) {
+      filterTable('statutory-table', 2, e.target.value);
+    });
+
+    document.getElementById('tripDateFilter')?.addEventListener('change', function(e) {
+      filterTable('trip-table', 0, e.target.value);
+    });
+    
+    document.getElementById('tripVehicleFilter')?.addEventListener('input', function(e) {
+      filterTable('trip-table', 3, e.target.value);
+    });
+    
+    document.getElementById('tripDriverFilter')?.addEventListener('input', function(e) {
+      filterTable('trip-table', 1, e.target.value);
+    });
+
+    function filterTable(tableId, columnIndex, filterValue) {
+      const table = document.getElementById(tableId);
+      if (!table) return;
+      
+      const rows = table.getElementsByTagName('tbody')[0].getElementsByTagName('tr');
+      const filter = filterValue.toLowerCase();
+      
+      for (let row of rows) {
+        const cell = row.getElementsByTagName('td')[columnIndex];
+        if (cell) {
+          const textValue = cell.textContent || cell.innerText;
+          row.dataset.filtered = textValue.toLowerCase().indexOf(filter) > -1 ? '1' : '0';
+        }
+      }
+
+      const paginationMap = {
+        'fuel-table': 'fuelPagination',
+        'statutory-table': 'statutoryPagination',
+        'trip-table': 'tripPagination'
+      };
+      const paginationId = paginationMap[tableId];
+      if (paginationId) {
+        setupPagination(tableId, paginationId, 10);
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      setupPagination('fuel-table', 'fuelPagination', 10);
+      setupPagination('statutory-table', 'statutoryPagination', 10);
+      setupPagination('trip-table', 'tripPagination', 10);
+    });
+
+    // Excel Export Functions
+    function exportFuelToExcel() {
+      const table = document.getElementById('fuel-table');
+      if (!table) {
+        alert('No fuel data to export');
+        return;
+      }
+      const wb = XLSX.utils.table_to_book(table, { sheet: 'Fuel Records' });
+      XLSX.writeFile(wb, 'Fuel_Records_Report_' + new Date().toISOString().split('T')[0] + '.xlsx');
+    }
+
+    function exportStatutoryToExcel() {
+      const table = document.getElementById('statutory-table');
+      if (!table) {
+        alert('No statutory data to export');
+        return;
+      }
+      const wb = XLSX.utils.table_to_book(table, { sheet: 'Statutory Records' });
+      XLSX.writeFile(wb, 'Statutory_Records_Report_' + new Date().toISOString().split('T')[0] + '.xlsx');
+    }
+
+    function exportTripSheetToExcel() {
+      const table = document.getElementById('trip-table');
+      if (!table) {
+        alert('No trip sheet data to export');
+        return;
+      }
+      const wb = XLSX.utils.table_to_book(table, { sheet: 'Trip Sheet Records' });
+      XLSX.writeFile(wb, 'Trip_Sheet_Records_Report_' + new Date().toISOString().split('T')[0] + '.xlsx');
+    }
+  </script>
+
+
+<script src="{{ url_for('static', filename='js/uppercase.js') }}"></script>
+{% include 'footer.html' %}
+</body>
+</html>

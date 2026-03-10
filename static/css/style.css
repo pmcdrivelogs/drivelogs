@@ -1,0 +1,85 @@
+.logo-bg {
+    background-color: #FFD700;
+}
+
+.logo-bar {
+    background: #FFD700;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.07);
+}
+
+.login-btn {
+    background-color: #FFD700;
+    transition: all 0.3s ease;
+}
+
+.login-btn:hover {
+    background-color: #FFC700;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(255, 215, 0, 0.3);
+}
+
+.login-btn:active {
+    transform: translateY(0);
+}
+
+.admin-login-btn {
+    background-color: #DC2626;
+    transition: all 0.3s ease;
+}
+
+.admin-login-btn:hover {
+    background-color: #B91C1C;
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);
+}
+
+.admin-login-btn:active {
+    transform: translateY(0);
+}
+
+input::placeholder {
+    color: #999;
+}
+
+input:focus {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(255, 215, 0, 0.1);
+}
+
+.password-toggle {
+    cursor: pointer;
+    color: #999;
+    transition: color 0.3s ease;
+}
+
+.password-toggle:hover {
+    color: #666;
+}
+
+.menu-btn {
+    background: #FFD700;
+    border-radius: 9999px;
+    font-weight: bold;
+    font-size: 1.15rem;
+    color: #111827;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.07);
+    transition: transform 0.1s, box-shadow 0.1s;
+    text-align: left;
+    text-transform: uppercase;
+    letter-spacing: 0.01em;
+    padding-left: 2rem;
+    display: block;
+    text-decoration: none;
+}
+
+.menu-btn:hover {
+    background: #FFC700;
+    transform: translateY(-2px) scale(1.03);
+    box-shadow: 0 4px 16px rgba(255,215,0,0.18);
+}
+
+.main-box {
+    border-radius: 24px;
+    box-shadow: 0 2px 16px rgba(0,0,0,0.07);
+    border: 1.5px solid #eee;
+}

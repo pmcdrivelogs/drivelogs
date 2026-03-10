@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Part ID Generator - Drive Logs</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    * { font-family: 'Inter', sans-serif; }
+    
+    body {
+      background: linear-gradient(135deg, #fef3c7 0%, #fde68a 50%, #fef3c7 100%);
+    }
+    
+    .form-container {
+      background: white;
+      border-radius: 16px;
+      padding: 32px 40px;
+      box-shadow: 0 4px 25px rgba(0, 0, 0, 0.1);
+      border: 2px solid #d1d5db;
+    }
+    
+    .form-row {
+      display: flex;
+      align-items: center;
+      margin-bottom: 18px;
+    }
+    
+    .form-label {
+      font-weight: 700;
+      color: #1f2937;
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+      min-width: 180px;
+    }
+    
+    .colon {
+      font-weight: bold;
+      color: #1f2937;
+      margin: 0 16px;
+      font-size: 1.1rem;
+    }
+    
+    .form-input, .form-select {
+      flex: 1;
+      padding: 12px 18px;
+      border: 2px solid #10b981;
+      border-radius: 30px;
+      font-size: 0.95rem;
+      transition: all 0.3s ease;
+      background: white;
+    }
+    
+    .form-input:focus, .form-select:focus {
+      outline: none;
+      border-color: #059669;
+      box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.15);
+    }
+    
+    .form-input[readonly] {
+      background-color: #f0fdf4;
+      cursor: not-allowed;
+      color: #166534;
+      font-weight: 600;
+    }
+    
+    .submit-btn {
+      background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+      color: white;
+      padding: 16px 56px;
+      border-radius: 50px;
+      font-weight: 700;
+      font-size: 1.1rem;
+      box-shadow: 0 6px 20px rgba(16, 185, 129, 0.35);
+      transition: all 0.3s ease;
+      border: none;
+      cursor: pointer;
+    }
+    
+    .submit-btn:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 8px 25px rgba(16, 185, 129, 0.45);
+      background: linear-gradient(135deg, #059669 0%, #047857 100%);
+    }
+    
+    .form-title {
+      color: #059669;
+      font-size: 1.75rem;
+      font-weight: 800;
+      text-decoration: underline;
+      text-underline-offset: 6px;
+      text-decoration-thickness: 3px;
+    }
+    
+    .form-ref {
+      color: #374151;
+      font-weight: 700;
+      font-size: 0.9rem;
+    }
+    
+    .parts-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+    }
+    
+    .parts-table thead {
+      background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+      color: white;
+    }
+    
+    .parts-table th {
+      padding: 12px 16px;
+      text-align: left;
+      font-weight: 700;
+      font-size: 0.8rem;
+      text-transform: uppercase;
+    }
+    
+    .parts-table td {
+      padding: 12px 16px;
+      border-bottom: 1px solid #e5e7eb;
+      font-size: 0.9rem;
+    }
+    
+    .parts-table tbody tr:hover {
+      background-color: #f0fdf4;
+    }
+    
+    .badge {
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+    
+    .badge-active {
+      background: #dcfce7;
+      color: #166534;
+    }
+    
+    .section-title {
+      background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+      color: white;
+      padding: 12px 20px;
+      border-radius: 10px;
+      font-weight: 700;
+      font-size: 1rem;
+      margin: 30px 0 20px 0;
+    }
+    
+    .pagination-controls {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 20px;
+      padding: 15px;
+      background: #f9fafb;
+      border-radius: 10px;
+    }
+    
+    .pagination-info {
+      font-size: 0.9rem;
+      color: #374151;
+      font-weight: 600;
+    }
+    
+    .pagination-buttons {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+    
+    .page-btn {
+      padding: 8px 16px;
+      border: 2px solid #10b981;
+      background: white;
+      color: #10b981;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: all 0.2s;
+    }
+    
+    .page-btn:hover:not(:disabled) {
+      background: #10b981;
+      color: white;
+    }
+    
+    .page-btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+      border-color: #d1d5db;
+      color: #9ca3af;
+    }
+    
+    .page-size-select {
+      padding: 8px 12px;
+      border: 2px solid #10b981;
+      border-radius: 8px;
+      font-weight: 600;
+      color: #059669;
+      cursor: pointer;
+    }
+    
+    @media (max-width: 768px) {
+      .form-container {
+        padding: 24px 20px;
+      }
+      
+      .form-row {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+      }
+      
+      .form-label {
+        min-width: auto;
+      }
+      
+      .colon {
+        display: none;
+      }
+      
+      .form-input, .form-select {
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col pt-20">
+  
+  <!-- Logo Bar -->
+  <div class="logo-bar w-full flex items-center justify-between px-4 py-3 fixed top-0 left-0 z-50">
+    <img src="{{ url_for('static', filename='img/drive-logs.png') }}" alt="Drive Logs Logo" class="h-12 md:h-14 w-auto ml-2">
+    <div class="flex items-center gap-4">
+      <a href="{{ url_for('dashboard') }}" class="bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-full text-sm font-semibold transition-colors">
+        ← Dashboard
+      </a>
+      <a href="{{ url_for('logout') }}" class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-full text-sm font-semibold transition-colors">
+        Logout
+      </a>
+    </div>
+  </div>
+
+  <!-- College Header -->
+  <div class="w-full flex justify-center items-center border-b border-gray-300 bg-white">
+    <img src="{{ url_for('static', filename='img/pmc-logo.png') }}" alt="College Header" class="w-full max-w-5xl h-auto p-2 md:p-4">
+  </div>
+
+  <!-- Main Content -->
+  <div class="flex-1 py-8 px-4">
+    <div class="form-container w-full max-w-5xl mx-auto">
+      
+      <!-- Flash Messages -->
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          {% for category, message in messages %}
+            <div class="mb-4 p-4 rounded-lg {% if category == 'success' %}bg-green-100 text-green-800 border border-green-300{% elif category == 'danger' %}bg-red-100 text-red-800 border border-red-300{% else %}bg-blue-100 text-blue-800 border border-blue-300{% endif %}">
+              {{ message }}
+            </div>
+          {% endfor %}
+        {% endif %}
+      {% endwith %}
+      
+      <!-- Header -->
+      <div class="text-center mb-2">
+        <h1 class="form-title">PART ID GENERATOR</h1>
+      </div>
+      <div class="text-right mb-6">
+        <span class="form-ref">REF: PMCTECH/LOGI/PARTS</span>
+      </div>
+
+      <!-- Form -->
+      <form method="POST">
+        
+        <!-- Part ID (Manual Entry) -->
+        <div class="form-row">
+          <label class="form-label">PART ID</label>
+          <span class="colon">:</span>
+          <input type="text" id="part_id" name="part_id" class="form-input" required placeholder="Enter unique part ID (e.g., CATEGORY/DIMENSION/MODEL/NUMBER)">
+        </div>
+
+        <!-- Part Name -->
+        <div class="form-row">
+          <label class="form-label">PART NAME</label>
+          <span class="colon">:</span>
+          <input type="text" name="part_name" class="form-input" required placeholder="Enter part name">
+        </div>
+
+        <!-- Category -->
+        <div class="form-row">
+          <label class="form-label">CATEGORY</label>
+          <span class="colon">:</span>
+          <select name="category" class="form-select">
+            <option value="">-- Select Category --</option>
+            <option value="Engine Parts">Engine Parts</option>
+            <option value="Brake System">Brake System</option>
+            <option value="Electrical">Electrical</option>
+            <option value="Suspension">Suspension</option>
+            <option value="Transmission">Transmission</option>
+            <option value="Body Parts">Body Parts</option>
+            <option value="Filters">Filters</option>
+            <option value="Lubricants">Lubricants</option>
+            <option value="Tyres">Tyres</option>
+            <option value="Consumables">Consumables</option>
+            <option value="Others">Others</option>
+          </select>
+        </div>
+
+        <!-- Unit -->
+        <div class="form-row">
+          <label class="form-label">UNIT</label>
+          <span class="colon">:</span>
+          <select name="unit" class="form-select">
+            <option value="Nos">Nos (Numbers)</option>
+            <option value="Liters">Liters</option>
+            <option value="Kg">Kg (Kilograms)</option>
+            <option value="Sets">Sets</option>
+            <option value="Pairs">Pairs</option>
+            <option value="Meters">Meters</option>
+          </select>
+        </div>
+
+        <!-- Description -->
+        <div class="form-row">
+          <label class="form-label">DESCRIPTION</label>
+          <span class="colon">:</span>
+          <input type="text" name="description" class="form-input" placeholder="Enter description (optional)">
+        </div>
+
+        <!-- Submit Button -->
+        <div class="flex justify-center mt-10">
+          <button type="submit" class="submit-btn">
+            Generate Part ID
+          </button>
+        </div>
+      </form>
+
+      <!-- Existing Parts List -->
+      <div class="section-title">
+        📦 REGISTERED PARTS
+      </div>
+      
+      <div class="overflow-x-auto">
+        <table class="parts-table">
+          <thead>
+            <tr>
+              <th>Part ID</th>
+              <th>Part Name</th>
+              <th>Category</th>
+              <th>Unit</th>
+              <th>Description</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for part in parts %}
+            <tr>
+              <td class="font-semibold text-green-700">{{ part.part_id }}</td>
+              <td>{{ part.part_name }}</td>
+              <td>{{ part.category or '-' }}</td>
+              <td>{{ part.unit or 'Nos' }}</td>
+              <td>{{ part.description or '-' }}</td>
+              <td><span class="badge badge-active">{{ part.status or 'active' }}</span></td>
+            </tr>
+            {% else %}
+            <tr>
+              <td colspan="6" class="text-center py-8 text-gray-500">
+                No parts registered yet. Add your first part above.
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      
+      <!-- Pagination Controls -->
+      <div id="paginationControls" class="pagination-controls">
+        <div class="pagination-info" id="pageInfo">
+          Showing 0-0 of 0 parts
+        </div>
+        
+        <div class="pagination-buttons">
+          <select id="pageSize" class="page-size-select" onchange="changePageSize()">
+            <option value="5">5 per page</option>
+            <option value="10" selected>10 per page</option>
+            <option value="25">25 per page</option>
+            <option value="50">50 per page</option>
+            <option value="100">100 per page</option>
+          </select>
+          
+          <button id="prevBtn" class="page-btn" onclick="previousPage()">← Previous</button>
+          <button id="nextBtn" class="page-btn" onclick="nextPage()">Next →</button>
+        </div>
+      </div>
+      
+    </div>
+  </div>
+
+  <script>
+    // Pagination Logic
+    let currentPage = 1;
+    let rowsPerPage = 10;
+    let allRows = [];
+
+    function initPagination() {
+      const tbody = document.querySelector('.parts-table tbody');
+      allRows = Array.from(tbody.querySelectorAll('tr')).filter(row => !row.querySelector('td[colspan]'));
+      
+      if (allRows.length === 0) {
+        document.getElementById('paginationControls').style.display = 'none';
+        return;
+      }
+      
+      document.getElementById('paginationControls').style.display = 'flex';
+      renderTable();
+      updatePaginationInfo();
+    }
+
+    function renderTable() {
+      const tbody = document.querySelector('.parts-table tbody');
+      const start = (currentPage - 1) * rowsPerPage;
+      const end = start + rowsPerPage;
+      
+      // Hide all rows first
+      allRows.forEach(row => row.style.display = 'none');
+      
+      // Show only current page rows
+      const visibleRows = allRows.slice(start, end);
+      visibleRows.forEach(row => row.style.display = '');
+      
+      updatePaginationButtons();
+    }
+
+    function updatePaginationInfo() {
+      const totalPages = Math.ceil(allRows.length / rowsPerPage);
+      const start = (currentPage - 1) * rowsPerPage + 1;
+      const end = Math.min(currentPage * rowsPerPage, allRows.length);
+      
+      document.getElementById('pageInfo').textContent = 
+        `Showing ${start}-${end} of ${allRows.length} parts | Page ${currentPage} of ${totalPages}`;
+    }
+
+    function updatePaginationButtons() {
+      const totalPages = Math.ceil(allRows.length / rowsPerPage);
+      document.getElementById('prevBtn').disabled = currentPage === 1;
+      document.getElementById('nextBtn').disabled = currentPage >= totalPages;
+      updatePaginationInfo();
+    }
+
+    function previousPage() {
+      if (currentPage > 1) {
+        currentPage--;
+        renderTable();
+      }
+    }
+
+    function nextPage() {
+      const totalPages = Math.ceil(allRows.length / rowsPerPage);
+      if (currentPage < totalPages) {
+        currentPage++;
+        renderTable();
+      }
+    }
+
+    function changePageSize() {
+      rowsPerPage = parseInt(document.getElementById('pageSize').value);
+      currentPage = 1;
+      renderTable();
+    }
+
+    // Initialize on page load
+    document.addEventListener('DOMContentLoaded', function() {
+      initPagination();
+    });
+  </script>
+
+<script src="{{ url_for('static', filename='js/uppercase.js') }}"></script>
+{% include 'footer.html' %}
+</body>
+</html>

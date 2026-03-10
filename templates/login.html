@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Drive Logs - Login</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body class="from-slate-50 to-slate-100 min-h-screen flex flex-col items-center justify-center p-4">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            <div class="fixed top-4 right-4 z-50">
+                {% for category, message in messages %}
+                    <div class="bg-{{ 'green' if category == 'success' else 'red' if category == 'danger' else 'yellow' }}-100 border border-{{ 'green' if category == 'success' else 'red' if category == 'danger' else 'yellow' }}-400 text-{{ 'green' if category == 'success' else 'red' if category == 'danger' else 'yellow' }}-700 px-4 py-3 rounded mb-2" role="alert">
+                        <span class="block sm:inline">{{ message }}</span>
+                    </div>
+                {% endfor %}
+            </div>
+        {% endif %}
+    {% endwith %}
+
+    <div class="w-full max-w-6xl mx-auto flex-1 flex flex-col md:flex-row items-center justify-center gap-0 md:gap-8">
+        <!-- Left Side - Bus Image and Logo -->
+        <div class="flex flex-col items-center justify-center w-full md:w-1/2 mb-8 md:mb-0">
+            <div class="mb-6 w-full flex flex-col items-center">
+                <div class="">
+                    <img src="{{ url_for('static', filename='img/bus-logo.png') }}" alt="DRIVE LOGS Logo" class="w-[600px] md:w-[600px] h-auto block">
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Side - Login Form -->
+        <div class="w-full md:w-1/2 flex items-center justify-center">
+            <div class="bg-white rounded-[28px] shadow-2xl p-6 sm:p-8 md:p-10 w-full max-w-md border border-slate-100">
+                <!-- Welcome Header -->
+                <div class="mb-8">
+                    <p class="text-gray-600 text-base md:text-lg font-medium mb-1">HELLO !</p>
+                    <h2 class="text-2xl md:text-3xl lg:text-4xl font-bold text-gray-900 mb-6 leading-tight">WELCOME TO<br>DRIVE LOGS</h2>
+                </div>
+
+                <!-- Login Form -->
+                <form method="POST" action="{{ url_for('login') }}">
+                    <div class="mb-6">
+                        <input 
+                            type="email" 
+                            name="email" 
+                            id="email" 
+                            placeholder="Email address" 
+                            class="w-full px-5 py-3 md:px-6 md:py-4 rounded-full border border-gray-300 text-gray-700 placeholder-gray-400 focus:border-yellow-400 transition-all text-base md:text-lg"
+                            required
+                        >
+                    </div>
+                    <div class="mb-8 relative">
+                        <div class="relative">
+                            <input 
+                                type="password" 
+                                name="password"
+                                id="password" 
+                                placeholder="Password" 
+                                class="w-full px-5 py-3 md:px-6 md:py-4 pr-14 rounded-full border border-gray-300 text-gray-700 placeholder-gray-400 focus:border-yellow-400 transition-all text-base md:text-lg"
+                                required
+                            >
+                            <button 
+                                type="button" 
+                                class="password-toggle absolute right-4 md:right-5 top-1/2 transform -translate-y-1/2 text-xl md:text-2xl"
+                                onclick="togglePasswordVisibility()"
+                                id="toggleBtn"
+                                title="Toggle password visibility"
+                            >
+                                👁️
+                            </button>
+                        </div>
+                    </div>
+                    <button 
+                        type="submit" 
+                        class="login-btn w-full py-3 md:py-4 rounded-full font-bold text-lg text-gray-900 shadow-lg hover:shadow-xl active:shadow-md tracking-wide"
+                    >
+                        LOGIN
+                    </button>
+                </form>
+
+                <!-- Super Admin Link -->
+                <div class="mt-6 text-center">
+                    <a href="{{ url_for('super_admin_login') }}" class="text-gray-600 hover:text-yellow-600 text-sm font-semibold transition-colors underline">
+                        Super Admin Login
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    {% include 'footer.html' %}
+
+    <script src="{{ url_for('static', filename='js/script.js') }}"></script>
+</body>
+</html>

@@ -1,0 +1,783 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Internal Audit Report for the Month — Drive Logs</title>
+
+  <!-- Font Awesome for stars -->
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+
+  <style>
+    /* --------- Base --------- */
+    :root{
+      --yellow: #FFD400;
+      --navy: #0B3C6D;
+      --card-bg: #F2F2F2;
+      --pill-border: #0b0b0b;
+      --green: #1E9E63;
+      --overall-border: #2E7D32;
+    }
+    *{box-sizing:border-box}
+    body{font-family:Inter, system-ui, -apple-system, 'Segoe UI', Roboto, Arial; margin:0; color:#111; background:#fafafa}
+    a{color:inherit}
+
+    /* --------- Header --------- */
+    .top-strip{background:var(--yellow);padding:12px 20px}
+    .top-strip .logo{font-weight:800;color:#111;font-size:20px;letter-spacing:1px;display:flex;align-items:center;gap:12px}
+    .top-strip .logo img{height:34px;display:block}
+    .banner-wrap{max-width:1100px;margin:12px auto 0;padding:16px;background:#fff;border-radius:10px;display:flex;align-items:center;gap:16px;box-shadow:0 6px 18px rgba(2,6,23,0.06)}
+    .banner-left,.banner-right{width:96px;min-width:96px;height:96px;background:#f3f3f3;border-radius:8px;display:flex;align-items:center;justify-content:center;color:#666}
+    .banner-left img{max-height:86px;max-width:92px;object-fit:contain;display:block}
+    .banner-center{text-align:center;flex:1}
+    .banner-center h1{margin:0;color:var(--navy);font-weight:900;font-size:22px;line-height:1.05}
+    .banner-center p{margin:6px 0 0;color:var(--navy);font-size:13px}
+    .banner-wrap > img{width:100%;height:auto;border-radius:8px;display:block}
+
+    /* --------- Main card --------- */
+    .page-wrap{display:flex;justify-content:center;padding:22px}
+    .card{width:100%;max-width:1100px;background:var(--card-bg);border-radius:15px;padding:25px;box-shadow:0 8px 30px rgba(2,6,23,0.04)}
+    .title-bar{background:var(--navy);color:#fff;padding:14px 18px;border-radius:8px;display:flex;align-items:center;justify-content:space-between;gap:12px}
+    .title-bar h2{margin:0;font-size:16px;letter-spacing:0.6px}
+    .month-select{background:#fff;border-radius:20px;padding:6px 12px;border:3px solid #000;min-width:160px;text-align:center}
+
+    /* --------- Form layout --------- */
+    .form-grid{padding:18px 6px}
+    .row{display:flex;gap:12px;align-items:center;margin-bottom:14px}
+    .label{width:220px;font-weight:700}
+    .label-sep{width:8px;text-align:center}
+    .input, select{flex:1;padding:10px 14px;border-radius:24px;border:2px solid var(--pill-border);background:#fff}
+    input[type="date"]{padding:9px 12px}
+    input[type="number"]{padding:10px 14px}
+
+    /* small view adjustments */
+    @media (max-width:900px){
+      .row{flex-direction:column;align-items:flex-start}
+      .label{width:100%}
+    }
+
+    /* --------- Ratings table --------- */
+    .ratings{margin-top:6px;border-radius:10px;padding:6px}
+    .rating-row{display:flex;align-items:center;gap:12px;padding:10px 6px;border-bottom:1px solid rgba(0,0,0,0.04)}
+    .rating-row:last-child{border-bottom:none}
+    .rating-label{width:46%;font-weight:600}
+    .stars{display:flex;gap:10px;align-items:center;justify-content:space-around;width:52%}
+    .stars i{font-size:30px;color:#bfc3c8;cursor:pointer;transition:transform .12s ease,color .12s ease}
+    .stars i:hover{transform:translateY(-3px)}
+
+    /* color classes for star values */
+    .star-red{color:#FF0000}
+    .star-orange{color:#FFA500}
+    .star-yellow{color:#FFD700}
+    .star-blue{color:#1E90FF}
+    .star-green{color:#008000}
+
+    /* Ensure color classes override the default .stars i color (higher specificity) */
+    .stars i.star-red, .overall-box .big-stars i.star-red { color: #FF0000; }
+    .stars i.star-orange, .overall-box .big-stars i.star-orange { color: #FFA500; }
+    .stars i.star-yellow, .overall-box .big-stars i.star-yellow { color: #FFD700; }
+    .stars i.star-blue, .overall-box .big-stars i.star-blue { color: #1E90FF; }
+    .stars i.star-green, .overall-box .big-stars i.star-green { color: #008000; }
+
+    /* --------- overall box --------- */
+    .overall-box{margin-top:18px;border-radius:10px;padding:12px;display:flex;align-items:center;justify-content:space-between;border:3px solid var(--overall-border);background:#E8F5E9}
+    .overall-box .big-stars i{font-size:34px;margin-right:8px;cursor:pointer;transition:transform .12s ease}
+    .overall-box .big-stars i:hover{transform:translateY(-3px)}
+
+    /* --------- legend and submit --------- */
+    .bottom-row{display:flex;gap:20px;align-items:flex-start;margin-top:18px;flex-wrap:wrap}
+    .legend{background:#fff;border-radius:8px;padding:12px;border:1px solid #e6e6e6;width:220px}
+    .legend .legend-row{display:flex;align-items:center;gap:8px;margin-bottom:8px;font-weight:600}
+    .submit-wrap{flex:1;display:flex;align-items:center;justify-content:center}
+    .submit-btn{background:var(--green);color:#fff;padding:14px 34px;border-radius:30px;border:none;font-weight:800;font-size:16px;cursor:pointer;transition:background .12s ease}
+    .submit-btn:hover{background:#117a4d}
+
+    /* small screens stack */
+    @media (max-width:720px){
+      .label{width:100%}
+      .rating-label{width:100%}
+      .bottom-row{flex-direction:column;align-items:stretch}
+      .legend{width:100%}
+      .submit-wrap{order:3}
+    }
+
+    /* subtle helper */
+    .muted{color:#6b7280;font-size:13px}
+  </style>
+</head>
+<body>
+
+  <!-- Top yellow strip -->
+  <div class="top-strip">
+    <div style="max-width:1100px;margin:0 auto;display:flex;align-items:center;">
+      <div class="logo">
+        <img src="/static/img/drive-logs.png" alt="Drive Logs" />
+      </div>
+    </div>
+  </div>
+
+  <!-- College banner area (use provided header image) -->
+  <div class="banner-wrap" role="banner">
+    <!-- place your provided banner image here -->
+    <img src="/static/img/header_full.png" alt="Internal Audit Header" />
+  </div>
+
+  <!-- Main card -->
+  <div class="page-wrap">
+    <div class="card" role="main" aria-labelledby="pageTitle">
+      <div class="title-bar">
+        <h2 id="pageTitle">INTERNAL AUDIT REPORT FOR THE MONTH</h2>
+        <div style="display:flex;gap:10px;align-items:center">
+          <select id="monthSelect" class="month-select" aria-label="Select month">
+            <option>January</option><option>February</option><option>March</option>
+            <option>April</option><option>May</option><option>June</option>
+            <option>July</option><option>August</option><option>September</option>
+            <option>October</option><option>November</option><option>December</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Form -->
+      <form id="auditForm" class="form-grid" onsubmit="handleSubmit(event)">
+        <!-- Top fields -->
+        <div class="row">
+          <div class="label">Date of Audit</div><div class="label-sep">:</div>
+          <input type="date" id="auditDate" class="input" required>
+        </div>
+
+        <div class="row">
+          <div class="label">Internal Auditor 1 (Employee ID)</div><div class="label-sep">:</div>
+          <div style="flex:1;display:flex;gap:8px;align-items:center">
+            <select id="auditor1_id" class="input" required>
+              <option value="">Select</option>
+              {% if employees %}
+                {% for emp in employees %}
+                  <option value="{{ emp.employee_id }}">{{ emp.employee_id }} - {{ emp.name }}</option>
+                {% endfor %}
+              {% endif %}
+            </select>
+            <input type="text" id="auditor1_name" class="input" placeholder="Name" readonly>
+            <input type="text" id="auditor1_designation" class="input" placeholder="Designation" readonly style="max-width:240px">
+          </div>
+        </div>
+
+        <div class="row">
+          <div class="label">Internal Auditor 2 (Employee ID)</div><div class="label-sep">:</div>
+          <div style="flex:1;display:flex;gap:8px;align-items:center">
+            <select id="auditor2_id" class="input">
+              <option value="">Select</option>
+              {% if employees %}
+                {% for emp in employees %}
+                  <option value="{{ emp.employee_id }}">{{ emp.employee_id }} - {{ emp.name }}</option>
+                {% endfor %}
+              {% endif %}
+            </select>
+            <input type="text" id="auditor2_name" class="input" placeholder="Name" readonly>
+            <input type="text" id="auditor2_designation" class="input" placeholder="Designation" readonly style="max-width:240px">
+          </div>
+        </div>
+
+        <div class="row">
+          <div class="label">Internal Auditee (Employee ID)</div><div class="label-sep">:</div>
+          <div style="flex:1;display:flex;gap:8px;align-items:center">
+            <select id="auditee_id" class="input" required>
+              <option value="">Select</option>
+              {% if employees %}
+                {% for emp in employees %}
+                  <option value="{{ emp.employee_id }}">{{ emp.employee_id }} - {{ emp.name }}</option>
+                {% endfor %}
+              {% endif %}
+            </select>
+            <input type="text" id="auditee_name" class="input" placeholder="Name" readonly>
+            <input type="text" id="auditee_designation" class="input" placeholder="Designation" readonly style="max-width:240px">
+          </div>
+        </div>
+
+        <!-- Employee select dropdowns are populated server-side from `employees` passed to the template -->
+
+        <div class="row">
+          <div class="label">Vehicle ID</div><div class="label-sep">:</div>
+          <select id="vehicleId" class="input" required>
+            <option value="">Select</option>
+            {% if vehicles %}
+              {% for vehicle in vehicles %}
+                <option value="{{ vehicle.vehicle_id }}">{{ vehicle.vehicle_id }}</option>
+              {% endfor %}
+            {% else %}
+              <option value="96A">96A</option>
+              <option value="96B">96B</option>
+              <option value="96C">96C</option>
+              <option value="96D">96D</option>
+              <option value="96E">96E</option>
+            {% endif %}
+          </select>
+        </div>
+
+        <div class="row">
+          <div class="label">Registration Number</div><div class="label-sep">:</div>
+          <input type="text" id="regNo" class="input" placeholder="Auto Fetch Registration Number Using Vehicle ID" readonly>
+        </div>
+
+        <div class="row">
+          <div class="label">Km Reading</div><div class="label-sep">:</div>
+          <input type="number" id="kmReading" class="input" placeholder="Km">
+        </div>
+
+        <!-- Ratings section -->
+        <div class="ratings" id="ratingsList" aria-live="polite">
+          <!-- Header row for legend labels over stars -->
+          <div style="display:flex;align-items:center;gap:12px;padding:6px 8px">
+            <div style="width:48%"></div>
+            <div style="flex:1;display:flex;justify-content:space-around;align-items:center;font-weight:700">
+              <div style="width:48px;text-align:center;color:#FF0000">Worst</div>
+              <div style="width:48px;text-align:center;color:#FFA500">Poor</div>
+              <div style="width:48px;text-align:center;color:#FFD700">Avg</div>
+              <div style="width:48px;text-align:center;color:#1E90FF">Good</div>
+              <div style="width:48px;text-align:center;color:#008000">Excellent</div>
+            </div>
+          </div>
+
+          <!-- Rows will be injected by JS for clarity and maintainability -->
+        </div>
+
+        <!-- Overall rating -->
+        <div class="overall-box" aria-label="Overall Rating">
+              <div style="font-weight:700">Overall Rating of the Bus Condition</div>
+              <div style="display:flex;align-items:center;gap:12px">
+                <div class="big-stars" role="radiogroup" aria-label="Overall rating">
+                  <i class="fa-regular fa-star" data-value="1" role="radio" aria-checked="false" tabindex="0" title="1"></i>
+                  <i class="fa-regular fa-star" data-value="2" role="radio" aria-checked="false" tabindex="0" title="2"></i>
+                  <i class="fa-regular fa-star" data-value="3" role="radio" aria-checked="false" tabindex="0" title="3"></i>
+                  <i class="fa-regular fa-star" data-value="4" role="radio" aria-checked="false" tabindex="0" title="4"></i>
+                  <i class="fa-regular fa-star" data-value="5" role="radio" aria-checked="false" tabindex="0" title="5"></i>
+                </div>
+                <div id="overallPercent" style="font-weight:800;min-width:64px;text-align:right;color:#0b6138">100%</div>
+              </div>
+            </div>
+
+        <!-- Legend and Submit -->
+        <div class="bottom-row">
+          <div class="legend">
+            <div style="font-weight:800;margin-bottom:8px">Legend</div>
+            <div class="legend-row"><span style="color:#FF0000">Worst</span><span style="margin-left:auto;color:#FF0000">★</span></div>
+            <div class="legend-row"><span style="color:#FFA500">Poor</span><span style="margin-left:auto;color:#FFA500">★★</span></div>
+            <div class="legend-row"><span style="color:#FFD700">Average</span><span style="margin-left:auto;color:#FFD700">★★★</span></div>
+            <div class="legend-row"><span style="color:#1E90FF">Good</span><span style="margin-left:auto;color:#1E90FF">★★★★</span></div>
+            <div class="legend-row"><span style="color:#008000">Excellent</span><span style="margin-left:auto;color:#008000">★★★★★</span></div>
+          </div>
+
+          <div class="submit-wrap">
+            <button class="submit-btn" type="submit">CREATE AUDIT REPORT</button>
+          </div>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+
+  <script>
+    /************************************************************************
+     * Internal Audit Form - single-file implementation
+     * - dynamic ratings injection
+     * - star selection behavior with colors
+     * - vehicle -> registration mapping
+     * - gather & validate data on submit
+     ************************************************************************/
+
+    // Rating category labels (exact provided)
+    const ratingLabels = [
+      'Engine Oil Level In Gauge',
+      'Radiator Coolent oil Level',
+      'Gear Oil Condition',
+      'Front w/s Glass Cleanliness',
+      'Rear w/s Glass Cleanliness',
+      'Side Glass Cleanliness',
+      'All Over External Body Cleanliness',
+      'Internal Body Cleanliness',
+      'Internal Platform Brooming Cleanliness',
+      'Internal Seat Wiping Cleanliness',
+      'Internal Dashboard Cleanliness',
+      'Foot Board Condition',
+      'Door Condition',
+      'Bus Brake Condition',
+      'Bus Clutch Condition',
+      'Bus Running Noise Condition'
+    ];
+
+    // Vehicles data injected from server (if available)
+    const vehiclesData = {{ vehicles|tojson|safe if vehicles else '[]' }};
+    // Employees injected from server for client-side selects & search
+    const employeesData = {{ employees|tojson|safe if employees else '[]' }};
+    // Keep a full copy for filtering
+    const fullEmployees = Array.isArray(employeesData) ? employeesData.slice() : [];
+    // build a quick lookup map vehicle_id -> registration number (tries common property names)
+    const vehicleMap = {};
+    if(Array.isArray(vehiclesData)){
+      vehiclesData.forEach(v => {
+        const reg = v.registration_no || v.vehicle_no || v.reg_no || v.registration || v.reg || '';
+        if(v.vehicle_id) vehicleMap[v.vehicle_id] = (reg || '').toString();
+      });
+    }
+
+    // Color class chooser based on rating (1..5)
+    function starColorClass(value){
+      switch(value){
+        case 1: return 'star-red';
+        case 2: return 'star-orange';
+        case 3: return 'star-yellow';
+        case 4: return 'star-blue';
+        case 5: return 'star-green';
+        default: return '';
+      }
+    }
+
+    // Create rating rows in the DOM
+    const ratingsList = document.getElementById('ratingsList');
+
+    function createRatingRow(idx, label){
+      const row = document.createElement('div');
+      row.className = 'rating-row';
+      row.dataset.index = idx;
+
+      const left = document.createElement('div');
+      left.className = 'rating-label';
+      left.textContent = label;
+
+      const right = document.createElement('div');
+      right.className = 'stars';
+      right.setAttribute('role','radiogroup');
+      right.setAttribute('aria-label', label);
+
+      // create 5 stars
+      for(let s=1; s<=5; s++){
+        const i = document.createElement('i');
+        i.className = 'fa-regular fa-star'; // start as outline
+        i.dataset.value = s;
+        i.setAttribute('role','radio');
+        i.setAttribute('aria-checked','false');
+        i.style.width = '48px';
+        i.style.textAlign = 'center';
+        i.addEventListener('click', () => setRowRating(idx, s));
+        i.addEventListener('mouseover', () => previewRow(idx, s));
+        i.addEventListener('mouseout', () => refreshRowDisplay(idx));
+        right.appendChild(i);
+      }
+
+      row.appendChild(left);
+      row.appendChild(right);
+
+      // attach initial rating value (0)
+      row._rating = 0;
+      return row;
+    }
+
+    // Build all rows
+    ratingLabels.forEach((label, idx) => {
+      const r = createRatingRow(idx, label);
+      ratingsList.appendChild(r);
+    });
+
+    // Helpers: set rating for a row
+    function setRowRating(idx, value){
+      const row = ratingsList.querySelector(`.rating-row[data-index="${idx}"]`);
+      if(!row) return;
+      row._rating = value;
+      // update aria
+      const stars = row.querySelectorAll('i');
+      stars.forEach((el) => el.setAttribute('aria-checked', el.dataset.value <= value ? 'true' : 'false'));
+      refreshRowDisplay(idx);
+      // recalculate overall automatically when any row rating changes
+      refreshOverall();
+    }
+
+    // Draw or recolor stars according to rating or hover preview
+    function refreshRowDisplay(idx){
+      const row = ratingsList.querySelector(`.rating-row[data-index="${idx}"]`);
+      if(!row) return;
+      const val = row._rating || 0;
+      const stars = row.querySelectorAll('i');
+      stars.forEach((el) => {
+        const v = Number(el.dataset.value);
+        el.className = v <= val ? 'fa-solid fa-star' : 'fa-regular fa-star';
+        // remove color classes then add based on selected value
+        el.classList.remove('star-red','star-orange','star-yellow','star-blue','star-green');
+        if(v <= val && val > 0){
+          // color all filled stars using the selected value's color
+          el.classList.add(starColorClass(val));
+        }
+      });
+    }
+
+    // Preview on hover (temporary)
+    function previewRow(idx, hoverValue){
+      const row = ratingsList.querySelector(`.rating-row[data-index="${idx}"]`);
+      if(!row) return;
+      const stars = row.querySelectorAll('i');
+      stars.forEach((el) => {
+        const v = Number(el.dataset.value);
+        el.className = v <= hoverValue ? 'fa-solid fa-star' : 'fa-regular fa-star';
+        el.classList.remove('star-red','star-orange','star-yellow','star-blue','star-green');
+        if(v <= hoverValue){
+          // use the hovered value's color for preview
+          el.classList.add(starColorClass(hoverValue));
+        }
+      });
+    }
+
+    // Overall rating handling (bigger stars)
+    const overallStars = document.querySelectorAll('.overall-box .fa-star');
+    const overallPercentEl = document.getElementById('overallPercent');
+    // compute overall and percent — percent uses all rows as denominator (unrated count as 0)
+    // overall: rounded average across all rows (but if no rows rated, default to 5)
+    let overallValue = 5; // numeric overall used for submission
+    function computeOverallFromRows(){
+      const rows = ratingsList.querySelectorAll('.rating-row');
+      const total = rows.length || 1;
+      let sum = 0, countRated = 0;
+      rows.forEach(row => {
+        const v = Number(row._rating || 0);
+        if(v > 0) countRated++;
+        sum += v; // include zeros
+      });
+      if(countRated === 0) return { overall: 5, percent: 100 };
+      // average per row (including zeros)
+      const avgAll = sum / total;
+      const overall = Math.min(5, Math.max(1, Math.round(avgAll)));
+      const percent = Math.round((sum / (total * 5)) * 100);
+      return { overall, percent };
+    }
+    function refreshOverall(){
+      const { overall: newOverall, percent } = computeOverallFromRows();
+      overallValue = newOverall;
+      overallStars.forEach(el => {
+        const v = Number(el.dataset.value);
+        el.className = v <= newOverall ? 'fa-solid fa-star' : 'fa-regular fa-star';
+        el.classList.remove('star-red','star-orange','star-yellow','star-blue','star-green');
+        if(v <= newOverall){
+          el.classList.add(starColorClass(newOverall));
+        }
+      });
+      if(overallPercentEl) overallPercentEl.textContent = (typeof percent === 'number') ? `${percent}%` : '';
+    }
+    // overall stars are updated automatically from row ratings; keep hover preview only
+    overallStars.forEach(st => {
+      st.addEventListener('mouseover', () => {
+        const hoverVal = Number(st.dataset.value);
+        overallStars.forEach(el => {
+          const v = Number(el.dataset.value);
+          el.className = v <= hoverVal ? 'fa-solid fa-star' : 'fa-regular fa-star';
+          el.classList.remove('star-red','star-orange','star-yellow','star-blue','star-green');
+          if(v <= hoverVal) el.classList.add(starColorClass(hoverVal));
+        });
+        // show hovered percentage preview — base percent on all rows (unrated count as 0)
+        const rows = ratingsList.querySelectorAll('.rating-row');
+        const total = rows.length || 1;
+        let sum = 0;
+        rows.forEach(row => { const v = Number(row._rating || 0); sum += v; });
+        // preview as if hovered value was applied as overall (simple preview): compute percent using hoverVal replacing current overall
+        const percentPreview = Math.round(((sum) / (total * 5)) * 100);
+        // but also show the hovered-star percent (hoverVal interpreted as full-star value) to give immediate feedback
+        const hoverPercent = Math.round((hoverVal / 5) * 100);
+        if(overallPercentEl) overallPercentEl.textContent = `${percentPreview}%`;
+      });
+      st.addEventListener('mouseout', refreshOverall);
+    });
+    // initial overall display
+    refreshOverall();
+
+    // Vehicle -> registration number autofill
+    const vehicleSelect = document.getElementById('vehicleId');
+    const regNoInput = document.getElementById('regNo');
+    if(vehicleSelect){
+      vehicleSelect.addEventListener('change', () => {
+        const v = vehicleSelect.value;
+        // ensure registration shows uppercase and a clean fallback
+        regNoInput.value = (vehicleMap[v] || '').toUpperCase();
+      });
+    }
+
+    // Auto-select month and default audit date
+    const monthSelect = document.getElementById('monthSelect');
+    if(monthSelect){
+      // Auto-select the current month (January index 0)
+      monthSelect.selectedIndex = new Date().getMonth();
+    }
+    // Employee search: filter options in the three select boxes
+    const employeeSearch = document.getElementById('employeeSearch');
+    const employeeSelectIds = ['auditor1_id','auditor2_id','auditee_id'];
+
+    function populateEmployeeSelects(filter){
+      const q = (filter || '').toString().trim().toLowerCase();
+      employeeSelectIds.forEach(id => {
+        const sel = document.getElementById(id);
+        if(!sel) return;
+        // remember current value
+        const cur = sel.value;
+        // remove all options
+        while(sel.options.length > 0) sel.remove(0);
+        // add default option
+        const defaultOpt = document.createElement('option');
+        defaultOpt.value = '';
+        defaultOpt.text = 'Select';
+        sel.appendChild(defaultOpt);
+
+        fullEmployees.forEach(emp => {
+          const text = ((emp.employee_id || '') + ' - ' + (emp.name || '')).trim();
+          if(!q || text.toLowerCase().indexOf(q) !== -1){
+            const o = document.createElement('option');
+            o.value = emp.employee_id || '';
+            o.text = text;
+            sel.appendChild(o);
+          }
+        });
+
+        // try to restore previous selection if still present
+        try{ sel.value = cur; }catch(e){}
+      });
+    }
+
+    // initial population (clientside will replace server-rendered options)
+    populateEmployeeSelects('');
+
+    // debounce helper
+    let _empSearchTimer = null;
+    if(employeeSearch){
+      employeeSearch.addEventListener('input', function(){
+        clearTimeout(_empSearchTimer);
+        const v = this.value;
+        _empSearchTimer = setTimeout(()=> populateEmployeeSelects(v), 180);
+      });
+    }
+    const auditDateInput = document.getElementById('auditDate');
+    if(auditDateInput && !auditDateInput.value){
+      auditDateInput.value = new Date().toISOString().slice(0,10);
+    }
+
+    // Employee lookup autofill
+    async function fetchEmployeeById(empId){
+      if(!empId || String(empId).trim() === '') return null;
+      try{
+        const url = `/api/employee/${encodeURIComponent(empId.trim())}`;
+        const resp = await fetch(url, { credentials: 'same-origin' });
+        if(!resp.ok){
+          console.error('Employee lookup failed:', url, 'status', resp.status);
+          try{ const txt = await resp.text(); console.error('Employee lookup response body:', txt); }catch(e){}
+          return null;
+        }
+        const j = await resp.json();
+        if(!j || !j.success){
+          console.error('Employee lookup returned unexpected payload', j, 'for', url);
+          return null;
+        }
+        return j.employee || null;
+      }catch(e){
+        console.error('Employee lookup failed', e);
+        return null;
+      }
+    }
+
+    // Fetch employee list for datalist and populate options
+    async function fetchEmployeesList(){
+      try{
+        const resp = await fetch('/api/employees', { credentials: 'same-origin' });
+        if(!resp.ok){
+          console.error('Failed to fetch employees list, status:', resp.status);
+          try{ const txt = await resp.text(); console.error('Response body:', txt); }catch(e){}
+          return [];
+        }
+        const j = await resp.json();
+        if(!j || !j.success){
+          console.error('Employees API returned unexpected payload', j);
+          return [];
+        }
+        return j.employees || [];
+      }catch(e){
+        console.error('Failed to fetch employees list', e);
+        return [];
+      }
+    }
+
+    // wire up auditor/auditee ID fields
+    async function bindEmployeeField(idFieldId, nameFieldId, desigFieldId){
+      const idEl = document.getElementById(idFieldId);
+      const nameEl = document.getElementById(nameFieldId);
+      const desigEl = document.getElementById(desigFieldId);
+      if(!idEl) return;
+      // handler used for both input and change events (covers selects and inputs)
+      const handleValue = async () => {
+        let empId = idEl.value;
+        if(!empId || empId.trim() === ''){
+          if(nameEl) nameEl.value = '';
+          if(desigEl) desigEl.value = '';
+          return;
+        }
+        // If value includes a name like "EMPID - Name", extract EMPID
+        try{
+          if(empId.indexOf(' - ') !== -1) empId = empId.split(' - ')[0].trim();
+          else if(empId.indexOf('|') !== -1) empId = empId.split('|')[0].trim();
+        }catch(ex){/* ignore */}
+        if(!empId || empId.trim() === ''){
+          if(nameEl) nameEl.value = '';
+          if(desigEl) desigEl.value = '';
+          return;
+        }
+        const emp = await fetchEmployeeById(empId);
+        if(emp){
+          if(nameEl) nameEl.value = (emp.name || emp.full_name || emp.employee_name || ((emp.first_name || '') + (emp.last_name ? (' ' + emp.last_name) : '')) || '').toString();
+          // Check multiple possible keys for designation / post
+          if(desigEl) desigEl.value = (
+            emp.designation || emp.role || emp.job_title || emp.title || emp.position || emp.post || emp.profile_post || emp.profile_post_other || emp['profile_for_the_post_of'] || emp['profile for the post of'] || emp.designation_name || ''
+          ).toString();
+        } else {
+          if(nameEl) nameEl.value = '';
+          if(desigEl) desigEl.value = '';
+        }
+      };
+
+      idEl.addEventListener('input', handleValue);
+      idEl.addEventListener('change', handleValue);
+    }
+
+    // Bind auditor1, auditor2, auditee
+    bindEmployeeField('auditor1_id','auditor1_name','auditor1_designation');
+    bindEmployeeField('auditor2_id','auditor2_name','auditor2_designation');
+    bindEmployeeField('auditee_id','auditee_name','auditee_designation');
+
+    // If any ID field is pre-filled (server-side rendering), fetch and populate immediately
+    (async function prefillEmployeeIds(){
+      const mappings = [
+        ['auditor1_id','auditor1_name','auditor1_designation'],
+        ['auditor2_id','auditor2_name','auditor2_designation'],
+        ['auditee_id','auditee_name','auditee_designation']
+      ];
+      for(const [idField,nameField,desigField] of mappings){
+        try{
+          const el = document.getElementById(idField);
+          if(el && el.value && el.value.trim() !== ''){
+            const emp = await fetchEmployeeById(el.value.trim());
+            if(emp){
+              const nameEl = document.getElementById(nameField);
+              const desigEl = document.getElementById(desigField);
+              if(nameEl) nameEl.value = (emp.name || emp.full_name || emp.employee_name || ((emp.first_name || '') + (emp.last_name ? (' ' + emp.last_name) : '')) || '').toString();
+              if(desigEl) desigEl.value = (
+                emp.designation || emp.role || emp.job_title || emp.title || emp.position || emp.post || emp.profile_post || emp.profile_post_other || emp['profile_for_the_post_of'] || emp['profile for the post of'] || emp.designation_name || ''
+              ).toString();
+            }
+          }
+        }catch(e){ /* ignore per-field errors */ }
+      }
+      // Populate employees datalist for quick search
+      try{
+        const list = document.getElementById('employeesDatalist');
+        if(list){
+          const rows = await fetchEmployeesList();
+          rows.forEach(r => {
+            const opt = document.createElement('option');
+            opt.value = `${r.employee_id} - ${r.name || ''}`;
+            list.appendChild(opt);
+          });
+        }
+      }catch(e){ /* ignore */ }
+    })();
+
+    // Submit handling: collect data, validate, show JSON
+    async function handleSubmit(e){
+      e.preventDefault();
+      // ensure overall is recalculated from current rows
+      refreshOverall();
+      const date = document.getElementById('auditDate').value;
+      const auditor1 = (document.getElementById('auditor1_id') && document.getElementById('auditor1_id').value) ? document.getElementById('auditor1_id').value.trim() : '';
+      const auditor2 = (document.getElementById('auditor2_id') && document.getElementById('auditor2_id').value) ? document.getElementById('auditor2_id').value.trim() : '';
+      const auditee = (document.getElementById('auditee_id') && document.getElementById('auditee_id').value) ? document.getElementById('auditee_id').value.trim() : '';
+      const vehicle = document.getElementById('vehicleId').value;
+      if(!date || !auditor1 || !auditee || !vehicle){
+        return alert('Please fill required fields: Date, Internal Auditor 1, Internal Auditee, Vehicle ID.');
+      }
+
+      // collect ratings (ensure numeric values)
+      const rows = ratingsList.querySelectorAll('.rating-row');
+      const ratings = [];
+      rows.forEach((row, idx) => {
+        ratings.push({
+          label: ratingLabels[idx],
+          value: Number(row._rating || 0)
+        });
+      });
+
+      // compute overall percent from rows so payload includes it
+      const { percent: overall_percent } = computeOverallFromRows();
+
+      const payload = {
+        audit_date: date,
+        month: document.getElementById('monthSelect').value,
+        auditor_1: auditor1,
+        auditor_1_name: (document.getElementById('auditor1_name') && document.getElementById('auditor1_name').value) ? document.getElementById('auditor1_name').value.trim() : '',
+        auditor_1_designation: (document.getElementById('auditor1_designation') && document.getElementById('auditor1_designation').value) ? document.getElementById('auditor1_designation').value.trim() : '',
+        auditor_2: auditor2,
+        auditor_2_name: (document.getElementById('auditor2_name') && document.getElementById('auditor2_name').value) ? document.getElementById('auditor2_name').value.trim() : '',
+        auditor_2_designation: (document.getElementById('auditor2_designation') && document.getElementById('auditor2_designation').value) ? document.getElementById('auditor2_designation').value.trim() : '',
+        auditee: auditee,
+        auditee_name: (document.getElementById('auditee_name') && document.getElementById('auditee_name').value) ? document.getElementById('auditee_name').value.trim() : '',
+        auditee_designation: (document.getElementById('auditee_designation') && document.getElementById('auditee_designation').value) ? document.getElementById('auditee_designation').value.trim() : '',
+        vehicle_id: vehicle,
+        registration_no: regNoInput.value || '',
+        km_reading: document.getElementById('kmReading').value || '',
+        ratings: ratings,
+        overall_rating: Number(overallValue || 0),
+        overall_percent: Number(overall_percent || 0),
+        created_at: new Date().toISOString()
+      };
+
+      // show result in console (do not reload before saving)
+      try{
+        console.log('Audit report payload:', JSON.stringify(payload, null, 2));
+      }catch(e){ console.log('Audit payload', payload); }
+
+      // Send payload to server endpoint to persist
+      try{
+        const saveBtn = document.querySelector('.submit-btn');
+        if(saveBtn) saveBtn.disabled = true;
+        const resp = await fetch('/api/internal_audit', {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        let j = null;
+        try{ j = await resp.json(); }catch(e){ /* ignore parse errors */ }
+        if(resp.ok && j && j.success){
+          // server accepted / inserted or saved locally as fallback
+          const info = j.message || j.saved_path || 'Saved';
+          console.log('Save response:', j);
+          alert('Audit saved: ' + info);
+          // hard refresh now that save succeeded
+          window.location.reload();
+        } else {
+          console.error('Failed saving audit', resp.status, j);
+          const errMsg = (j && (j.message || j.insert_error || j.file_error)) ? (j.message || j.insert_error || j.file_error) : ('HTTP ' + resp.status);
+          alert('Failed to save audit: ' + errMsg + '\nSee console for details.');
+        }
+      }catch(err){
+        console.error('Save request failed', err);
+        alert('Save request failed — see console.');
+      }finally{
+        const saveBtn = document.querySelector('.submit-btn');
+        if(saveBtn) saveBtn.disabled = false;
+      }
+
+      // optionally: reset or further actions
+    }
+
+    // Accessibility: keyboard support for stars (left/right)
+    document.addEventListener('keydown', (ev) => {
+      // Example: arrow keys for overall stars
+      if(document.activeElement && document.activeElement.classList.contains('fa-star')) return;
+    });
+
+    // Ensure any default visuals are correct (no JS-rated rows)
+    // (we already set defaults)
+  </script>
+{% include 'footer.html' %}
+</body>
+</html>

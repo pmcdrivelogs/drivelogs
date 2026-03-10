@@ -1,0 +1,1009 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Analytics Dashboard - Drive Logs</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <style>
+    * { font-family: 'Inter', sans-serif; }
+    
+    body {
+      background: #fffbeb;
+    }
+    
+    .dashboard-card {
+      background: white;
+      border-radius: 16px;
+      padding: 24px;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+      border: 1px solid #e5e7eb;
+    }
+    
+    .stat-box {
+      background: #eab308;
+      color: white;
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: 0 4px 15px rgba(234, 179, 8, 0.3);
+    }
+    
+    .stat-box h3 {
+      font-size: 0.875rem;
+      opacity: 0.9;
+      margin-bottom: 8px;
+    }
+    
+    .stat-box .value {
+      font-size: 2rem;
+      font-weight: 800;
+    }
+    
+    .stat-box .change {
+      font-size: 0.75rem;
+      margin-top: 8px;
+      opacity: 0.8;
+    }
+    
+    .filter-tabs {
+      display: flex;
+      gap: 8px;
+      background: #f3f4f6;
+      padding: 4px;
+      border-radius: 10px;
+      margin-bottom: 20px;
+    }
+    
+    .filter-tab {
+      padding: 10px 20px;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      font-weight: 600;
+      font-size: 0.875rem;
+    }
+    
+    .filter-tab.active {
+      background: #eab308;
+      color: white;
+      box-shadow: 0 4px 10px rgba(234, 179, 8, 0.3);
+    }
+    
+    .filter-tab:not(.active) {
+      color: #6b7280;
+    }
+    
+    .filter-tab:not(.active):hover {
+      background: #e5e7eb;
+    }
+    
+    .chart-container {
+      position: relative;
+      height: 300px;
+      margin-top: 20px;
+    }
+    
+    .export-btn {
+      background: #10b981;
+      color: white;
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-weight: 600;
+      border: none;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.3s ease;
+      box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+    }
+    
+    .export-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(16, 185, 129, 0.4);
+    }
+    
+    .date-range-picker {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      background: white;
+      padding: 12px;
+      border-radius: 8px;
+      border: 1px solid #e5e7eb;
+    }
+    
+    .date-input {
+      padding: 8px 12px;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      font-size: 0.875rem;
+    }
+    
+    .section-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+    
+    .section-title {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: #1f2937;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col pt-20">
+  
+  <!-- Logo Bar -->
+  <div class="logo-bar w-full flex items-center justify-between px-4 py-3 fixed top-0 left-0 z-50" style="background: #eab308;">
+    <img src="{{ url_for('static', filename='img/drive-logs.png') }}" alt="Drive Logs Logo" class="h-12 md:h-14 w-auto ml-2">
+    <div class="flex items-center gap-4">
+      <a href="{{ url_for('admin_dashboard') }}" class="bg-white text-yellow-700 px-4 py-2 rounded-full text-sm font-semibold hover:bg-gray-100 transition-colors">
+        ← Dashboard
+      </a>
+      <a href="{{ url_for('logout') }}" class="bg-white text-yellow-700 px-4 py-2 rounded-full text-sm font-semibold hover:bg-gray-100 transition-colors">
+        Logout
+      </a>
+    </div>
+  </div>
+
+  <!-- College Header -->
+  <div class="w-full flex justify-center items-center border-b border-gray-300 bg-white">
+    <img src="{{ url_for('static', filename='img/pmc-logo.png') }}" alt="College Header" class="w-full max-w-5xl h-auto p-2 md:p-4">
+  </div>
+
+  <!-- Main Content -->
+  <div class="flex-1 py-8 px-4">
+    <div class="max-w-7xl mx-auto">
+      
+      <!-- Header -->
+      <div class="mb-8">
+        <h1 class="text-3xl font-bold text-gray-800 mb-2">📊 Analytics Dashboard</h1>
+        <p class="text-gray-600">Comprehensive insights and reports for fuel, trips, and statutory compliance</p>
+      </div>
+
+      <!-- Period Filter & Export -->
+      <div class="dashboard-card mb-6">
+        <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+          <div class="filter-tabs">
+            <div class="filter-tab active" onclick="changePeriod('daily')" id="tab-daily">Daily</div>
+            <div class="filter-tab" onclick="changePeriod('weekly')" id="tab-weekly">Weekly</div>
+            <div class="filter-tab" onclick="changePeriod('monthly')" id="tab-monthly">Monthly</div>
+            <div class="filter-tab" onclick="changePeriod('custom')" id="tab-custom">Custom</div>
+          </div>
+          
+          <div class="flex gap-3 items-center">
+            <div class="date-range-picker" id="customDateRange" style="display: none;">
+              <label class="text-sm font-medium text-gray-700">From:</label>
+              <input type="date" id="startDate" class="date-input">
+              <label class="text-sm font-medium text-gray-700">To:</label>
+              <input type="date" id="endDate" class="date-input">
+              <button onclick="applyCustomDate()" class="bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-semibold">Apply</button>
+            </div>
+            <button onclick="generatePDFReport()" class="export-btn">
+              <svg width="18" height="18" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M19 12v7H5v-7H3v7c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2v-7h-2zm-6 .67l2.59-2.58L17 11.5l-5 5-5-5 1.41-1.41L11 12.67V3h2z"/>
+              </svg>
+              Generate PDF Report
+            </button>
+          </div>
+        </div>
+        
+        <div class="mt-4 text-sm text-gray-600">
+          <span class="font-semibold">Current Period:</span> <span id="currentPeriodDisplay">Today</span>
+        </div>
+      </div>
+
+      <!-- Key Metrics -->
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        <div class="stat-box">
+          <h3>Total Trips</h3>
+          <div class="value" id="totalTrips">{{ total_trips|default(0) }}</div>
+          <div class="change">📈 <span id="tripChange">+0%</span> from previous period</div>
+        </div>
+        
+        <div class="stat-box" style="background: #f59e0b;">
+          <h3>Fuel Consumed</h3>
+          <div class="value" id="totalFuel">{{ total_fuel|default(0) }}L</div>
+          <div class="change">⛽ <span id="fuelChange">+0%</span> from previous period</div>
+        </div>
+        
+        <div class="stat-box" style="background: #10b981;">
+          <h3>Total Distance</h3>
+          <div class="value" id="totalDistance">{{ total_distance|default(0) }} KM</div>
+          <div class="change">🚗 <span id="distanceChange">+0%</span> from previous period</div>
+        </div>
+        
+        <div class="stat-box" style="background: #3b82f6;">
+          <h3>Fuel Expenditure</h3>
+          <div class="value" id="totalExpenditure">₹{{ total_expenditure|default(0) }}</div>
+          <div class="change">💰 <span id="expChange">+0%</span> from previous period</div>
+        </div>
+      </div>
+
+      <!-- Stock Management Metrics -->
+      <div class="mb-8">
+        <h2 class="text-2xl font-bold text-gray-800 mb-4">📦 Stock Management</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div class="stat-box" style="background: #8b5cf6;">
+            <h3>Purchases</h3>
+            <div class="value" id="totalPurchases">{{ total_purchases|default(0) }}</div>
+            <div class="change">💼 Value: ₹<span id="purchaseValue">{{ total_purchase_value|default(0) }}</span></div>
+          </div>
+          
+          <div class="stat-box" style="background: #ec4899;">
+            <h3>Issues</h3>
+            <div class="value" id="totalIssues">{{ total_issues|default(0) }}</div>
+            <div class="change">📤 Stock issued to vehicles</div>
+          </div>
+          
+          <div class="stat-box" style="background: #14b8a6;">
+            <h3>Utilization</h3>
+            <div class="value" id="totalUtilization">{{ total_utilization|default(0) }}</div>
+            <div class="change">🔧 Material utilized</div>
+          </div>
+          
+          <div class="stat-box" style="background: #64748b;">
+            <h3>Scrap</h3>
+            <div class="value" id="totalScrap">{{ total_scrap|default(0) }}</div>
+            <div class="change">♻️ Scraped materials</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Charts Row 1 -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+        <!-- Fuel Consumption Trend -->
+        <div class="dashboard-card">
+          <div class="section-header">
+            <h2 class="section-title">Fuel Consumption Trend</h2>
+          </div>
+          <div class="chart-container">
+            <canvas id="fuelChart"></canvas>
+          </div>
+        </div>
+
+        <!-- Trip Statistics -->
+        <div class="dashboard-card">
+          <div class="section-header">
+            <h2 class="section-title">Trip Statistics</h2>
+          </div>
+          <div class="chart-container">
+            <canvas id="tripChart"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- Charts Row 2 -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+        <!-- Vehicle Utilization -->
+        <div class="dashboard-card">
+          <div class="section-header">
+            <h2 class="section-title">Vehicle Utilization</h2>
+          </div>
+          <div class="chart-container">
+            <canvas id="vehicleChart"></canvas>
+          </div>
+        </div>
+
+        <!-- Stock Management Flow -->
+        <div class="dashboard-card">
+          <div class="section-header">
+            <h2 class="section-title">Stock Management Flow</h2>
+          </div>
+          <div class="chart-container">
+            <canvas id="stockChart"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- Charts Row 3 -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+        <!-- Expenditure Breakdown -->
+        <div class="dashboard-card">
+          <div class="section-header">
+            <h2 class="section-title">Expenditure Breakdown</h2>
+          </div>
+          <div class="chart-container">
+            <canvas id="expenditureChart"></canvas>
+          </div>
+        </div>
+
+        <!-- Top Performers Placeholder -->
+        <div class="dashboard-card">
+          <div class="section-header">
+            <h2 class="section-title">Quick Stats</h2>
+          </div>
+          <div class="grid grid-cols-2 gap-4 mt-4">
+            <div class="bg-purple-50 p-4 rounded-lg border border-purple-200">
+              <p class="text-sm text-purple-600 font-semibold">Active Vehicles</p>
+              <p class="text-2xl font-bold text-purple-800" id="activeVehicles">-</p>
+            </div>
+            <div class="bg-pink-50 p-4 rounded-lg border border-pink-200">
+              <p class="text-sm text-pink-600 font-semibold">Avg Fuel/Trip</p>
+              <p class="text-2xl font-bold text-pink-800" id="avgFuelPerTrip">-</p>
+            </div>
+            <div class="bg-teal-50 p-4 rounded-lg border border-teal-200">
+              <p class="text-sm text-teal-600 font-semibold">Stock Turnover</p>
+              <p class="text-2xl font-bold text-teal-800" id="stockTurnover">-</p>
+            </div>
+            <div class="bg-slate-50 p-4 rounded-lg border border-slate-200">
+              <p class="text-sm text-slate-600 font-semibold">Scrap Rate</p>
+              <p class="text-2xl font-bold text-slate-800" id="scrapRate">-</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Top Performers Table -->
+      <div class="dashboard-card mb-6">
+        <div class="section-header">
+          <h2 class="section-title">Top Performing Vehicles</h2>
+        </div>
+        <div style="overflow-x: auto;">
+          <table class="w-full">
+            <thead class="bg-gray-50">
+              <tr>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Vehicle ID</th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Total Trips</th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Distance (KM)</th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Fuel Used (L)</th>
+                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Efficiency</th>
+              </tr>
+            </thead>
+            <tbody id="topVehiclesTable">
+              {% for vehicle in top_vehicles %}
+              <tr class="border-t hover:bg-gray-50">
+                <td class="px-4 py-3 font-medium">{{ vehicle.vehicle_id }}</td>
+                <td class="px-4 py-3">{{ vehicle.trips }}</td>
+                <td class="px-4 py-3">{{ vehicle.distance }}</td>
+                <td class="px-4 py-3">{{ vehicle.fuel }}</td>
+                <td class="px-4 py-3">{{ vehicle.efficiency }} km/L</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Statutory Compliance -->
+      <div class="dashboard-card">
+        <div class="section-header">
+          <h2 class="section-title">Statutory Compliance Status</h2>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+          <div class="p-4 bg-green-50 border border-green-200 rounded-lg">
+            <div class="text-green-600 font-semibold text-sm mb-1">Up to Date</div>
+            <div class="text-2xl font-bold text-green-700" id="compliantCount">{{ compliant_count|default(0) }}</div>
+            <div class="text-xs text-green-600 mt-1">Vehicles</div>
+          </div>
+          <div class="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+            <div class="text-yellow-600 font-semibold text-sm mb-1">Due Soon</div>
+            <div class="text-2xl font-bold text-yellow-700" id="dueSoonCount">{{ due_soon_count|default(0) }}</div>
+            <div class="text-xs text-yellow-600 mt-1">Within 30 days</div>
+          </div>
+          <div class="p-4 bg-red-50 border border-red-200 rounded-lg">
+            <div class="text-red-600 font-semibold text-sm mb-1">Overdue</div>
+            <div class="text-2xl font-bold text-red-700" id="overdueCount">{{ overdue_count|default(0) }}</div>
+            <div class="text-xs text-red-600 mt-1">Requires attention</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+    let currentPeriod = 'daily';
+    let fuelChart, tripChart, vehicleChart, expenditureChart, stockChart;
+    
+    // Sample data - will be replaced with actual data from backend
+    const dashboardData = {
+      daily: {{ daily_data|tojson|safe }},
+      weekly: {{ weekly_data|tojson|safe }},
+      monthly: {{ monthly_data|tojson|safe }}
+    };
+
+    function changePeriod(period) {
+      currentPeriod = period;
+      
+      // Update active tab
+      document.querySelectorAll('.filter-tab').forEach(tab => tab.classList.remove('active'));
+      document.getElementById('tab-' + period).classList.add('active');
+      
+      // Show/hide custom date range
+      if (period === 'custom') {
+        document.getElementById('customDateRange').style.display = 'flex';
+      } else {
+        document.getElementById('customDateRange').style.display = 'none';
+        updateDashboard(period);
+      }
+    }
+
+    function applyCustomDate() {
+      const startDate = document.getElementById('startDate').value;
+      const endDate = document.getElementById('endDate').value;
+      
+      if (startDate && endDate) {
+        // Fetch data for custom range
+        fetchCustomData(startDate, endDate);
+      }
+    }
+
+    function updateDashboard(period) {
+      const data = dashboardData[period];
+      
+      // Update period display
+      let displayText = '';
+      if (period === 'daily') displayText = 'Today';
+      else if (period === 'weekly') displayText = 'This Week';
+      else if (period === 'monthly') displayText = 'This Month';
+      document.getElementById('currentPeriodDisplay').textContent = displayText;
+      
+      // Update metrics
+      document.getElementById('totalTrips').textContent = data.total_trips || 0;
+      document.getElementById('totalFuel').textContent = (data.total_fuel || 0) + 'L';
+      document.getElementById('totalDistance').textContent = (data.total_distance || 0) + ' KM';
+      document.getElementById('totalExpenditure').textContent = '₹' + (data.total_expenditure || 0);
+      
+      // Update stock management metrics
+      document.getElementById('totalPurchases').textContent = data.total_purchases || 0;
+      document.getElementById('purchaseValue').textContent = (data.total_purchase_value || 0).toFixed(2);
+      document.getElementById('totalIssues').textContent = data.total_issues || 0;
+      document.getElementById('totalUtilization').textContent = data.total_utilization || 0;
+      document.getElementById('totalScrap').textContent = data.total_scrap || 0;
+      
+      // Update quick stats
+      const totalStock = (data.total_purchases || 0) + (data.total_issues || 0) + (data.total_utilization || 0);
+      document.getElementById('activeVehicles').textContent = data.vehicle_labels ? data.vehicle_labels.length : 0;
+      document.getElementById('avgFuelPerTrip').textContent = data.total_trips > 0 ? 
+        ((data.total_fuel || 0) / data.total_trips).toFixed(2) + 'L' : '0L';
+      document.getElementById('stockTurnover').textContent = totalStock > 0 ? 
+        Math.round(((data.total_issues || 0) / totalStock) * 100) + '%' : '0%';
+      document.getElementById('scrapRate').textContent = totalStock > 0 ? 
+        Math.round(((data.total_scrap || 0) / totalStock) * 100) + '%' : '0%';
+      
+      // Update charts
+      updateCharts(data);
+    }
+
+    function updateCharts(data) {
+      // Fuel Consumption Chart
+      if (fuelChart) fuelChart.destroy();
+      const fuelCtx = document.getElementById('fuelChart').getContext('2d');
+      fuelChart = new Chart(fuelCtx, {
+        type: 'line',
+        data: {
+          labels: data.fuel_labels || [],
+          datasets: [{
+            label: 'Fuel Consumed (L)',
+            data: data.fuel_values || [],
+            borderColor: '#f59e0b',
+            backgroundColor: 'rgba(245, 158, 11, 0.1)',
+            tension: 0.4,
+            fill: true
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false }
+          },
+          scales: {
+            y: { beginAtZero: true }
+          }
+        }
+      });
+
+      // Trip Statistics Chart
+      if (tripChart) tripChart.destroy();
+      const tripCtx = document.getElementById('tripChart').getContext('2d');
+      tripChart = new Chart(tripCtx, {
+        type: 'bar',
+        data: {
+          labels: data.trip_labels || [],
+          datasets: [{
+            label: 'Number of Trips',
+            data: data.trip_values || [],
+            backgroundColor: '#eab308'
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false }
+          },
+          scales: {
+            y: { beginAtZero: true }
+          }
+        }
+      });
+
+      // Vehicle Utilization Chart
+      if (vehicleChart) vehicleChart.destroy();
+      const vehicleCtx = document.getElementById('vehicleChart').getContext('2d');
+      vehicleChart = new Chart(vehicleCtx, {
+        type: 'doughnut',
+        data: {
+          labels: data.vehicle_labels || [],
+          datasets: [{
+            data: data.vehicle_values || [],
+            backgroundColor: ['#eab308', '#3b82f6', '#10b981', '#f59e0b', '#06b6d4']
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false
+        }
+      });
+
+      // Expenditure Chart
+      if (expenditureChart) expenditureChart.destroy();
+      const expCtx = document.getElementById('expenditureChart').getContext('2d');
+      expenditureChart = new Chart(expCtx, {
+        type: 'pie',
+        data: {
+          labels: ['Fuel', 'Maintenance', 'Statutory', 'Others'],
+          datasets: [{
+            data: data.expenditure_values || [0, 0, 0, 0],
+            backgroundColor: ['#f59e0b', '#eab308', '#10b981', '#3b82f6']
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false
+        }
+      });
+
+      // Stock Management Chart
+      if (stockChart) stockChart.destroy();
+      const stockCtx = document.getElementById('stockChart').getContext('2d');
+      stockChart = new Chart(stockCtx, {
+        type: 'bar',
+        data: {
+          labels: data.stock_labels || ['Purchases', 'Issues', 'Utilization', 'Scrap'],
+          datasets: [{
+            label: 'Count',
+            data: data.stock_values || [0, 0, 0, 0],
+            backgroundColor: ['#8b5cf6', '#ec4899', '#14b8a6', '#64748b'],
+            borderRadius: 6
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          scales: {
+            y: {
+              beginAtZero: true,
+              ticks: {
+                stepSize: 1
+              }
+            }
+          }
+        }
+      });
+    }
+
+    async function generatePDFReport() {
+      const { jsPDF } = window.jspdf;
+      const doc = new jsPDF('p', 'mm', 'a4');
+      const pageWidth = 210;
+      const pageHeight = 297;
+      
+      // Helper function to sanitize text for PDF
+      const sanitizeText = (text) => {
+        if (!text) return '';
+        // Convert to string and remove any special Unicode characters
+        let cleaned = String(text)
+          .replace(/₹/g, 'Rs.')
+          .replace(/[^\x00-\x7F]/g, '') // Remove non-ASCII characters
+          .trim();
+        return cleaned;
+      };
+      
+      // Helper function to get text content safely
+      const getElementText = (id) => {
+        const element = document.getElementById(id);
+        return element ? sanitizeText(element.textContent) : '0';
+      };
+      
+      // Color Scheme
+      const colors = {
+        primary: [234, 179, 8],
+        secondary: [146, 64, 14],
+        accent: [59, 130, 246],
+        success: [16, 185, 129],
+        info: [59, 130, 246],
+        purple: [139, 92, 246],
+        pink: [236, 72, 153],
+        teal: [20, 184, 166],
+        slate: [100, 116, 139],
+        dark: [31, 41, 55],
+        light: [243, 244, 246],
+        white: [255, 255, 255]
+      };
+      
+      // Helper function to draw rounded rectangle
+      const drawRoundedRect = (x, y, w, h, r, fillColor) => {
+        doc.setFillColor(...fillColor);
+        doc.roundedRect(x, y, w, h, r, r, 'F');
+      };
+      
+      // Helper function to draw gradient-like header
+      const drawHeader = (headerImg) => {
+        if (headerImg) {
+          // Add header image for portrait PDF (210mm width)
+          doc.addImage(headerImg, 'PNG', 10, 5, 190, 25);
+        } else {
+          // Fallback to original design if image not available
+          drawRoundedRect(0, 0, pageWidth, 50, 0, colors.primary);
+          doc.setFillColor(...colors.secondary);
+          doc.setGState(new doc.GState({ opacity: 0.3 }));
+          doc.circle(pageWidth - 30, 15, 40, 'F');
+          doc.circle(30, 35, 30, 'F');
+          doc.setGState(new doc.GState({ opacity: 1 }));
+          
+          // Logo text
+          doc.setTextColor(...colors.white);
+          doc.setFontSize(28);
+          doc.setFont('helvetica', 'bold');
+          doc.text('DRIVE LOGS', pageWidth / 2, 22, { align: 'center' });
+          
+          doc.setFontSize(16);
+          doc.setFont('helvetica', 'normal');
+          doc.text('Analytics Report', pageWidth / 2, 32, { align: 'center' });
+          
+          // Decorative line
+          doc.setDrawColor(...colors.accent);
+          doc.setLineWidth(1);
+          doc.line(70, 38, 140, 38);
+        }
+      };
+      
+      // Helper function to draw footer
+      const drawFooter = (pageNum) => {
+        doc.setFontSize(9);
+        doc.setTextColor(150);
+        doc.setFont('helvetica', 'normal');
+        doc.text('Page ' + pageNum, pageWidth / 2, pageHeight - 10, { align: 'center' });
+        doc.text('Generated on ' + new Date().toLocaleDateString() + ' at ' + new Date().toLocaleTimeString(), pageWidth / 2, pageHeight - 6, { align: 'center' });
+      };
+      
+      // Helper function for section headers
+      const drawSectionHeader = (text, y, icon = '') => {
+        drawRoundedRect(15, y - 7, pageWidth - 30, 12, 2, colors.light);
+        doc.setFontSize(14);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(...colors.dark);
+        doc.text(icon + ' ' + text, 20, y);
+        return y + 10;
+      };
+      
+      // Helper function for metric cards
+      const drawMetricCard = (x, y, w, h, label, value, color, icon) => {
+        // Card background
+        drawRoundedRect(x, y, w, h, 3, colors.white);
+        doc.setDrawColor(...color);
+        doc.setLineWidth(0.5);
+        doc.roundedRect(x, y, w, h, 3, 3, 'S');
+        
+        // Icon area
+        drawRoundedRect(x + 2, y + 2, 12, 12, 2, color);
+        doc.setFontSize(10);
+        doc.setTextColor(...colors.white);
+        doc.setFont('helvetica', 'bold');
+        doc.text(icon, x + 8, y + 10, { align: 'center' });
+        
+        // Label
+        doc.setFontSize(8);
+        doc.setTextColor(120);
+        doc.setFont('helvetica', 'normal');
+        doc.text(label, x + 16, y + 6);
+        
+        // Value - ensure proper encoding
+        doc.setFontSize(12);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(...colors.dark);
+        doc.text(String(value), x + 16, y + 12);
+        doc.setFont('helvetica', 'normal');
+      };
+      
+      // Load header image
+      const headerImg = new Image();
+      headerImg.src = '{{ url_for("static", filename="img/header_full.png") }}';
+      
+      headerImg.onload = function() {
+        // PAGE 1 - Cover & Summary
+        drawHeader(headerImg);
+      
+      // Period Badge
+      drawRoundedRect(pageWidth / 2 - 30, 55, 60, 10, 2, colors.accent);
+      doc.setFontSize(10);
+      doc.setTextColor(...colors.white);
+      doc.setFont('helvetica', 'bold');
+      doc.text(sanitizeText(document.getElementById('currentPeriodDisplay').textContent.toUpperCase()), pageWidth / 2, 61, { align: 'center' });
+      doc.setFont('helvetica', 'normal');
+      
+      // Key Metrics Section
+      let yPos = drawSectionHeader('Key Performance Indicators', 80, '>>');
+      
+      // First Row - Operations Metrics
+      drawMetricCard(20, yPos, 42, 18, 'Total Trips', 
+        getElementText('totalTrips'), colors.primary, 'T');
+      drawMetricCard(65, yPos, 42, 18, 'Fuel Consumed', 
+        getElementText('totalFuel'), colors.accent, 'F');
+      drawMetricCard(110, yPos, 42, 18, 'Total Distance', 
+        getElementText('totalDistance'), colors.success, 'D');
+      drawMetricCard(155, yPos, 42, 18, 'Fuel Expenditure', 
+        getElementText('totalExpenditure'), colors.info, 'Rs');
+      
+      yPos += 25;
+      
+      // Stock Management Section
+      yPos = drawSectionHeader('Stock Management Overview', yPos, '>>');
+      
+      // Second Row - Stock Metrics
+      drawMetricCard(20, yPos, 42, 18, 'Purchases', 
+        getElementText('totalPurchases'), colors.purple, 'P');
+      drawMetricCard(65, yPos, 42, 18, 'Issues', 
+        getElementText('totalIssues'), colors.pink, 'I');
+      drawMetricCard(110, yPos, 42, 18, 'Utilization', 
+        getElementText('totalUtilization'), colors.teal, 'U');
+      drawMetricCard(155, yPos, 42, 18, 'Scrap', 
+        getElementText('totalScrap'), colors.slate, 'S');
+      
+      yPos += 25;
+      
+      // Purchase Value Highlight
+      drawRoundedRect(20, yPos, pageWidth - 40, 15, 3, [248, 250, 252]);
+      doc.setFontSize(10);
+      doc.setTextColor(...colors.dark);
+      doc.setFont('helvetica', 'normal');
+      doc.text('Total Purchase Value:', 25, yPos + 6);
+      doc.setFontSize(14);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(...colors.purple);
+      doc.text('Rs. ' + getElementText('purchaseValue'), 25, yPos + 12);
+      doc.setFont('helvetica', 'normal');
+      
+      yPos += 22;
+      
+      // Quick Stats Section
+      yPos = drawSectionHeader('Quick Statistics', yPos, '>>');
+      
+      const statsData = [
+        ['Active Vehicles', getElementText('activeVehicles'), 'V'],
+        ['Avg Fuel/Trip', getElementText('avgFuelPerTrip'), 'A'],
+        ['Stock Turnover', getElementText('stockTurnover'), '%'],
+        ['Scrap Rate', getElementText('scrapRate'), '%']
+      ];
+      
+      statsData.forEach(([label, value, icon], index) => {
+        const x = 20 + (index % 2) * 87;
+        const y = yPos + Math.floor(index / 2) * 20;
+        
+        drawRoundedRect(x, y, 83, 16, 2, colors.white);
+        doc.setDrawColor(200);
+        doc.setLineWidth(0.3);
+        doc.roundedRect(x, y, 83, 16, 2, 2, 'S');
+        
+        doc.setFontSize(16);
+        doc.setFont('helvetica', 'bold');
+        doc.text(icon, x + 5, y + 10);
+        
+        doc.setFontSize(8);
+        doc.setTextColor(100);
+        doc.setFont('helvetica', 'normal');
+        doc.text(label, x + 15, y + 6);
+        
+        doc.setFontSize(12);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(...colors.dark);
+        doc.text(value, x + 15, y + 12);
+        doc.setFont('helvetica', 'normal');
+      });
+      
+      drawFooter(1);
+      
+      // PAGE 2 - Charts
+      doc.addPage();
+      drawHeader(headerImg);
+      
+      yPos = drawSectionHeader('Fuel Consumption Trend', 60, '>>');
+      const fuelCanvas = document.getElementById('fuelChart');
+      const fuelImg = fuelCanvas.toDataURL('image/png', 1.0);
+      doc.addImage(fuelImg, 'PNG', 20, yPos, 170, 70);
+      
+      yPos += 78;
+      yPos = drawSectionHeader('Trip Statistics', yPos, '>>');
+      const tripCanvas = document.getElementById('tripChart');
+      const tripImg = tripCanvas.toDataURL('image/png', 1.0);
+      doc.addImage(tripImg, 'PNG', 20, yPos, 170, 70);
+      
+      drawFooter(2);
+      
+      // PAGE 3 - More Charts
+      doc.addPage();
+      drawHeader(headerImg);
+      
+      yPos = 60;
+      
+      // Two charts side by side
+      doc.setFontSize(12);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(...colors.dark);
+      doc.text('Vehicle Utilization', 22, yPos);
+      doc.text('Stock Management Flow', 112, yPos);
+      doc.setFont('helvetica', 'normal');
+      
+      yPos += 5;
+      
+      const vehicleCanvas = document.getElementById('vehicleChart');
+      const vehicleImg = vehicleCanvas.toDataURL('image/png', 1.0);
+      doc.addImage(vehicleImg, 'PNG', 20, yPos, 80, 70);
+      
+      const stockCanvas = document.getElementById('stockChart');
+      const stockImg = stockCanvas.toDataURL('image/png', 1.0);
+      doc.addImage(stockImg, 'PNG', 110, yPos, 80, 70);
+      
+      yPos += 78;
+      yPos = drawSectionHeader('Expenditure Breakdown', yPos, '>>');
+      
+      const expCanvas = document.getElementById('expenditureChart');
+      const expImg = expCanvas.toDataURL('image/png', 1.0);
+      doc.addImage(expImg, 'PNG', 55, yPos, 100, 80);
+      
+      drawFooter(3);
+      
+      // PAGE 4 - Statutory Compliance
+      doc.addPage();
+      drawHeader(headerImg);
+      
+      yPos = drawSectionHeader('Statutory Compliance Status', 60, '>>');
+      
+      const complianceData = [
+        { 
+          label: 'Compliant', 
+          count: getElementText('compliantCount'),
+          color: colors.success,
+          icon: 'OK',
+          desc: 'Up to date with all statutory requirements'
+        },
+        { 
+          label: 'Due Soon', 
+          count: getElementText('dueSoonCount'),
+          color: colors.accent,
+          icon: '!!',
+          desc: 'Renewal required within 30 days'
+        },
+        { 
+          label: 'Overdue', 
+          count: getElementText('overdueCount'),
+          color: colors.primary,
+          icon: 'XX',
+          desc: 'Immediate action required'
+        }
+      ];
+      
+      complianceData.forEach((item, index) => {
+        const y = yPos + (index * 35);
+        
+        // Card
+        drawRoundedRect(20, y, pageWidth - 40, 30, 3, colors.white);
+        doc.setDrawColor(...item.color);
+        doc.setLineWidth(1);
+        doc.roundedRect(20, y, pageWidth - 40, 30, 3, 3, 'S');
+        
+        // Icon circle
+        doc.setFillColor(...item.color);
+        doc.circle(35, y + 15, 8, 'F');
+        doc.setFontSize(10);
+        doc.setTextColor(...colors.white);
+        doc.setFont('helvetica', 'bold');
+        doc.text(item.icon, 35, y + 17, { align: 'center' });
+        
+        // Label
+        doc.setFontSize(14);
+        doc.setFont('helvetica', 'bold');
+        doc.setTextColor(...colors.dark);
+        doc.text(item.label, 50, y + 12);
+        
+        // Count
+        doc.setFontSize(20);
+        doc.setTextColor(...item.color);
+        doc.text(item.count, pageWidth - 50, y + 17, { align: 'right' });
+        
+        // Description
+        doc.setFontSize(8);
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(120);
+        doc.text(item.desc, 50, y + 20);
+      });
+      
+      yPos += 115;
+      
+      // Summary Box
+      drawRoundedRect(20, yPos, pageWidth - 40, 40, 3, [252, 231, 243]);
+      doc.setFontSize(11);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(...colors.dark);
+      doc.text('Report Summary', 25, yPos + 8);
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(9);
+      doc.setTextColor(80);
+      
+      const summaryLines = [
+        'This report covers ' + sanitizeText(document.getElementById('currentPeriodDisplay').textContent.toLowerCase()) + ' analytics for all fleet operations.',
+        'Total operational trips: ' + getElementText('totalTrips') + ' | Distance covered: ' + getElementText('totalDistance'),
+        'Stock management: ' + getElementText('totalPurchases') + ' purchases processed with ' + getElementText('totalIssues') + ' issues logged.',
+        'For detailed information, please refer to the individual charts and metrics above.'
+      ];
+      
+      summaryLines.forEach((line, index) => {
+        doc.text(line, 25, yPos + 16 + (index * 5), { maxWidth: pageWidth - 50 });
+      });
+      
+      drawFooter(4);
+      
+      // Save PDF
+      const period = document.getElementById('currentPeriodDisplay').textContent.replace(/\s+/g, '_');
+      doc.save('DriveLogsReport_' + period + '_' + new Date().toISOString().split('T')[0] + '.pdf');
+      };
+      
+      headerImg.onerror = function() {
+        console.error('Failed to load header image');
+        // Generate PDF with fallback header
+        drawHeader(null);
+        
+        const period = document.getElementById('currentPeriodDisplay').textContent.replace(/\s+/g, '_');
+        
+        // Simplified report without charts when image fails
+        let yPos = 60;
+        
+        doc.setFontSize(14);
+        doc.setTextColor(31, 41, 55);
+        doc.text('Report Generation with Fallback Header', 105, yPos, { align: 'center' });
+        yPos += 10;
+        
+        doc.setFontSize(10);
+        doc.text('Header image failed to load. Generating report with fallback design.', 105, yPos, { align: 'center' });
+        yPos += 15;
+        
+        // Add basic metrics
+        doc.setFontSize(12);
+        doc.text('Key Metrics:', 20, yPos);
+        yPos += 10;
+        
+        doc.setFontSize(10);
+        doc.text('Total Trips: ' + getElementText('totalTrips'), 30, yPos);
+        yPos += 7;
+        doc.text('Fuel Consumed: ' + getElementText('totalFuel'), 30, yPos);
+        yPos += 7;
+        doc.text('Total Distance: ' + getElementText('totalDistance'), 30, yPos);
+        yPos += 7;
+        doc.text('Fuel Expenditure: Rs. ' + getElementText('totalExpenditure'), 30, yPos);
+        
+        doc.save('DriveLogsReport_' + period + '_' + new Date().toISOString().split('T')[0] + '.pdf');
+      };
+    }
+
+    // Initialize dashboard on load
+    document.addEventListener('DOMContentLoaded', function() {
+      updateDashboard('daily');
+    });
+  </script>
+
+
+<script src="{{ url_for('static', filename='js/uppercase.js') }}"></script>
+{% include 'footer.html' %}
+</body>
+</html>

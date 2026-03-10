@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>User Management - Drive Logs Admin</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body class="bg-gray-100 min-h-screen">
+  <!-- Header -->
+  <div class="bg-yellow-600 text-white p-4 shadow-lg">
+    <div class="container mx-auto flex justify-between items-center">
+      <div>
+        <h1 class="text-2xl font-bold">👤 User Management</h1>
+        <p class="text-sm">Manage all system users</p>
+      </div>
+      <div class="flex items-center gap-4">
+        <a href="{{ url_for('admin_dashboard') }}" class="bg-yellow-500 hover:bg-yellow-600 text-gray-900 px-4 py-2 rounded-full font-semibold transition-colors">
+          <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+            <path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z"/>
+          </svg>
+        </a>
+        <a href="{{ url_for('logout') }}" class="bg-white text-yellow-700 px-4 py-2 rounded-full font-semibold hover:bg-gray-100 transition-colors">
+          Logout
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <!-- Flash Messages -->
+  <div class="container mx-auto px-4 mt-4">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div class="mb-4 p-4 rounded-lg {% if category == 'success' %}bg-green-100 text-green-800 border border-green-300{% elif category == 'danger' %}bg-red-100 text-red-800 border border-red-300{% else %}bg-blue-100 text-blue-800 border border-blue-300{% endif %}">
+            {{ message }}
+          </div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+  </div>
+
+  <!-- Main Content -->
+  <div class="container mx-auto p-4 md:p-8">
+    <!-- Action Bar -->
+    <div class="flex justify-between items-center mb-6">
+      <h2 class="text-xl font-bold text-gray-800">All Users ({{ users|length }})</h2>
+      <a href="{{ url_for('admin_add_user') }}" class="bg-green-500 hover:bg-green-600 text-white px-6 py-2 rounded-lg font-semibold transition-colors">
+        + Add New User
+      </a>
+    </div>
+
+    <!-- Users Table -->
+    <div class="bg-white rounded-lg shadow-md overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="w-full">
+          <thead class="bg-gray-800 text-white">
+            <tr>
+              <th class="px-4 py-3 text-left">S.No</th>
+              <th class="px-4 py-3 text-left">Full Name</th>
+              <th class="px-4 py-3 text-left">Email</th>
+              <th class="px-4 py-3 text-left">Phone</th>
+              <th class="px-4 py-3 text-left">Department</th>
+              <th class="px-4 py-3 text-left">Role</th>
+              <th class="px-4 py-3 text-center">Status</th>
+              <th class="px-4 py-3 text-left">Modules</th>
+              <th class="px-4 py-3 text-left">Created At</th>
+              <th class="px-4 py-3 text-center">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% if users %}
+              {% for user in users %}
+              <tr class="border-b border-gray-200 hover:bg-gray-50" data-user-id="{{ user.id }}" data-modules='{{ user.modules|default([])|tojson }}'>
+                <td class="px-4 py-3 font-semibold">{{ loop.index }}</td>
+                <td class="px-4 py-3 font-medium">{{ user.full_name }}</td>
+                <td class="px-4 py-3">{{ user.email }}</td>
+                <td class="px-4 py-3">{{ user.phone or '-' }}</td>
+                <td class="px-4 py-3">{{ user.department or '-' }}</td>
+                <td class="px-4 py-3">
+                  <span class="px-2 py-1 rounded text-xs font-semibold {% if user.role == 'admin' %}bg-purple-100 text-purple-800{% else %}bg-blue-100 text-blue-800{% endif %}">
+                    {{ user.role|upper }}
+                  </span>
+                </td>
+                <td class="px-4 py-3 text-left">
+                  {% if user.modules %}
+                    <div class="text-sm text-gray-700">{{ (user.modules | join(', ')) }}</div>
+                  {% else %}
+                    <div class="text-sm text-gray-400">-</div>
+                  {% endif %}
+                </td>
+                <td class="px-4 py-3 text-sm text-gray-600">{{ user.created_at[:10] if user.created_at else '-' }}</td>
+                <td class="px-4 py-3 text-center">
+                  <div class="flex justify-center gap-2">
+                    <a href="{{ url_for('admin_edit_user', user_id=user.id) }}" class="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm font-medium transition-colors">Edit</a>
+                    <button type="button" data-user-id="{{ user.id }}" class="px-3 py-1 bg-indigo-500 hover:bg-indigo-600 text-white rounded text-sm assign-modules-btn">Assign</button>
+                    <form method="POST" action="{{ url_for('admin_toggle_user', user_id=user.id) }}" class="inline" onsubmit="return confirm('Are you sure you want to {{ 'deactivate' if user.is_active else 'activate' }} this user?');">
+                      <button type="submit" class="{% if user.is_active %}bg-orange-500 hover:bg-orange-600{% else %}bg-green-500 hover:bg-green-600{% endif %} text-white px-3 py-1 rounded text-sm font-medium transition-colors">{{ 'Deactivate' if user.is_active else 'Activate' }}</button>
+                    </form>
+                    <form method="POST" action="{{ url_for('admin_delete_user_route', user_id=user.id) }}" class="inline" onsubmit="return confirm('Are you sure you want to DELETE this user? This action cannot be undone!');">
+                      <button type="submit" class="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-sm font-medium transition-colors">Delete</button>
+                    </form>
+                  </div>
+                </td>
+              </tr>
+              {% endfor %}
+            {% else %}
+              <tr>
+                <td colspan="9" class="px-4 py-8 text-center text-gray-500">No users found</td>
+              </tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modules Assignment Modal -->
+  <div id="modulesModal" class="fixed inset-0 z-50 hidden items-center justify-center overflow-auto">
+    <div id="modulesOverlay" class="absolute inset-0 bg-black/40" onclick="closeModulesModal()"></div>
+    <div class="relative bg-white rounded-lg shadow-xl w-full max-w-xl mx-4 p-6 z-60">
+      <div class="flex items-center justify-between mb-4">
+        <h3 class="text-lg font-bold">Assign Modules</h3>
+        <button class="text-gray-600" onclick="closeModulesModal()">✕</button>
+      </div>
+      <form id="modulesForm" method="POST" action="" onsubmit="return submitModulesForm(event)">
+        <input type="hidden" name="user_id" id="modulesUserId" value="" />
+        <div class="grid grid-cols-2 gap-3 mb-4">
+          <!-- Module checkboxes -->
+          <label class="flex items-center gap-2"><input type="checkbox" name="modules" value="Purchase"> Purchase</label>
+          <label class="flex items-center gap-2"><input type="checkbox" name="modules" value="Utilization"> Utilization</label>
+          <label class="flex items-center gap-2"><input type="checkbox" name="modules" value="Maintenance"> Maintenance</label>
+          <label class="flex items-center gap-2"><input type="checkbox" name="modules" value="Internal Audit"> Internal Audit</label>
+          <label class="flex items-center gap-2"><input type="checkbox" name="modules" value="Part ID"> Part ID</label>
+          <label class="flex items-center gap-2"><input type="checkbox" name="modules" value="Scrap"> Scrap</label>
+          <label class="flex items-center gap-2"><input type="checkbox" name="modules" value="Fuel"> Fuel</label>
+          <label class="flex items-center gap-2"><input type="checkbox" name="modules" value="Statutory"> Statutory</label>
+          <label class="flex items-center gap-2"><input type="checkbox" name="modules" value="Trip Sheet"> Trip Sheet</label>
+          <label class="flex items-center gap-2"><input type="checkbox" name="modules" value="Log Book"> Log Book</label>
+        </div>
+        <div class="flex justify-end gap-3">
+          <button type="button" class="px-4 py-2 bg-gray-200 rounded" onclick="closeModulesModal()">Cancel</button>
+          <button type="submit" class="px-4 py-2 bg-indigo-600 text-white rounded">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    // Open modules modal and prefill checkboxes from row data-modules
+    function openModulesModal(userId){
+      const row = document.querySelector('[data-user-id="' + userId + '"]');
+      const modules = row ? JSON.parse(row.getAttribute('data-modules') || '[]') : [];
+      document.getElementById('modulesUserId').value = userId;
+      const checks = Array.from(document.querySelectorAll('#modulesForm input[type="checkbox"][name="modules"]'));
+      checks.forEach(cb => { cb.checked = modules.indexOf(cb.value) !== -1; });
+      const modal = document.getElementById('modulesModal');
+      modal.classList.remove('hidden'); modal.classList.add('flex'); document.body.classList.add('overflow-hidden');
+    }
+    function closeModulesModal(){ const modal = document.getElementById('modulesModal'); modal.classList.add('hidden'); modal.classList.remove('flex'); document.body.classList.remove('overflow-hidden'); }
+
+    // Submit modules form via POST to a backend route (developer must implement route)
+    async function submitModulesForm(e){
+      e.preventDefault();
+      const userId = document.getElementById('modulesUserId').value;
+      const checks = Array.from(document.querySelectorAll('#modulesForm input[type="checkbox"][name="modules"]'));
+      const selected = checks.filter(c=>c.checked).map(c=>c.value);
+      try{
+        const fd = new FormData();
+        fd.append('user_id', userId);
+        selected.forEach(m => fd.append('modules[]', m));
+        const resp = await fetch('/admin/users/' + userId + '/modules', { method: 'POST', body: fd, credentials: 'same-origin' });
+        if(resp.ok){
+          // update row display
+          const row = document.querySelector('[data-user-id="' + userId + '"]');
+          if(row){ row.setAttribute('data-modules', JSON.stringify(selected)); const cell = row.querySelector('td:nth-child(8)'); if(cell) cell.innerHTML = selected.length ? selected.join(', ') : '<span class="text-sm text-gray-400">-</span>'; }
+          closeModulesModal();
+        }else{
+          const txt = await resp.text(); alert('Failed saving modules: ' + txt);
+        }
+      }catch(err){ console.error(err); alert('Network error while saving modules.'); }
+      return false;
+    }
+
+    // Wire up Assign buttons (in case inline handlers fail or for dynamic rows)
+    document.addEventListener('DOMContentLoaded', function(){
+      Array.from(document.querySelectorAll('.assign-modules-btn')).forEach(btn => {
+        btn.addEventListener('click', function(){
+          const uid = this.getAttribute('data-user-id');
+          if(uid) openModulesModal(uid);
+        });
+      });
+    });
+  </script>
+
+  
+  {% include 'footer.html' %}
+  </body>
+  </html>

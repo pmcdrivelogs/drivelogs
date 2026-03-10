@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Add Payment - Drive Logs</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <script>
+    const invoicesData = {{ invoices|tojson|safe if invoices else '[]' }};
+    
+    function showInvoiceDropdown() {
+      document.getElementById('invoiceDropdown').style.display = 'block';
+    }
+
+    function filterInvoices() {
+      const searchInput = document.getElementById('invoiceSearch');
+      const dropdown = document.getElementById('invoiceDropdown');
+      const filter = searchInput.value.toLowerCase();
+      const options = dropdown.getElementsByClassName('invoice-option');
+      
+      let hasVisible = false;
+      for (let i = 0; i < options.length; i++) {
+        const txtValue = options[i].textContent || options[i].innerText;
+        if (txtValue.toLowerCase().indexOf(filter) > -1) {
+          options[i].style.display = '';
+          hasVisible = true;
+        } else {
+          options[i].style.display = 'none';
+        }
+      }
+      dropdown.style.display = hasVisible ? 'block' : 'none';
+    }
+
+    function selectInvoice(element) {
+      const invoiceNo = element.getAttribute('data-invoice');
+      const vendor = element.getAttribute('data-vendor');
+      const totalValue = element.getAttribute('data-value');
+      
+      document.getElementById('invoiceSearch').value = invoiceNo;
+      document.getElementById('invoiceValue').value = invoiceNo;
+      document.querySelector('input[name="vendor_id"]').value = vendor;
+      document.querySelector('input[name="value"]').value = totalValue;
+      document.getElementById('invoiceDropdown').style.display = 'none';
+    }
+
+    // Hide dropdown when clicking outside
+    document.addEventListener('DOMContentLoaded', function() {
+      document.addEventListener('click', function(e) {
+        const invoiceSearch = document.getElementById('invoiceSearch');
+        const invoiceDropdown = document.getElementById('invoiceDropdown');
+        
+        if (e.target !== invoiceSearch && !invoiceDropdown.contains(e.target)) {
+          invoiceDropdown.style.display = 'none';
+        }
+      });
+    });
+  </script>
+  <style>
+    * { font-family: 'Inter', sans-serif; }
+    body { background: #fffbeb; }
+    
+    .form-section {
+      background: #3b82f6;
+      color: white;
+      padding: 14px 20px;
+      font-weight: 800;
+      font-size: 1rem;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      box-shadow: 0 4px 15px rgba(59, 130, 246, 0.3);
+    }
+    
+    .form-group { margin-bottom: 20px; }
+    
+    .form-label {
+      display: block;
+      font-size: 0.875rem;
+      font-weight: 700;
+      color: #1e293b;
+      margin-bottom: 8px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    
+    .form-input, .form-select, .form-textarea {
+      width: 100%;
+      padding: 12px 16px;
+      border: 2px solid #e2e8f0;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      transition: all 0.3s ease;
+      background: white;
+    }
+    
+    .form-input:focus, .form-select:focus, .form-textarea:focus {
+      outline: none;
+      border-color: #3b82f6;
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    }
+    
+    .btn-primary {
+      background: #10b981;
+      color: white;
+      padding: 14px 32px;
+      border-radius: 10px;
+      font-weight: 700;
+      font-size: 1rem;
+      border: none;
+      cursor: pointer;
+      box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);
+      transition: all 0.3s ease;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 20px rgba(16, 185, 129, 0.4);
+    }
+    
+    .btn-secondary {
+      background: #64748b;
+      color: white;
+      padding: 14px 32px;
+      border-radius: 10px;
+      font-weight: 700;
+      font-size: 1rem;
+      border: none;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+    
+    .search-dropdown-container {
+      position: relative;
+      flex: 1;
+    }
+    
+    .search-input {
+      width: 100%;
+      padding: 12px 16px;
+      border: 2px solid #e2e8f0;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      cursor: pointer;
+    }
+    
+    .search-input:focus {
+      outline: none;
+      border-color: #3b82f6;
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    }
+    
+    .custom-dropdown {
+      position: absolute;
+      top: 100%;
+      left: 0;
+      right: 0;
+      max-height: 300px;
+      overflow-y: auto;
+      background: white;
+      border: 2px solid #3b82f6;
+      border-radius: 8px;
+      margin-top: 4px;
+      z-index: 1000;
+      display: none;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    }
+    
+    .invoice-option {
+      padding: 12px 16px;
+      cursor: pointer;
+      transition: background 0.2s;
+      border-bottom: 1px solid #f1f5f9;
+    }
+    
+    .invoice-option:hover {
+      background: #dbeafe;
+    }
+    
+    .invoice-option:last-child {
+      border-bottom: none;
+    }
+    
+    .invoice-info {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    
+    .invoice-number {
+      font-weight: 600;
+      color: #1e293b;
+    }
+    
+    .invoice-vendor {
+      font-size: 0.85rem;
+      color: #64748b;
+      margin-top: 2px;
+    }
+    
+    .invoice-value {
+      font-weight: 700;
+      color: #3b82f6;
+      font-size: 0.95rem;
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col pt-20">
+  
+  <!-- Logo Bar -->
+  <div class="logo-bar w-full flex items-center justify-between px-4 py-3 fixed top-0 left-0 z-50" style="background: #eab308;">
+    <img src="{{ url_for('static', filename='img/drive-logs.png') }}" alt="Drive Logs Logo" class="h-12 md:h-14 w-auto ml-2">
+    <div class="flex items-center gap-4">
+      <a href="{{ url_for('admin_dashboard') }}" class="bg-white text-yellow-700 px-3 py-2 rounded-full text-sm font-semibold transition-colors hover:bg-gray-100 flex items-center gap-1">
+        <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+          <path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z"/>
+        </svg>
+      </a>
+      <a href="{{ url_for('logout') }}" class="bg-white text-yellow-700 px-4 py-2 rounded-full text-sm font-semibold hover:bg-gray-100 transition-colors">
+        Logout
+      </a>
+    </div>
+  </div>
+
+  <!-- College Header -->
+  <div class="w-full flex justify-center items-center border-b border-gray-300 bg-white">
+    <img src="{{ url_for('static', filename='img/pmc-logo.png') }}" alt="College Header" class="w-full max-w-5xl h-auto p-2 md:p-4">
+  </div>
+
+  <!-- Main Content -->
+  <div class="flex-1 py-8 px-4">
+    <div class="max-w-4xl mx-auto">
+      
+      <!-- Flash Messages -->
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          {% for category, message in messages %}
+            <div class="mb-4 p-4 rounded-lg {% if category == 'success' %}bg-green-100 text-green-800 border border-green-300{% elif category == 'danger' %}bg-red-100 text-red-800 border border-red-300{% else %}bg-blue-100 text-blue-800 border border-blue-300{% endif %}">
+              {{ message }}
+            </div>
+          {% endfor %}
+        {% endif %}
+      {% endwith %}
+
+      <!-- Form Container -->
+      <div class="bg-white rounded-2xl shadow-2xl p-8 md:p-12">
+        
+        <div class="text-center mb-8">
+          <h1 class="text-3xl font-bold text-gray-800 mb-2">💳 PAYMENT</h1>
+          <p class="text-gray-600">REF: <strong class="text-blue-600">PMCTECH/LOGI/FORM 11/001</strong></p>
+          <p class="text-sm text-gray-500 mt-2">Entry Number will be auto-generated</p>
+        </div>
+
+        <form method="POST" action="{{ url_for('admin_add_payment') }}">
+          
+          <!-- PAYMENT DETAILS -->
+          <div class="form-section">PAYMENT DETAILS</div>
+          
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="form-group">
+              <label class="form-label">Invoice No *</label>
+              <div class="search-dropdown-container">
+                <input type="text" id="invoiceSearch" class="search-input" placeholder="Search invoice number..." onclick="showInvoiceDropdown()" onkeyup="filterInvoices()" autocomplete="off">
+                <input type="hidden" name="invoice_no" id="invoiceValue" required>
+                <div id="invoiceDropdown" class="custom-dropdown">
+                  {% for invoice in invoices %}
+                  <div class="invoice-option" data-invoice="{{ invoice.invoice_no }}" data-vendor="{{ invoice.vendor }}" data-value="{{ '%.2f'|format(invoice.total_value) }}" onclick="selectInvoice(this)">
+                    <div class="invoice-info">
+                      <div>
+                        <div class="invoice-number">{{ invoice.invoice_no }}</div>
+                        <div class="invoice-vendor">Vendor: {{ invoice.vendor }}</div>
+                      </div>
+                      <div class="invoice-value">₹{{ '%.2f'|format(invoice.total_value) }}</div>
+                    </div>
+                  </div>
+                  {% endfor %}
+                </div>
+              </div>
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">Vendor ID *</label>
+              <input type="text" name="vendor_id" class="form-input" required placeholder="Auto-filled from invoice" readonly style="background: #f8fafc;">
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">Value (₹) *</label>
+              <input type="number" step="0.01" name="value" class="form-input" required readonly style="background: #f8fafc;" placeholder="Auto-calculated from purchases">
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">DN</label>
+              <input type="text" name="dn" class="form-input">
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">Type of Entry *</label>
+              <select name="type_of_entry" class="form-select" required>
+                <option value="">Select</option>
+                <option value="Advance Payment">Advance Payment</option>
+                <option value="Partial Payment">Partial Payment</option>
+                <option value="Full Payment">Full Payment</option>
+                <option value="Refund">Refund</option>
+                <option value="Adjustment">Adjustment</option>
+                <option value="Final Settlement">Final Settlement</option>
+              </select>
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">Mode of Payment *</label>
+              <select name="mode_of_payment" class="form-select" required>
+                <option value="">Select</option>
+                <option value="Cash">Cash</option>
+                <option value="Cheque">Cheque</option>
+                <option value="NEFT/RTGS">NEFT/RTGS</option>
+                <option value="UPI">UPI</option>
+                <option value="Online Transfer">Online Transfer</option>
+                <option value="Demand Draft">Demand Draft</option>
+                <option value="Credit Card">Credit Card</option>
+              </select>
+            </div>
+            
+            <div class="form-group md:col-span-2">
+              <label class="form-label">Payment Advice</label>
+              <textarea name="payment_advice" class="form-textarea" rows="3"></textarea>
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">Payment Date *</label>
+              <input type="date" name="payment_date" class="form-input" required>
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">Amount (₹) *</label>
+              <input type="number" step="0.01" name="amount" class="form-input" required>
+            </div>
+          </div>
+
+          <!-- APPROVAL SECTION -->
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-8">
+            <div class="form-group">
+              <label class="form-label">Entered By</label>
+              <input type="text" name="entered_by" class="form-input" value="{{ session.get('admin', '') }}" readonly style="background: #f8fafc;">
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">Approved By</label>
+              <div class="flex items-center gap-4 mt-2">
+                <label class="flex items-center gap-2 cursor-pointer">
+                  <input type="radio" name="approval_status" value="approved" class="w-5 h-5 text-green-600">
+                  <span class="bg-green-500 text-white px-6 py-2 rounded-full font-bold text-sm">YES</span>
+                </label>
+                <label class="flex items-center gap-2 cursor-pointer">
+                  <input type="radio" name="approval_status" value="pending" class="w-5 h-5 text-red-600" checked>
+                  <span class="bg-red-500 text-white px-6 py-2 rounded-full font-bold text-sm">NO</span>
+                </label>
+              </div>
+            </div>
+          </div>
+
+          <!-- Form Actions -->
+          <div class="flex gap-4 mt-10 justify-center">
+            <button type="submit" class="btn-primary">
+              ✅ Submit Payment
+            </button>
+            <a href="{{ url_for('admin_payments') }}" class="btn-secondary">
+              ❌ Cancel
+            </a>
+          </div>
+
+        </form>
+      </div>
+    </div>
+  </div>
+
+{% include 'footer.html' %}
+</body>
+</html>

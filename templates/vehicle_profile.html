@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Vehicle Profile - Drive Logs</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <script>
+    function handleSubmit(event) {
+      const form = event.target;
+      const submitBtn = form.querySelector('button[type="submit"]');
+      const originalText = submitBtn.innerHTML;
+      
+      // Disable button and show loading
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = '<svg class="animate-spin h-5 w-5 mr-3 inline-block" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Submitting...';
+      submitBtn.classList.add('opacity-75', 'cursor-not-allowed');
+      
+      // Allow form to submit naturally
+      return true;
+    }
+    
+    // Convert registration number to uppercase
+    document.addEventListener('DOMContentLoaded', function() {
+      const regInput = document.querySelector('input[name="registration_no"]');
+      if (regInput) {
+        regInput.addEventListener('input', function(e) {
+          this.value = this.value.toUpperCase();
+        });
+      }
+    });
+  </script>
+  <style>
+    .profile-table {
+      border-collapse: collapse;
+      width: 100%;
+    }
+    .profile-table th {
+      background-color: #1e3a8a;
+      color: white;
+      padding: 12px 8px;
+      font-weight: bold;
+      font-size: 0.875rem;
+      text-align: center;
+      border: 1px solid #1e40af;
+    }
+    .profile-table td {
+      padding: 10px 8px;
+      border: 1px solid #d1d5db;
+      text-align: center;
+    }
+    .profile-table tr:nth-child(even) {
+      background-color: #f9fafb;
+    }
+    .profile-table input[type="date"],
+    .profile-table input[type="text"] {
+      width: 100%;
+      padding: 6px;
+      border: 1px solid #d1d5db;
+      border-radius: 4px;
+      font-size: 0.875rem;
+    }
+    .profile-table input[type="date"]:focus,
+    .profile-table input[type="text"]:focus {
+      outline: none;
+      border-color: #3b82f6;
+      ring: 2px;
+      ring-color: #93c5fd;
+    }
+    input[name="registration_no"] {
+      text-transform: uppercase;
+    }
+  </style>
+</head>
+<body class="bg-[#fcfcfc] min-h-screen flex flex-col pt-20">
+  <!-- Logo Bar -->
+  <div class="logo-bar w-full flex items-center justify-between px-4 py-3 fixed top-0 left-0 z-50">
+    <img src="{{ url_for('static', filename='img/drive-logs.png') }}" alt="Drive Logs Logo" class="h-12 md:h-14 w-auto ml-2">
+    <div class="flex items-center gap-4">
+      <a href="{{ url_for('home') }}" class="bg-yellow-500 hover:bg-yellow-600 text-gray-900 px-4 py-2 rounded-full text-sm font-semibold transition-colors">
+        ← Back to Home
+      </a>
+      <a href="{{ url_for('logout') }}" class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-full text-sm font-semibold transition-colors">
+        Logout
+      </a>
+    </div>
+  </div>
+
+  <!-- College Header -->
+  <div class="w-full flex justify-center items-center border-b border-gray-300 bg-white">
+    <img src="{{ url_for('static', filename='img/pmc-logo.png') }}" alt="College Header" class="w-full max-w-5xl h-auto p-2 md:p-4">
+  </div>
+
+  <!-- Main Content -->
+  <div class="flex-1 py-6 px-4">
+    <div class="bg-white rounded-2xl shadow-lg w-full max-w-7xl mx-auto p-6 md:p-8 border-2 border-gray-200">
+      <!-- Flash Messages -->
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          {% for category, message in messages %}
+            <div class="mb-4 p-4 rounded-lg {% if category == 'success' %}bg-green-100 text-green-800 border border-green-300{% elif category == 'danger' %}bg-red-100 text-red-800 border border-red-300{% else %}bg-blue-100 text-blue-800 border border-blue-300{% endif %}">
+              {{ message }}
+            </div>
+          {% endfor %}
+        {% endif %}
+      {% endwith %}
+      
+      <!-- Header with Title and Button -->
+      <div class="flex justify-between items-center mb-6 pb-4 border-b-2 border-gray-300">
+        <h1 class="text-2xl md:text-3xl font-bold text-blue-900">VEHICLE PROFILE - ANNUAL RECORDS</h1>
+        <a href="{{ url_for('vehicle_profile_permanent') }}" class="bg-blue-800 hover:bg-blue-900 text-white px-6 py-2 rounded-full font-semibold text-sm transition-colors inline-block">
+          PERMANENT RECORDS
+        </a>
+      </div>
+
+      <!-- Vehicle Selection -->
+      <form method="POST" class="mb-6" onsubmit="return handleSubmit(event)">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+          <div class="flex items-center gap-4">
+            <label class="font-bold text-gray-900 whitespace-nowrap">VEHICLE ID:</label>
+            <select name="vehicle_id" class="flex-1 px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200">
+              <option value="">Select</option>
+              {% for i in range(1, 101) %}
+              <option value="{{ i }}">{{ i }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div class="flex items-center gap-4">
+            <label class="font-bold text-gray-900 whitespace-nowrap">REGISTRATION NO:</label>
+            <input type="text" name="registration_no" class="flex-1 px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200" placeholder="Enter registration number">
+          </div>
+        </div>
+
+        <!-- Documents Table -->
+        <div class="overflow-x-auto">
+          <table class="profile-table">
+            <thead>
+              <tr>
+                <th style="width: 5%;">S.NO</th>
+                <th style="width: 20%;">DOCUMENTS</th>
+                <th style="width: 12%;">DUE DATE</th>
+                <th style="width: 12%;">EXECUTED DATE</th>
+                <th style="width: 12%;">NEXT DUE DATE</th>
+                <th style="width: 12%;">INVOICE NO.&DATE</th>
+                <th style="width: 12%;">EXPENDITURE</th>
+                <th style="width: 15%;">REMARKS</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>1.</td>
+                <td class="text-left font-semibold">FITNESS CERTIFICATE</td>
+                <td><input type="date" name="fitness_due" placeholder="dd/mm/yyyy"></td>
+                <td><input type="date" name="fitness_executed" placeholder="dd/mm/yyyy"></td>
+                <td><input type="date" name="fitness_next" placeholder="dd/mm/yyyy"></td>
+                <td><input type="text" name="fitness_invoice" placeholder=""></td>
+                <td><input type="text" name="fitness_exp" placeholder=""></td>
+                <td><input type="text" name="fitness_remarks" placeholder=""></td>
+              </tr>
+              <tr>
+                <td>2.</td>
+                <td class="text-left font-semibold">INSURANCE</td>
+                <td><input type="date" name="insurance_due" placeholder="dd/mm/yyyy"></td>
+                <td><input type="date" name="insurance_executed" placeholder="dd/mm/yyyy"></td>
+                <td><input type="date" name="insurance_next" placeholder="dd/mm/yyyy"></td>
+                <td><input type="text" name="insurance_invoice" placeholder=""></td>
+                <td><input type="text" name="insurance_exp" placeholder=""></td>
+                <td><input type="text" name="insurance_remarks" placeholder=""></td>
+              </tr>
+              <tr>
+                <td>3.</td>
+                <td class="text-left font-semibold">ROAD TAX 1 QL</td>
+                <td><input type="date" name="tax1_due" placeholder="dd/mm/yyyy"></td>
+                <td><input type="date" name="tax1_executed" placeholder="dd/mm/yyyy"></td>
+                <td><input type="date" name="tax1_next" placeholder="dd/mm/yyyy"></td>
+                <td><input type="text" name="tax1_invoice" placeholder=""></td>
+                <td><input type="text" name="tax1_exp" placeholder=""></td>
+                <td><input type="text" name="tax1_remarks" placeholder=""></td>
+              </tr>
+              <tr>
+                <td>4.</td>
+                <td class="text-left font-semibold">ROAD TAX 2 QL</td>
+                <td><input type="date" name="tax2_due" placeholder="dd/mm/yyyy"></td>
+                <td><input type="date" name="tax2_executed" placeholder="dd/mm/yyyy"></td>
+                <td><input type="date" name="tax2_next" placeholder="dd/mm/yyyy"></td>
+                <td><input type="text" name="tax2_invoice" placeholder=""></td>
+                <td><input type="text" name="tax2_exp" placeholder=""></td>
+                <td><input type="text" name="tax2_remarks" placeholder=""></td>
+              </tr>
+              <tr>
+                <td>5.</td>
+                <td class="text-left font-semibold">ROAD TAX 3 QL</td>
+                <td><input type="date" name="tax3_due" placeholder="dd/mm/yyyy"></td>
+                <td><input type="date" name="tax3_executed" placeholder="dd/mm/yyyy"></td>
+                <td><input type="date" name="tax3_next" placeholder="dd/mm/yyyy"></td>
+                <td><input type="text" name="tax3_invoice" placeholder=""></td>
+                <td><input type="text" name="tax3_exp" placeholder=""></td>
+                <td><input type="text" name="tax3_remarks" placeholder=""></td>
+              </tr>
+              <tr>
+                <td>6.</td>
+                <td class="text-left font-semibold">ROAD TAX 4 QL</td>
+                <td><input type="date" name="tax4_due" placeholder="dd/mm/yyyy"></td>
+                <td><input type="date" name="tax4_executed" placeholder="dd/mm/yyyy"></td>
+                <td><input type="date" name="tax4_next" placeholder="dd/mm/yyyy"></td>
+                <td><input type="text" name="tax4_invoice" placeholder=""></td>
+                <td><input type="text" name="tax4_exp" placeholder=""></td>
+                <td><input type="text" name="tax4_remarks" placeholder=""></td>
+              </tr>
+              <tr>
+                <td>7.</td>
+                <td class="text-left font-semibold">ROUTE PERMIT</td>
+                <td><input type="date" name="permit_due" placeholder="dd/mm/yyyy"></td>
+                <td><input type="date" name="permit_executed" placeholder="dd/mm/yyyy"></td>
+                <td><input type="date" name="permit_next" placeholder="dd/mm/yyyy"></td>
+                <td><input type="text" name="permit_invoice" placeholder=""></td>
+                <td><input type="text" name="permit_exp" placeholder=""></td>
+                <td><input type="text" name="permit_remarks" placeholder=""></td>
+              </tr>
+              <tr>
+                <td>8.</td>
+                <td class="text-left font-semibold">EMISSION TEST 1 HALF</td>
+                <td><input type="date" name="emission1_due" placeholder="dd/mm/yyyy"></td>
+                <td><input type="date" name="emission1_executed" placeholder="dd/mm/yyyy"></td>
+                <td><input type="date" name="emission1_next" placeholder="dd/mm/yyyy"></td>
+                <td><input type="text" name="emission1_invoice" placeholder=""></td>
+                <td><input type="text" name="emission1_exp" placeholder=""></td>
+                <td><input type="text" name="emission1_remarks" placeholder=""></td>
+              </tr>
+              <tr>
+                <td>9.</td>
+                <td class="text-left font-semibold">EMISSION TEST 2 HALF</td>
+                <td><input type="date" name="emission2_due" placeholder="dd/mm/yyyy"></td>
+                <td><input type="date" name="emission2_executed" placeholder="dd/mm/yyyy"></td>
+                <td><input type="date" name="emission2_next" placeholder="dd/mm/yyyy"></td>
+                <td><input type="text" name="emission2_invoice" placeholder=""></td>
+                <td><input type="text" name="emission2_exp" placeholder=""></td>
+                <td><input type="text" name="emission2_remarks" placeholder=""></td>
+              </tr>
+              <tr>
+                <td>10.</td>
+                <td class="text-left font-semibold">SPEED GOVERNER ANNUAL CALIBRATION</td>
+                <td><input type="date" name="speed_due" placeholder="dd/mm/yyyy"></td>
+                <td><input type="date" name="speed_executed" placeholder="dd/mm/yyyy"></td>
+                <td><input type="date" name="speed_next" placeholder="dd/mm/yyyy"></td>
+                <td><input type="text" name="speed_invoice" placeholder=""></td>
+                <td><input type="text" name="speed_exp" placeholder=""></td>
+                <td><input type="text" name="speed_remarks" placeholder=""></td>
+              </tr>
+              <tr>
+                <td>11.</td>
+                <td class="text-left font-semibold">FIRE EXTINGUISHER REFIL</td>
+                <td><input type="date" name="fire_due" placeholder="dd/mm/yyyy"></td>
+                <td><input type="date" name="fire_executed" placeholder="dd/mm/yyyy"></td>
+                <td><input type="date" name="fire_next" placeholder="dd/mm/yyyy"></td>
+                <td><input type="text" name="fire_invoice" placeholder=""></td>
+                <td><input type="text" name="fire_exp" placeholder=""></td>
+                <td><input type="text" name="fire_remarks" placeholder=""></td>
+              </tr>
+              <tr>
+                <td>12.</td>
+                <td class="text-left font-semibold">FIRST AID REPLACEMENT</td>
+                <td><input type="date" name="firstaid_due" placeholder="dd/mm/yyyy"></td>
+                <td><input type="date" name="firstaid_executed" placeholder="dd/mm/yyyy"></td>
+                <td><input type="date" name="firstaid_next" placeholder="dd/mm/yyyy"></td>
+                <td><input type="text" name="firstaid_invoice" placeholder=""></td>
+                <td><input type="text" name="firstaid_exp" placeholder=""></td>
+                <td><input type="text" name="firstaid_remarks" placeholder=""></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Submit Button -->
+        <div class="flex justify-center mt-8">
+          <button type="submit" class="bg-blue-800 hover:bg-green-600 text-white px-12 py-3 rounded-full font-bold text-lg shadow-lg transition-colors">
+            Submit
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+<script src="{{ url_for('static', filename='js/uppercase.js') }}"></script>
+{% include 'footer.html' %}
+</body>
+</html>

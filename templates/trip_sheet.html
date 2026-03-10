@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Trip Sheet - Drive Logs</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    * { font-family: 'Inter', sans-serif; }
+    
+    body {
+      background: linear-gradient(135deg, #fef3c7 0%, #fde68a 50%, #fef3c7 100%);
+    }
+    
+    .form-container {
+      background: white;
+      border-radius: 16px;
+      padding: 32px 40px;
+      box-shadow: 0 4px 25px rgba(0, 0, 0, 0.1);
+      border: 2px solid #d1d5db;
+    }
+    
+    .form-row {
+      display: flex;
+      align-items: center;
+      margin-bottom: 18px;
+    }
+    
+    .form-label {
+      font-weight: 700;
+      color: #1f2937;
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+      min-width: 220px;
+    }
+    
+    .colon {
+      font-weight: bold;
+      color: #1f2937;
+      margin: 0 16px;
+      font-size: 1.1rem;
+    }
+    
+    .form-input, .form-select {
+      flex: 1;
+      padding: 12px 18px;
+      border: 2px solid #f59e0b;
+      border-radius: 30px;
+      font-size: 0.95rem;
+      transition: all 0.3s ease;
+      background: white;
+    }
+    
+    .form-input:focus, .form-select:focus {
+      outline: none;
+      border-color: #d97706;
+      box-shadow: 0 0 0 4px rgba(245, 158, 11, 0.15);
+    }
+    
+    .form-input[readonly] {
+      background-color: #f9fafb;
+      cursor: not-allowed;
+      color: #374151;
+    }
+    
+    .form-select {
+      cursor: pointer;
+      appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23f59e0b'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E");
+      background-repeat: no-repeat;
+      background-position: right 16px center;
+      background-size: 20px;
+      padding-right: 48px;
+    }
+    
+    .submit-btn {
+      background: linear-gradient(135deg, #1e40af 0%, #1e3a8a 100%);
+      color: white;
+      padding: 16px 56px;
+      border-radius: 50px;
+      font-weight: 700;
+      font-size: 1.1rem;
+      box-shadow: 0 6px 20px rgba(30, 64, 175, 0.35);
+      transition: all 0.3s ease;
+      border: none;
+      cursor: pointer;
+    }
+    
+    .submit-btn:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 8px 25px rgba(30, 64, 175, 0.45);
+      background: linear-gradient(135deg, #1e3a8a 0%, #1e293b 100%);
+    }
+    
+    .form-title {
+      color: #1e40af;
+      font-size: 1.75rem;
+      font-weight: 800;
+      text-decoration: underline;
+      text-underline-offset: 6px;
+      text-decoration-thickness: 3px;
+    }
+    
+    .form-ref {
+      color: #374151;
+      font-weight: 700;
+      font-size: 0.9rem;
+    }
+    
+    .two-column {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+    }
+    
+    .three-column {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 16px;
+    }
+    
+    .section-header {
+      background: linear-gradient(135deg, #3b82f6 0%, #1e40af 100%);
+      color: white;
+      padding: 10px 20px;
+      border-radius: 10px;
+      font-weight: 700;
+      font-size: 0.9rem;
+      text-transform: uppercase;
+      margin: 20px 0 15px 0;
+      text-align: center;
+    }
+    
+    .category-box {
+      background: #f8fafc;
+      border: 2px solid #e2e8f0;
+      border-radius: 12px;
+      padding: 15px;
+      margin-bottom: 15px;
+    }
+    
+    .category-title {
+      font-weight: 700;
+      color: #1e40af;
+      font-size: 0.9rem;
+      text-transform: uppercase;
+      margin-bottom: 12px;
+      padding-bottom: 8px;
+      border-bottom: 2px solid #3b82f6;
+    }
+    
+    .count-input {
+      padding: 10px 14px;
+      border: 2px solid #cbd5e1;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      width: 100%;
+      text-align: center;
+      font-weight: 600;
+    }
+    
+    .count-input:focus {
+      outline: none;
+      border-color: #3b82f6;
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+    }
+    
+    .count-label {
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: #64748b;
+      text-transform: uppercase;
+      margin-bottom: 6px;
+      display: block;
+      text-align: center;
+    }
+    
+    .subtotal-box {
+      background: #eff6ff;
+      border: 2px solid #3b82f6;
+      border-radius: 8px;
+      padding: 10px;
+      text-align: center;
+    }
+    
+    .subtotal-value {
+      font-size: 1.2rem;
+      font-weight: 800;
+      color: #1e40af;
+    }
+    
+    .grand-total-box {
+      background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+      color: white;
+      border-radius: 12px;
+      padding: 20px;
+      text-align: center;
+      margin-top: 20px;
+    }
+    
+    .grand-total-label {
+      font-size: 1rem;
+      font-weight: 600;
+      margin-bottom: 8px;
+    }
+    
+    .grand-total-value {
+      font-size: 2rem;
+      font-weight: 800;
+    }
+    
+    @media (max-width: 768px) {
+      .form-container {
+        padding: 24px 20px;
+      }
+      
+      .form-row {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+      }
+      
+      .form-label {
+        min-width: auto;
+      }
+      
+      .colon {
+        display: none;
+      }
+      
+      .form-input, .form-select {
+        width: 100%;
+      }
+      
+      .two-column, .three-column {
+        grid-template-columns: 1fr;
+        gap: 12px;
+      }
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col pt-20">
+  
+  <!-- Logo Bar -->
+  <div class="logo-bar w-full flex items-center justify-between px-4 py-3 fixed top-0 left-0 z-50">
+    <img src="{{ url_for('static', filename='img/drive-logs.png') }}" alt="Drive Logs Logo" class="h-12 md:h-14 w-auto ml-2">
+    <div class="flex items-center gap-4">
+      <a href="{{ url_for('dashboard') }}" class="bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-full text-sm font-semibold transition-colors">
+        ← Dashboard
+      </a>
+      <a href="{{ url_for('logout') }}" class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-full text-sm font-semibold transition-colors">
+        Logout
+      </a>
+    </div>
+  </div>
+
+  <!-- College Header -->
+  <div class="w-full flex justify-center items-center border-b border-gray-300 bg-white">
+    <img src="{{ url_for('static', filename='img/pmc-logo.png') }}" alt="College Header" class="w-full max-w-5xl h-auto p-2 md:p-4">
+  </div>
+
+  <!-- Main Content -->
+  <div class="flex-1 py-8 px-4">
+    <div class="form-container w-full max-w-5xl mx-auto">
+      
+      <!-- Flash Messages -->
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          {% for category, message in messages %}
+            <div class="mb-4 p-4 rounded-lg {% if category == 'success' %}bg-green-100 text-green-800 border border-green-300{% elif category == 'danger' %}bg-red-100 text-red-800 border border-red-300{% else %}bg-blue-100 text-blue-800 border border-blue-300{% endif %}">
+              {{ message }}
+            </div>
+          {% endfor %}
+        {% endif %}
+      {% endwith %}
+      
+      <!-- Header -->
+      <div class="text-center mb-2">
+        <h1 class="form-title">TRIP SHEET</h1>
+      </div>
+      <div class="text-right mb-6">
+        <span class="form-ref">REF: PMCTECH/LOGI/FORM 8/001</span>
+      </div>
+
+      <!-- Form -->
+      <form method="POST">
+        
+        <!-- Date & Time -->
+        <div class="form-row">
+          <label class="form-label">DATE & TIME</label>
+          <span class="colon">:</span>
+          <input type="datetime-local" name="date_time" class="form-input" required>
+        </div>
+
+        <!-- Route ID -->
+        <div class="form-row">
+          <label class="form-label">ROUTE ID</label>
+          <span class="colon">:</span>
+          <input type="text" name="route_id" class="form-input" required placeholder="Enter route ID (e.g., R001)">
+        </div>
+
+        <!-- Driver ID -->
+        <div class="form-row">
+          <label class="form-label">DRIVER ID</label>
+          <span class="colon">:</span>
+          <input type="text" name="driver_id" class="form-input" required placeholder="Enter driver ID">
+        </div>
+
+        <!-- Vehicle ID -->
+        <div class="form-row">
+          <label class="form-label">VEHICLE ID</label>
+          <span class="colon">:</span>
+          <select name="vehicle_id" id="vehicleSelect" class="form-select" required onchange="fillVehicleDetails()">
+            <option value="">-- Select Vehicle --</option>
+            {% for vehicle in vehicles %}
+            <option value="{{ vehicle.vehicle_id }}" 
+                    data-vehicle-no="{{ vehicle.registration_no or '' }}">
+              {{ vehicle.vehicle_id }} - {{ vehicle.registration_no or 'No Registration' }}
+            </option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <!-- Vehicle No (Auto-filled) -->
+        <div class="form-row">
+          <label class="form-label">VEHICLE NO</label>
+          <span class="colon">:</span>
+          <input type="text" name="vehicle_no" id="vehicleNo" class="form-input" readonly>
+        </div>
+
+        <!-- Driver Name -->
+        <div class="form-row">
+          <label class="form-label">DRIVER NAME</label>
+          <span class="colon">:</span>
+          <input type="text" name="driver_name" class="form-input" required placeholder="Enter driver name">
+        </div>
+
+        <!-- Trip Start Kilometer -->
+        <div class="form-row">
+          <label class="form-label">TRIP START KILOMETER</label>
+          <span class="colon">:</span>
+          <input type="number" step="0.01" name="trip_start_km" class="form-input" required placeholder="Enter starting kilometer">
+        </div>
+
+        <!-- Trip Close Kilometer -->
+        <div class="form-row">
+          <label class="form-label">TRIP CLOSE KILOMETER</label>
+          <span class="colon">:</span>
+          <input type="number" step="0.01" name="trip_close_km" class="form-input" required placeholder="Enter closing kilometer">
+        </div>
+
+        <!-- Trip Start & Close Time -->
+        <div class="two-column mb-4">
+          <div class="form-row">
+            <label class="form-label">TRIP STARTING TIME</label>
+            <span class="colon">:</span>
+            <input type="time" name="trip_start_time" class="form-input" required>
+          </div>
+          
+          <div class="form-row">
+            <label class="form-label">TRIP CLOSING TIME</label>
+            <span class="colon">:</span>
+            <input type="time" name="trip_close_time" class="form-input" required>
+          </div>
+        </div>
+
+        <!-- Cumulative Strength Section -->
+        <div class="section-header">
+          CUMULATIVE STRENGTH
+        </div>
+
+        <!-- Student Category -->
+        <div class="category-box">
+          <div class="category-title">👨‍🎓 STUDENTS</div>
+          <div class="three-column">
+            <div>
+              <label class="count-label">Male</label>
+              <input type="number" name="student_male" id="studentMale" class="count-input" value="0" min="0" oninput="calculateTotals()">
+            </div>
+            <div>
+              <label class="count-label">Female</label>
+              <input type="number" name="student_female" id="studentFemale" class="count-input" value="0" min="0" oninput="calculateTotals()">
+            </div>
+            <div>
+              <label class="count-label">Transgender</label>
+              <input type="number" name="student_transgender" id="studentTransgender" class="count-input" value="0" min="0" oninput="calculateTotals()">
+            </div>
+          </div>
+          <div class="subtotal-box mt-3">
+            <span class="text-sm font-semibold text-gray-600">Student Total: </span>
+            <span class="subtotal-value" id="studentTotal">0</span>
+          </div>
+        </div>
+
+        <!-- Faculty Category -->
+        <div class="category-box">
+          <div class="category-title">👨‍🏫 FACULTY</div>
+          <div class="three-column">
+            <div>
+              <label class="count-label">Male</label>
+              <input type="number" name="faculty_male" id="facultyMale" class="count-input" value="0" min="0" oninput="calculateTotals()">
+            </div>
+            <div>
+              <label class="count-label">Female</label>
+              <input type="number" name="faculty_female" id="facultyFemale" class="count-input" value="0" min="0" oninput="calculateTotals()">
+            </div>
+            <div>
+              <label class="count-label">Transgender</label>
+              <input type="number" name="faculty_transgender" id="facultyTransgender" class="count-input" value="0" min="0" oninput="calculateTotals()">
+            </div>
+          </div>
+          <div class="subtotal-box mt-3">
+            <span class="text-sm font-semibold text-gray-600">Faculty Total: </span>
+            <span class="subtotal-value" id="facultyTotal">0</span>
+          </div>
+        </div>
+
+        <!-- Guest Category -->
+        <div class="category-box">
+          <div class="category-title">👥 GUESTS</div>
+          <div class="three-column">
+            <div>
+              <label class="count-label">Male</label>
+              <input type="number" name="guest_male" id="guestMale" class="count-input" value="0" min="0" oninput="calculateTotals()">
+            </div>
+            <div>
+              <label class="count-label">Female</label>
+              <input type="number" name="guest_female" id="guestFemale" class="count-input" value="0" min="0" oninput="calculateTotals()">
+            </div>
+            <div>
+              <label class="count-label">Transgender</label>
+              <input type="number" name="guest_transgender" id="guestTransgender" class="count-input" value="0" min="0" oninput="calculateTotals()">
+            </div>
+          </div>
+          <div class="subtotal-box mt-3">
+            <span class="text-sm font-semibold text-gray-600">Guest Total: </span>
+            <span class="subtotal-value" id="guestTotal">0</span>
+          </div>
+        </div>
+
+        <!-- Grand Total -->
+        <div class="grand-total-box">
+          <div class="grand-total-label">CUMULATIVE TOTAL STRENGTH</div>
+          <div class="grand-total-value" id="grandTotal">0</div>
+          <input type="hidden" name="cumulative_strength" id="cumulativeStrengthInput" value="0">
+        </div>
+
+        <!-- Trip Starting Place -->
+        <div class="form-row">
+          <label class="form-label">TRIP STARTING PLACE</label>
+          <span class="colon">:</span>
+          <input type="text" name="trip_start_place" class="form-input" required placeholder="Enter starting location">
+        </div>
+
+        <!-- Trip Closing Place -->
+        <div class="form-row">
+          <label class="form-label">TRIP CLOSING PLACE</label>
+          <span class="colon">:</span>
+          <input type="text" name="trip_close_place" class="form-input" required placeholder="Enter closing location">
+        </div>
+
+        <!-- Any Comments -->
+        <div class="form-row mt-6">
+          <label class="form-label">ANY COMMENTS</label>
+          <span class="colon">:</span>
+          <input type="text" name="comments" class="form-input" placeholder="Enter any comments or remarks">
+        </div>
+
+        <!-- Entered By -->
+        <div class="form-row">
+          <label class="form-label">ENTERED BY</label>
+          <span class="colon">:</span>
+          <input type="text" name="entered_by" class="form-input" value="{{ session.get('user_name', '') }}" required placeholder="Enter your name">
+        </div>
+
+        <!-- Submit Button -->
+        <div class="flex justify-center mt-10">
+          <button type="submit" class="submit-btn">
+            Submit Trip Sheet
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    // Auto-fill vehicle number when vehicle is selected
+    function fillVehicleDetails() {
+      const select = document.getElementById('vehicleSelect');
+      const selectedOption = select.options[select.selectedIndex];
+      
+      if (selectedOption.value) {
+        document.getElementById('vehicleNo').value = selectedOption.getAttribute('data-vehicle-no');
+      } else {
+        document.getElementById('vehicleNo').value = '';
+      }
+    }
+
+    // Calculate all totals
+    function calculateTotals() {
+      // Student totals
+      const studentMale = parseInt(document.getElementById('studentMale').value) || 0;
+      const studentFemale = parseInt(document.getElementById('studentFemale').value) || 0;
+      const studentTransgender = parseInt(document.getElementById('studentTransgender').value) || 0;
+      const studentTotal = studentMale + studentFemale + studentTransgender;
+      document.getElementById('studentTotal').textContent = studentTotal;
+
+      // Faculty totals
+      const facultyMale = parseInt(document.getElementById('facultyMale').value) || 0;
+      const facultyFemale = parseInt(document.getElementById('facultyFemale').value) || 0;
+      const facultyTransgender = parseInt(document.getElementById('facultyTransgender').value) || 0;
+      const facultyTotal = facultyMale + facultyFemale + facultyTransgender;
+      document.getElementById('facultyTotal').textContent = facultyTotal;
+
+      // Guest totals
+      const guestMale = parseInt(document.getElementById('guestMale').value) || 0;
+      const guestFemale = parseInt(document.getElementById('guestFemale').value) || 0;
+      const guestTransgender = parseInt(document.getElementById('guestTransgender').value) || 0;
+      const guestTotal = guestMale + guestFemale + guestTransgender;
+      document.getElementById('guestTotal').textContent = guestTotal;
+
+      // Grand total
+      const grandTotal = studentTotal + facultyTotal + guestTotal;
+      document.getElementById('grandTotal').textContent = grandTotal;
+      document.getElementById('cumulativeStrengthInput').value = grandTotal;
+    }
+
+    // Set current date and time on load
+    document.addEventListener('DOMContentLoaded', function() {
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = String(now.getMonth() + 1).padStart(2, '0');
+      const day = String(now.getDate()).padStart(2, '0');
+      const hours = String(now.getHours()).padStart(2, '0');
+      const minutes = String(now.getMinutes()).padStart(2, '0');
+      
+      const datetimeStr = `${year}-${month}-${day}T${hours}:${minutes}`;
+      document.querySelector('input[name="date_time"]').value = datetimeStr;
+      
+      // Initialize totals on load
+      calculateTotals();
+    });
+  </script>
+
+<script src="{{ url_for('static', filename='js/uppercase.js') }}"></script>
+{% include 'footer.html' %}
+</body>
+</html>

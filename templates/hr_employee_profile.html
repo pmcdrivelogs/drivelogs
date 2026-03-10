@@ -1,0 +1,1058 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Employee Profile - {{ employee.name }} - Drive Logs</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <script>
+    function getProfileEmployee() {
+      try {
+        const el = document.getElementById('profile-data');
+        return el ? JSON.parse(el.textContent || '{}') : {};
+      } catch (e) {
+        return {};
+      }
+    }
+
+    function computeYearsSince(isoDate) {
+      if (!isoDate) return null;
+      // Accept YYYY-MM-DD or full ISO
+      const d = new Date(isoDate);
+      if (Number.isNaN(d.getTime())) return null;
+      const now = new Date();
+      const msPerYear = 365.25 * 24 * 60 * 60 * 1000;
+      return Math.floor((now - d) / msPerYear);
+    }
+
+    // Populate profile experience in header after DOM ready
+    document.addEventListener('DOMContentLoaded', function() {
+      try {
+        const emp = getProfileEmployee();
+        const doj = emp.date_of_joining || emp.expected_date_of_joining || null;
+        const el = document.getElementById('profile-experience');
+        if (el) {
+          if (doj) {
+            const yrs = computeYearsSince(doj);
+            if (yrs === null) el.textContent = '';
+            else el.textContent = `Experience: ${yrs} yr${yrs === 1 ? '' : 's'}`;
+          } else {
+            el.textContent = '';
+          }
+        }
+      } catch (e) {
+        // silently ignore
+      }
+    });
+
+    function _getPrintableHTML() {
+      const headStyles = document.querySelector('head').innerHTML;
+      const container = document.querySelector('.max-w-7xl');
+      return `<!DOCTYPE html><html>${headStyles}<body>${container ? container.outerHTML : document.body.outerHTML}</body></html>`;
+    }
+
+    function printProfile() {
+      const printWindow = window.open('', '_blank');
+      printWindow.document.write(_getPrintableHTML());
+      printWindow.document.close();
+      setTimeout(() => { printWindow.print(); }, 500);
+    }
+
+    function downloadProfile() {
+      const iframe = document.createElement('iframe');
+      iframe.style.position = 'fixed';
+      iframe.style.right = '0';
+      iframe.style.bottom = '0';
+      iframe.style.width = '0';
+      iframe.style.height = '0';
+      iframe.style.border = '0';
+      document.body.appendChild(iframe);
+      const doc = iframe.contentWindow.document;
+      doc.open();
+      doc.write(_getPrintableHTML());
+      doc.close();
+      setTimeout(() => {
+        iframe.contentWindow.focus();
+        iframe.contentWindow.print();
+        setTimeout(() => { document.body.removeChild(iframe); }, 1000);
+      }, 500);
+    }
+  </script>
+  <style>
+    * { font-family: 'Inter', sans-serif; }
+    body { background: #fefce8; }
+    
+    .profile-section {
+      background: #eab308;
+      color: #1e293b;
+      padding: 8px 12px;
+      font-weight: 800;
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      border-radius: 4px;
+      margin: 8px 0 6px 0;
+      box-shadow: 0 2px 6px rgba(234, 179, 8, 0.2);
+    }
+    
+    .info-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+    
+    .info-item {
+      background: white;
+      padding: 8px;
+      border-radius: 4px;
+      border-left: 3px solid #eab308;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+    }
+    
+    .info-label {
+      font-size: 0.65rem;
+      font-weight: 700;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: 0.3px;
+      margin-bottom: 2px;
+    }
+    
+    .info-value {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: #1e293b;
+      word-wrap: break-word;
+      overflow-wrap: break-word;
+      white-space: normal;
+    }
+    
+    .badge {
+      padding: 6px 16px;
+      border-radius: 12px;
+      font-size: 0.85rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      display: inline-block;
+    }
+    
+    .badge-active {
+      background: #10b981;
+      color: white;
+    }
+    
+    .badge-inactive {
+      background: #f59e0b;
+      color: white;
+    }
+    
+    .badge-terminated {
+      background: #ef4444;
+      color: white;
+    }
+    
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: white;
+      border-radius: 4px;
+      overflow: hidden;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+      page-break-inside: avoid;
+      margin-bottom: 6px;
+      font-size: 0.8rem;
+    }
+    
+    table th {
+      background: #eab308;
+      color: white;
+      padding: 5px 8px;
+      text-align: left;
+      font-size: 0.7rem;
+      font-weight: 700;
+      text-transform: uppercase;
+    }
+    
+    table td {
+      padding: 4px 8px;
+      border-bottom: 1px solid #e2e8f0;
+      color: #1e293b;
+      font-size: 0.75rem;
+    }
+    
+    table tr:hover {
+      background: #fef9c3;
+    }
+
+    .declaration-section {
+      background: white;
+      padding: 25px;
+      margin: 0;
+      /* page-break-before removed to allow manual control */
+    }
+
+    .declaration-title {
+      font-size: 0.9rem;
+      font-weight: 800;
+      color: #1e293b;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin: 0 0 18px 0;
+      padding-left: 12px;
+      border-left: 4px solid #f59e0b;
+    }
+    
+    .declaration-content {
+      color: #1e293b;
+      font-size: 0.82rem;
+      line-height: 1.7;
+      margin-bottom: 16px;
+      text-align: justify;
+    }
+
+    .declaration-emp-id {
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+
+    .date-place-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 25px;
+      margin: 18px 0 20px 0;
+    }
+
+    .date-place-item {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .date-place-label {
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: #1e293b;
+      margin-bottom: 6px;
+      text-transform: uppercase;
+    }
+
+    .date-place-line {
+      border-bottom: 1px dotted #333;
+      height: 20px;
+    }
+
+    .driver-signature-box {
+      margin: 20px 0;
+    }
+
+    .driver-signature-label {
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: #1e293b;
+      margin-bottom: 10px;
+      text-transform: uppercase;
+    }
+
+    .driver-signature-line {
+      border: 1px dotted #333;
+      height: 70px;
+      margin-bottom: 0;
+    }
+
+    .declaration-note {
+      font-size: 0.8rem;
+      color: #1e293b;
+      text-align: center;
+      margin: 20px 0;
+      font-style: italic;
+      line-height: 1.6;
+    }
+
+    .signature-section-title {
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: #1e293b;
+      text-transform: uppercase;
+      margin: 25px 0 18px 0;
+      letter-spacing: 0.5px;
+    }
+
+    .signature-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 25px;
+      margin: 0 0 15px 0;
+    }
+
+    .signature-box {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .signature-label {
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: #1e293b;
+      margin-bottom: 10px;
+      text-transform: uppercase;
+    }
+
+    .signature-line {
+      border: 1px dotted #333;
+      height: 50px;
+      margin-bottom: 8px;
+    }
+
+    .signature-sub {
+      font-size: 0.7rem;
+      color: #64748b;
+      text-align: left;
+    }
+
+    .college-header-wrapper {
+      page-break-after: avoid;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    .college-header-img {
+      max-width: 100%;
+      height: auto;
+      display: block;
+    }
+    
+    @media print {
+      .no-print {
+        display: none !important;
+      }
+      body {
+        background: white;
+        padding: 0;
+        margin: 0;
+        font-size: 12px;
+      }
+
+      .logo-bar {
+        display: none !important;
+      }
+
+      .max-w-7xl {
+        max-width: 100%;
+        margin: 0;
+        padding: 8px;
+      }
+
+      .college-header-wrapper {
+        page-break-after: avoid;
+        margin-bottom: 8px;
+        border-bottom: 1px solid #999;
+        padding-bottom: 8px;
+      }
+
+      .college-header-img {
+        max-width: 100%;
+        height: auto;
+        padding: 4px 0;
+      }
+
+      .profile-section {
+        margin: 6px 0 4px 0;
+        padding: 6px 10px;
+        font-size: 0.75rem;
+      }
+
+      .info-grid {
+        gap: 6px;
+        margin-bottom: 6px;
+        grid-template-columns: repeat(3, 1fr);
+      }
+
+      .info-item {
+        padding: 6px;
+        border-left: 2px solid #eab308;
+        min-height: auto;
+      }
+
+      .info-label {
+        font-size: 0.6rem;
+        margin-bottom: 2px;
+      }
+
+      .info-value {
+        font-size: 0.75rem;
+      }
+
+      table {
+        margin-bottom: 6px;
+        font-size: 0.7rem;
+      }
+
+      table th {
+        padding: 4px 6px;
+        font-size: 0.65rem;
+      }
+
+      table td {
+        padding: 3px 6px;
+      }
+
+      .bg-white {
+        background: white !important;
+      }
+
+      .p-4 {
+        padding: 4px !important;
+      }
+
+      .p-6 {
+        padding: 4px !important;
+      }
+
+      .shadow-2xl {
+        box-shadow: none !important;
+      }
+
+      .declaration-section {
+        padding: 15px;
+        margin: 0;
+      }
+
+      .declaration-title {
+        margin: 8px 0 6px 0;
+        font-size: 0.8rem;
+      }
+
+      .declaration-content {
+        font-size: 0.75rem;
+        line-height: 1.4;
+        margin-bottom: 8px;
+      }
+
+      .date-place-row {
+        gap: 15px;
+        margin: 10px 0;
+      }
+
+      .signature-grid {
+        gap: 15px;
+        margin: 15px 0;
+      }
+
+      .signature-label {
+        font-size: 0.7rem;
+        margin-bottom: 4px;
+      }
+
+      .declaration-note {
+        font-size: 0.7rem;
+        margin: 10px 0;
+      }
+
+      .signature-section-title {
+        margin: 15px 0 8px 0;
+        font-size: 0.75rem;
+      }
+
+      h1 {
+        font-size: 1.2rem;
+        margin-bottom: 4px;
+      }
+
+      .flex-col {
+        gap: 3px;
+      }
+
+      .mt-8 {
+        margin-top: 4px !important;
+      }
+
+      .pt-6 {
+        padding-top: 3px !important;
+      }
+
+      .mb-8 {
+        margin-bottom: 4px !important;
+      }
+
+      .mb-6 {
+        margin-bottom: 3px !important;
+      }
+    }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col pt-20">
+  
+  <!-- Logo Bar -->
+  <div class="logo-bar w-full flex items-center justify-between px-4 py-3 fixed top-0 left-0 z-50 no-print" style="background: #eab308;">
+    <img src="{{ url_for('static', filename='img/drive-logs.png') }}" alt="Drive Logs Logo" class="h-12 md:h-14 w-auto ml-2">
+    <div class="flex items-center gap-4">
+      <a href="{{ url_for('hr_employees') }}" class="bg-white text-yellow-700 px-4 py-2 rounded-full text-sm font-semibold hover:bg-gray-100 transition-colors">
+        ← Back
+      </a>
+      <a href="{{ url_for('logout') }}" class="bg-white text-yellow-700 px-4 py-2 rounded-full text-sm font-semibold hover:bg-gray-100 transition-colors">
+        Logout
+      </a>
+    </div>
+  </div>
+
+  <!-- Main Content -->
+  <div class="flex-1 py-2 px-1">
+    <div class="max-w-7xl mx-auto">
+      
+      <!-- College Header (First Page Only) -->
+      <div class="college-header-wrapper w-full flex justify-center items-center border-b border-gray-300 bg-white mb-4">
+        <img src="{{ url_for('static', filename='img/pmc-logo.png') }}" alt="College Header" class="college-header-img w-full max-w-5xl h-auto p-2 md:p-4">
+        <script id="profile-data" type="application/json">{{ employee | tojson | safe }}</script>
+      </div>
+      
+      <!-- Employee Header Card -->
+      <div class="bg-white rounded-2xl shadow-2xl p-4 mb-4">
+        <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
+          <div>
+            <h1 class="text-3xl font-bold text-gray-800 mb-2">{{ employee.name }}</h1>
+            <div class="flex items-center gap-3">
+              <span class="text-lg font-semibold text-gray-600">ID: {{ employee.employee_id }}</span>
+              {% if employee.status == 'active' %}
+              <span class="badge badge-active">Active</span>
+              {% elif employee.status == 'inactive' %}
+              <span class="badge badge-inactive">Inactive</span>
+              {% else %}
+              <span class="badge badge-terminated">Terminated</span>
+              {% endif %}
+              <!-- Experience placeholder (computed from date_of_joining) -->
+              <span id="profile-experience" style="margin-left:12px; font-weight:600; color:#374151"></span>
+            </div>
+          </div>
+          <div class="flex gap-3 no-print">
+            <button onclick="printProfile()" style="background: #3b82f6; color: white; padding: 12px 24px; border-radius: 10px; font-weight: 700; border: none; cursor: pointer; display: inline-flex; align-items: center; gap: 8px;">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path>
+              </svg>
+              Print
+            </button>
+            <button onclick="downloadProfile()" style="background: #10b981; color: white; padding: 12px 24px; border-radius: 10px; font-weight: 700; border: none; cursor: pointer; display: inline-flex; align-items: center; gap: 8px;">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+              </svg>
+              Download
+            </button>
+            <a href="{{ url_for('hr_edit_employee', employee_id=employee.employee_id) }}" style="background: #10b981; color: white; padding: 12px 24px; border-radius: 10px; font-weight: 700; text-decoration: none; display: inline-flex; align-items: center; gap: 8px;">
+              <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                <path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"/>
+              </svg>
+              Edit Profile
+            </a>
+          </div>
+        </div>
+      </div>
+
+      <!-- Profile Content -->
+      <div class="bg-white rounded-2xl shadow-2xl p-4">
+        
+        <!-- EMPLOYEE PROFILE -->
+        <div class="profile-section">EMPLOYEE PROFILE</div>
+        <div class="info-grid">
+          <div class="info-item">
+            <div class="info-label">Name</div>
+            <div class="info-value">{{ employee.name or '-' }}</div>
+          </div>
+          <div class="info-item">
+            <div class="info-label">Age</div>
+            <div class="info-value">{{ employee.age or '-' }}</div>
+          </div>
+          <div class="info-item">
+            <div class="info-label">DL No.</div>
+            <div class="info-value">{{ employee.dl_no or '-' }}</div>
+          </div>
+          <div class="info-item">
+            <div class="info-label">Date of Birth</div>
+            <div class="info-value">{{ employee.date_of_birth or '-' }}</div>
+          </div>
+          <div class="info-item">
+            <div class="info-label">Date of Issue</div>
+            <div class="info-value">{{ employee.date_of_issue or '-' }}</div>
+          </div>
+          <div class="info-item">
+            <div class="info-label">Badge No.</div>
+            <div class="info-value">{{ employee.badge_no or '-' }}</div>
+          </div>
+          <div class="info-item">
+            <div class="info-label">LMV Date of Issue</div>
+            <div class="info-value">{{ employee.lmv_date_of_issue or '-' }}</div>
+          </div>
+          <div class="info-item">
+            <div class="info-label">RTO Ref</div>
+            <div class="info-value">{{ employee.rto_ref or '-' }}</div>
+          </div>
+          <div class="info-item">
+            <div class="info-label">HMV Date of Issue</div>
+            <div class="info-value">{{ employee.hmv_date_of_issue or '-' }}</div>
+          </div>
+          <div class="info-item">
+            <div class="info-label">VALIDITY (NT)</div>
+            <div class="info-value">{{ employee.validity_nt or '-' }}</div>
+          </div>
+          <div class="info-item">
+            <div class="info-label">VALIDITY (TR)</div>
+            <div class="info-value">{{ employee.validity_tr or '-' }}</div>
+          </div>
+          <div class="info-item">
+            <div class="info-label">AADHAR NO.</div>
+            <div class="info-value">{{ employee.aadhar_no or '-' }}</div>
+          </div>
+          <div class="info-item">
+            <div class="info-label">NATIVITY</div>
+            <div class="info-value">{{ employee.nativity or '-' }}</div>
+          </div>
+          <div class="info-item">
+            <div class="info-label">PROFILE FOR THE POST OF</div>
+            <div class="info-value">{{ employee.profile_post or employee.profile_post_other or '-' }}</div>
+          </div>
+          <div class="info-item">
+            <div class="info-label">BLOOD GROUP</div>
+            <div class="info-value">{{ employee.blood_group or '-' }}</div>
+          </div>
+          <div class="info-item">
+            <div class="info-label">DATE OF JOINING</div>
+            <div class="info-value">{{ employee.date_of_joining or employee.expected_date_of_joining or '-' }}</div>
+          </div>
+        </div>
+
+        <!-- PERSONAL DATA -->
+        <div class="profile-section">PERSONAL DATA</div>
+        <div class="info-grid">
+          <div class="info-item">
+            <div class="info-label">Father Name</div>
+            <div class="info-value">{{ employee.father_name or '-' }}</div>
+          </div>
+          <div class="info-item">
+            <div class="info-label">Father Age</div>
+            <div class="info-value">{{ employee.father_age or '-' }}</div>
+          </div>
+          <div class="info-item">
+            <div class="info-label">Father Occupation</div>
+            <div class="info-value">{{ employee.father_occupation or '-' }}</div>
+          </div>
+          <div class="info-item">
+            <div class="info-label">Father Gender</div>
+            <div class="info-value">{{ employee.father_gender or '-' }}</div>
+          </div>
+          <div class="info-item">
+            <div class="info-label">Mother Name</div>
+            <div class="info-value">{{ employee.mother_name or '-' }}</div>
+          </div>
+          <div class="info-item">
+            <div class="info-label">Mother Age</div>
+            <div class="info-value">{{ employee.mother_age or '-' }}</div>
+          </div>
+          <div class="info-item">
+            <div class="info-label">Mother Occupation</div>
+            <div class="info-value">{{ employee.mother_occupation or '-' }}</div>
+          </div>
+          <div class="info-item">
+            <div class="info-label">Mother Gender</div>
+            <div class="info-value">{{ employee.mother_gender or '-' }}</div>
+          </div>
+          <div class="info-item">
+            <div class="info-label">Spouse Name</div>
+            <div class="info-value">{{ employee.spouse_name or '-' }}</div>
+          </div>
+          <div class="info-item">
+            <div class="info-label">Spouse Age</div>
+            <div class="info-value">{{ employee.spouse_age or '-' }}</div>
+          </div>
+          <div class="info-item">
+            <div class="info-label">Spouse Occupation</div>
+            <div class="info-value">{{ employee.spouse_occupation or '-' }}</div>
+          </div>
+          <div class="info-item">
+            <div class="info-label">Spouse Gender</div>
+            <div class="info-value">{{ employee.spouse_gender or '-' }}</div>
+          </div>
+          <div class="info-item">
+            <div class="info-label">Child-1 Name</div>
+            <div class="info-value">{{ employee.child1_name or '-' }}</div>
+          </div>
+          <div class="info-item">
+            <div class="info-label">Child-1 Age</div>
+            <div class="info-value">{{ employee.child1_age or '-' }}</div>
+          </div>
+          <div class="info-item">
+            <div class="info-label">Child-1 Occupation</div>
+            <div class="info-value">{{ employee.child1_occupation or '-' }}</div>
+          </div>
+          <div class="info-item">
+            <div class="info-label">Child-1 Gender</div>
+            <div class="info-value">{{ employee.child1_gender or '-' }}</div>
+          </div>
+          <div class="info-item">
+            <div class="info-label">Child-2 Name</div>
+            <div class="info-value">{{ employee.child2_name or '-' }}</div>
+          </div>
+          <div class="info-item">
+            <div class="info-label">Child-2 Age</div>
+            <div class="info-value">{{ employee.child2_age or '-' }}</div>
+          </div>
+          <div class="info-item">
+            <div class="info-label">Child-2 Occupation</div>
+            <div class="info-value">{{ employee.child2_occupation or '-' }}</div>
+          </div>
+          <div class="info-item">
+            <div class="info-label">Child-2 Gender</div>
+            <div class="info-value">{{ employee.child2_gender or '-' }}</div>
+          </div>
+          <div class="info-item">
+            <div class="info-label">Child-3 Name</div>
+            <div class="info-value">{{ employee.child3_name or '-' }}</div>
+          </div>
+          <div class="info-item">
+            <div class="info-label">Child-3 Age</div>
+            <div class="info-value">{{ employee.child3_age or '-' }}</div>
+          </div>
+          <div class="info-item">
+            <div class="info-label">Child-3 Occupation</div>
+            <div class="info-value">{{ employee.child3_occupation or '-' }}</div>
+          </div>
+          <div class="info-item">
+            <div class="info-label">Child-3 Gender</div>
+            <div class="info-value">{{ employee.child3_gender or '-' }}</div>
+          </div>
+          <div class="info-item">
+            <div class="info-label">Max Education</div>
+            <div class="info-value">{{ employee.max_education or '-' }}</div>
+          </div>
+          <div class="info-item">
+            <div class="info-label">School</div>
+            <div class="info-value">{{ employee.school or '-' }}</div>
+          </div>
+          <div class="info-item">
+            <div class="info-label">Mother Tongue</div>
+            <div class="info-value">{{ employee.mother_tongue or '-' }}</div>
+          </div>
+          <div class="info-item">
+            <div class="info-label">Other Languages</div>
+            <div class="info-value">{{ employee.other_lang or '-' }}</div>
+          </div>
+          <div class="info-item">
+            <div class="info-label">Nationality</div>
+            <div class="info-value">{{ employee.nationality or '-' }}</div>
+          </div>
+          <div class="info-item">
+            <div class="info-label">Community & Caste</div>
+            <div class="info-value">{{ employee.community_caste or '-' }}</div>
+          </div>
+          <div class="info-item">
+            <div class="info-label">Religion</div>
+            <div class="info-value">{{ employee.religion or '-' }}</div>
+          </div>
+          <div class="info-item">
+            <div class="info-label">Permanent Address</div>
+            <div class="info-value">{{ employee.permanent_address or '-' }}</div>
+          </div>
+          <div class="info-item">
+            <div class="info-label">Present Address</div>
+            <div class="info-value">{{ employee.present_address or '-' }}</div>
+          </div>
+          <div class="info-item">
+            <div class="info-label">Phone No.</div>
+            <div class="info-value">{{ employee.phone_no or '-' }}</div>
+          </div>
+          <div class="info-item">
+            <div class="info-label">WhatsApp Phone No.</div>
+            <div class="info-value">{{ employee.whatsapp_phone_no or '-' }}</div>
+          </div>
+        </div>
+
+        <!-- HEALTH & FITNESS -->
+        <div class="profile-section">HEALTH & FITNESS</div>
+        <div class="info-grid">
+          <div class="info-item">
+            <div class="info-label">Vision</div>
+            <div class="info-value">{{ (employee.vision_r or employee.vision) ~ (' / ' ~ employee.vision_l) if employee.vision_l else (employee.vision_r or employee.vision) or '-' }}</div>
+          </div>
+          <div class="info-item">
+            <div class="info-label">Vision Checkup Date</div>
+            <div class="info-value">{{ employee.vision_checkup_date or '-' }}</div>
+          </div>
+          <div class="info-item">
+            <div class="info-label">Hearing</div>
+            <div class="info-value">{{ (employee.hearing_r or employee.hearing) ~ (' / ' ~ employee.hearing_l) if employee.hearing_l else (employee.hearing_r or employee.hearing) or '-' }}</div>
+          </div>
+          <div class="info-item">
+            <div class="info-label">Hearing Checkup Date</div>
+            <div class="info-value">{{ employee.hearing_checkup_date or '-' }}</div>
+          </div>
+          <div class="info-item">
+            <div class="info-label">BP</div>
+            <div class="info-value">{{ employee.bp or '-' }}</div>
+          </div>
+          <div class="info-item">
+            <div class="info-label">BP Checkup Date</div>
+            <div class="info-value">{{ employee.bp_checkup_date or '-' }}</div>
+          </div>
+          <div class="info-item">
+            <div class="info-label">Sugar</div>
+            <div class="info-value">{{ employee.sugar or '-' }}</div>
+          </div>
+          <div class="info-item">
+            <div class="info-label">Sugar Checkup Date</div>
+            <div class="info-value">{{ employee.sugar_checkup_date or '-' }}</div>
+          </div>
+          <div class="info-item">
+            <div class="info-label">Fractures</div>
+            <div class="info-value">{{ employee.fractures or '-' }}</div>
+          </div>
+          <div class="info-item">
+            <div class="info-label">Fractures Checkup Date</div>
+            <div class="info-value">{{ employee.fractures_checkup_date or '-' }}</div>
+          </div>
+        </div>
+
+        <!-- EXPERIENCE -->
+        {% if employee.experience and employee.experience|length > 0 %}
+        <div class="profile-section">EXPERIENCE</div>
+        <table>
+          <thead>
+            <tr>
+              <th>FROM DATE</th>
+              <th>TO DATE</th>
+              <th>DESIGNATION</th>
+              <th>ORGANIZATION</th>
+              <th>VEHICLE TYPE</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for exp in employee.experience %}
+            <tr>
+              <td>{{ exp.from_date or '-' }}</td>
+              <td>{{ exp.to_date or '-' }}</td>
+              <td>{{ exp.designation }}</td>
+              <td>{{ exp.organization }}</td>
+              <td>{{ exp.vehicle_type }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% endif %}
+
+        <!-- DRIVING & ELIGIBILITY -->
+        <div class="profile-section">EXAMINATION OF DRIVING & ELIGIBILITY</div>
+        <div class="info-grid">
+          <div class="info-item">
+            <div class="info-label">Driving Nature</div>
+            <div class="info-value">{{ employee.driving_nature or '-' }}</div>
+          </div>
+          <div class="info-item">
+            <div class="info-label">Route</div>
+            <div class="info-value">{{ employee.route or '-' }}</div>
+          </div>
+          <div class="info-item">
+            <div class="info-label">Reference</div>
+            <div class="info-value">{{ employee.reference or '-' }}</div>
+          </div>
+          <div class="info-item">
+            <div class="info-label">Expected Salary</div>
+            <div class="info-value">{{ employee.expected_salary or '-' }}</div>
+          </div>
+          <div class="info-item">
+            <div class="info-label">Expected Date of Joining</div>
+            <div class="info-value">{{ employee.expected_date_of_joining or '-' }}</div>
+          </div>
+        </div>
+
+        <!-- AWARDS & APPRECIATION -->
+        {% if employee.awards and employee.awards|length > 0 %}
+        <div class="profile-section">AWARDS & APPRECIATION</div>
+        <table>
+          <thead>
+            <tr>
+              <th>DATE</th>
+              <th>NATURE</th>
+              <th>REMARKS</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for award in employee.awards %}
+            <tr>
+              <td>{{ award.date }}</td>
+              <td>{{ award.nature }}</td>
+              <td>{{ award.remarks }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% endif %}
+
+        <!-- ACCIDENTS/INCIDENTS -->
+        {% if employee.accidents and employee.accidents|length > 0 %}
+        <div class="profile-section">ACCIDENTS/INCIDENTS</div>
+        <table>
+          <thead>
+            <tr>
+              <th>DATE</th>
+              <th>DESCRIPTION</th>
+              <th>TYPE</th>
+              <th>CASE NO.</th>
+              <th>STATUS</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for acc in employee.accidents %}
+            <tr>
+              <td>{{ acc.date }}</td>
+              <td>{{ acc.description }}</td>
+              <td>{{ acc.type }}</td>
+              <td>{{ acc.case_no or '-' }}</td>
+              <td>{{ acc.status or '-' }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% endif %}
+
+        <!-- BANK DETAILS -->
+        <div class="profile-section">BANK DETAILS</div>
+        <div class="info-grid">
+          <div class="info-item"><div class="info-label">Bank Name</div><div class="info-value">{{ employee.bank_name or '-' }}</div></div>
+          <div class="info-item"><div class="info-label">Account Number</div><div class="info-value">{{ employee.account_number or '-' }}</div></div>
+          <div class="info-item"><div class="info-label">Account Holder</div><div class="info-value">{{ employee.account_holder_name or '-' }}</div></div>
+          <div class="info-item"><div class="info-label">IFSC</div><div class="info-value">{{ employee.ifsc_code or '-' }}</div></div>
+          <div class="info-item"><div class="info-label">Branch</div><div class="info-value">{{ employee.branch or '-' }}</div></div>
+          <div class="info-item"><div class="info-label">Account Type</div><div class="info-value">{{ employee.account_type or '-' }}</div></div>
+        </div>
+
+        <!-- NOMINEE INFORMATION -->
+        <div class="profile-section">NOMINEE INFORMATION</div>
+        <div class="info-grid">
+          <div class="info-item">
+            <div class="info-label">Nominee Name</div>
+            <div class="info-value">{{ employee.nominee_name or '-' }}</div>
+          </div>
+          <div class="info-item">
+            <div class="info-label">Nominee Phone</div>
+            <div class="info-value">{{ employee.nominee_phone_no or '-' }}</div>
+          </div>
+          <div class="info-item">
+            <div class="info-label">Nominee Relation</div>
+            <div class="info-value">{{ employee.nominee_relation or '-' }}</div>
+          </div>
+          <div class="info-item">
+            <div class="info-label">Nominee Gender</div>
+            <div class="info-value">{{ employee.nominee_gender or '-' }}</div>
+          </div>
+        </div>
+
+        <!-- HABITS/PRACTICES -->
+        <div class="profile-section">HABITS (PRACTICES)</div>
+        <div class="info-grid">
+          <div class="info-item">
+            <div class="info-label">Alcohol</div>
+            <div class="info-value">{{ employee.alcohol or '-' }}</div>
+          </div>
+          <div class="info-item">
+            <div class="info-label">Gutkha</div>
+            <div class="info-value">{{ employee.gutkha or '-' }}</div>
+          </div>
+          <div class="info-item">
+            <div class="info-label">Smoking</div>
+            <div class="info-value">{{ employee.smoking or '-' }}</div>
+          </div>
+          <div class="info-item">
+            <div class="info-label">Gambling</div>
+            <div class="info-value">{{ employee.gambling or '-' }}</div>
+          </div>
+          <div class="info-item">
+            <div class="info-label">Tobacco</div>
+            <div class="info-value">{{ employee.tobacco or '-' }}</div>
+          </div>
+          <div class="info-item">
+            <div class="info-label">Other Habits</div>
+            <div class="info-value">{{ employee.other_habits or '-' }}</div>
+          </div>
+        </div>
+
+        <!-- DECLARATION BY THE DRIVER -->
+        <div class="declaration-section">
+          <!-- Declaration Title -->
+          <div class="declaration-title">DECLARATION BY THE DRIVER</div>
+          
+          <!-- Declaration Content -->
+          <div class="declaration-content">
+            <div class="declaration-emp-id">I {{ employee.employee_id }}</div>
+            <p>hereby declare that the above information furnished by me is authenticated and true to my conscience and knowledge. I also strictly obey the rules and regulations of the Institution and if any violation of order found I bind myself to the actions of the Authorities.</p>
+          </div>
+
+          <!-- Date & Place -->
+          <div class="date-place-row">
+            <div class="date-place-item">
+              <div class="date-place-label">Date:</div>
+              <div class="date-place-line"></div>
+            </div>
+            <div class="date-place-item">
+              <div class="date-place-label">Place:</div>
+              <div class="date-place-line"></div>
+            </div>
+          </div>
+
+          <!-- Driver's Signature -->
+          <div class="driver-signature-box">
+            <div class="driver-signature-label">Driver's Signature:</div>
+            <div class="driver-signature-line"></div>
+          </div>
+
+          <!-- Submission Note -->
+          <div class="declaration-note">
+            Submitted to the Honourable Secretary Sir & the Honourable Trustee Madam through the Respective Sir for Approval.
+          </div>
+
+          <!-- Verification Signatures -->
+          <div class="signature-section-title">VERIFICATION & APPROVAL</div>
+          
+          <div class="signature-grid">
+            <div class="signature-box">
+              <div class="signature-label">Verified by Interviewer:</div>
+              <div class="signature-line"></div>
+              <div class="signature-sub">Signature & Date</div>
+            </div>
+            <div class="signature-box">
+              <div class="signature-label">Verified by Coordinator:</div>
+              <div class="signature-line"></div>
+              <div class="signature-sub">Signature & Date</div>
+            </div>
+          </div>
+
+          <div class="signature-grid">
+            <div class="signature-box">
+              <div class="signature-label">Verified by Director:</div>
+              <div class="signature-line"></div>
+              <div class="signature-sub">Signature & Date</div>
+            </div>
+            <div class="signature-box">
+              <div class="signature-label">Approval by Secretary:</div>
+              <div class="signature-line"></div>
+              <div class="signature-sub">Signature & Date</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Metadata -->
+        <div class="mt-2 pt-2 border-t border-gray-200 no-print">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-gray-500">
+            <div>
+              <strong>Created:</strong> {{ employee.created_at }}
+            </div>
+            <div>
+              <strong>Last Updated:</strong> {{ employee.updated_at }}
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+{% include 'footer.html' %}
+</body>
+</html>

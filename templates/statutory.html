@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Statutory - Drive Logs</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <script>
+    function handleSubmit(event) {
+      const form = event.target;
+      const submitBtn = form.querySelector('button[type="submit"]');
+      
+      // Store form data in sessionStorage before submitting
+      const formData = {
+        date: document.querySelector('input[name="date"]').value,
+        time: document.querySelector('input[name="time"]').value,
+        entry_no: document.querySelector('input[name="entry_no"]').value,
+        invoice_no: document.querySelector('input[name="invoice_no"]').value,
+        invoice_date: document.querySelector('input[name="invoice_date"]').value,
+        statutory_body_id: document.querySelector('input[name="statutory_body_id"]').value,
+        type_of_transaction: document.querySelector('select[name="type_of_transaction"]').value,
+        validity_date: document.querySelector('input[name="validity_date"]').value,
+        rate: document.querySelector('input[name="rate"]').value,
+        taxable_amount: document.querySelector('input[name="taxable_amount"]').value,
+        sgst_percent: document.querySelector('input[name="sgst_percent"]').value,
+        sgst_amount: document.querySelector('input[name="sgst_amount"]').value,
+        cgst_percent: document.querySelector('input[name="cgst_percent"]').value,
+        cgst_amount: document.querySelector('input[name="cgst_amount"]').value,
+        igst_percent: document.querySelector('input[name="igst_percent"]').value,
+        igst_amount: document.querySelector('input[name="igst_amount"]').value,
+        entered_by: document.querySelector('input[name="entered_by"]').value,
+        approved_by: document.querySelector('input[name="approved_by"]:checked')?.value || ''
+      };
+      sessionStorage.setItem('submittedStatutoryData', JSON.stringify(formData));
+      
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = '<svg class="animate-spin h-5 w-5 mr-3 inline-block" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg> Submitting...';
+      submitBtn.classList.add('opacity-75', 'cursor-not-allowed');
+      
+      return true;
+    }
+
+    // Calculate GST amounts based on percentages
+    function calculateGST() {
+      const taxableAmount = parseFloat(document.querySelector('input[name="taxable_amount"]').value) || 0;
+      
+      const sgstPercent = parseFloat(document.querySelector('input[name="sgst_percent"]').value) || 0;
+      const cgstPercent = parseFloat(document.querySelector('input[name="cgst_percent"]').value) || 0;
+      const igstPercent = parseFloat(document.querySelector('input[name="igst_percent"]').value) || 0;
+      
+      const sgstAmount = (taxableAmount * sgstPercent / 100);
+      const cgstAmount = (taxableAmount * cgstPercent / 100);
+      const igstAmount = (taxableAmount * igstPercent / 100);
+      
+      document.querySelector('input[name="sgst_amount"]').value = sgstAmount.toFixed(2);
+      document.querySelector('input[name="cgst_amount"]').value = cgstAmount.toFixed(2);
+      document.querySelector('input[name="igst_amount"]').value = igstAmount.toFixed(2);
+      
+      // Calculate total
+      const totalAmount = taxableAmount + sgstAmount + cgstAmount + igstAmount;
+      document.querySelector('input[name="total_amount"]').value = totalAmount.toFixed(2);
+    }
+
+    // Set current date and time on load and attach event listeners
+    document.addEventListener('DOMContentLoaded', function() {
+      const now = new Date();
+      const dateStr = now.toISOString().split('T')[0];
+      const timeStr = now.toTimeString().slice(0, 5);
+      document.querySelector('input[name="date"]').value = dateStr;
+      document.querySelector('input[name="time"]').value = timeStr;
+      
+      // Attach calculateGST to relevant fields
+      const calcFields = ['taxable_amount', 'sgst_percent', 'cgst_percent', 'igst_percent'];
+      calcFields.forEach(function(fieldName) {
+        const field = document.querySelector('input[name="' + fieldName + '"]');
+        if (field) {
+          field.addEventListener('input', calculateGST);
+          field.addEventListener('change', calculateGST);
+        }
+      });
+      
+      // Check if we should show success modal (from URL parameter)
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.get('success') === 'true') {
+        showSuccessModal();
+        // Remove the success parameter from URL without reloading
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
+    });
+    
+    // Show success modal
+    function showSuccessModal() {
+      const modal = document.getElementById('successModal');
+      const content = document.getElementById('modalContent');
+      modal.classList.remove('hidden');
+      setTimeout(() => {
+        content.classList.remove('scale-95');
+        content.classList.add('scale-100');
+      }, 10);
+    }
+    
+    // Close modal
+    function closeModal() {
+      const modal = document.getElementById('successModal');
+      const content = document.getElementById('modalContent');
+      content.classList.remove('scale-100');
+      content.classList.add('scale-95');
+      // Clear stored data
+      sessionStorage.removeItem('submittedStatutoryData');
+      setTimeout(() => {
+        modal.classList.add('hidden');
+        // Reload page to get new entry number
+        window.location.href = window.location.pathname;
+      }, 200);
+    }
+    
+    // Build printable HTML from current view so print matches on-screen
+    function _getPrintableHTML() {
+      const headStyles = document.querySelector('head').innerHTML;
+      const container = document.querySelector('.max-w-3xl');
+      return `<!DOCTYPE html><html>${headStyles}<body>${container ? container.outerHTML : document.body.outerHTML}</body></html>`;
+    }
+
+    // Print form by opening current view HTML in a new window
+    function printForm() {
+      const printWindow = window.open('', '_blank');
+      printWindow.document.write(_getPrintableHTML());
+      printWindow.document.close();
+      setTimeout(() => { printWindow.print(); }, 500);
+    }
+    
+    // Get submitted data from sessionStorage
+    function getSubmittedData() {
+      const storedData = sessionStorage.getItem('submittedStatutoryData');
+      if (storedData) {
+        return JSON.parse(storedData);
+      }
+      // Fallback to current form data if no stored data
+      return {
+        date: document.querySelector('input[name="date"]').value,
+        time: document.querySelector('input[name="time"]').value,
+        entry_no: document.querySelector('input[name="entry_no"]').value,
+        invoice_no: document.querySelector('input[name="invoice_no"]').value,
+        invoice_date: document.querySelector('input[name="invoice_date"]').value,
+        statutory_body_id: document.querySelector('input[name="statutory_body_id"]').value,
+        type_of_transaction: document.querySelector('select[name="type_of_transaction"]').value,
+        validity_date: document.querySelector('input[name="validity_date"]').value,
+        rate: document.querySelector('input[name="rate"]').value,
+        taxable_amount: document.querySelector('input[name="taxable_amount"]').value,
+        sgst_percent: document.querySelector('input[name="sgst_percent"]').value,
+        sgst_amount: document.querySelector('input[name="sgst_amount"]').value,
+        cgst_percent: document.querySelector('input[name="cgst_percent"]').value,
+        cgst_amount: document.querySelector('input[name="cgst_amount"]').value,
+        igst_percent: document.querySelector('input[name="igst_percent"]').value,
+        igst_amount: document.querySelector('input[name="igst_amount"]').value,
+        entered_by: document.querySelector('input[name="entered_by"]').value,
+        approved_by: document.querySelector('input[name="approved_by"]:checked')?.value || ''
+      };
+    }
+    
+    // Download/print form by rendering the current view HTML in a hidden iframe
+    function downloadForm() {
+      const iframe = document.createElement('iframe');
+      iframe.style.position = 'fixed';
+      iframe.style.right = '0';
+      iframe.style.bottom = '0';
+      iframe.style.width = '0';
+      iframe.style.height = '0';
+      iframe.style.border = '0';
+      document.body.appendChild(iframe);
+      const doc = iframe.contentWindow.document;
+      doc.open();
+      doc.write(_getPrintableHTML());
+      doc.close();
+      setTimeout(() => {
+        iframe.contentWindow.focus();
+        iframe.contentWindow.print();
+        setTimeout(() => { document.body.removeChild(iframe); }, 1000);
+      }, 500);
+    }
+  </script>
+  <style>
+    .form-label {
+      font-weight: bold;
+      color: #1f2937;
+      white-space: nowrap;
+      min-width: 180px;
+    }
+    .form-input {
+      flex: 1;
+      padding: 10px 16px;
+      border: 2px solid #d1d5db;
+      border-radius: 8px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .form-input:focus {
+      border-color: #7c3aed;
+      box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.1);
+    }
+    
+    /* Radio button styles */
+    .approval-btn {
+      padding: 10px 24px;
+      border-radius: 9999px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      border: 2px solid transparent;
+    }
+    .approval-yes {
+      background-color: #22c55e;
+      color: white;
+    }
+    .approval-yes:hover {
+      background-color: #16a34a;
+    }
+    .approval-no {
+      background-color: #ef4444;
+      color: white;
+    }
+    .approval-no:hover {
+      background-color: #dc2626;
+    }
+    input[type="radio"]:checked + .approval-yes {
+      box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.4);
+    }
+    input[type="radio"]:checked + .approval-no {
+      box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.4);
+    }
+    
+    /* Tax row styles */
+    .tax-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .tax-label {
+      font-weight: bold;
+      color: #374151;
+      min-width: 100px;
+    }
+    .tax-input {
+      width: 120px;
+      padding: 8px 12px;
+      border: 2px solid #d1d5db;
+      border-radius: 8px;
+      outline: none;
+      transition: border-color 0.2s;
+      text-align: right;
+    }
+    .tax-input:focus {
+      border-color: #7c3aed;
+      box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.1);
+    }
+    
+    /* Print styles */
+    @media print {
+      .logo-bar { display: none !important; }
+      #successModal { display: none !important; }
+      body { padding-top: 0 !important; }
+      button[type="submit"] { display: none !important; }
+      .form-input:read-only { background-color: #f3f4f6 !important; }
+    }
+  </style>
+</head>
+<body class="bg-[#fcfcfc] min-h-screen flex flex-col pt-20">
+  
+  <!-- Success Modal Popup -->
+  <div id="successModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[100] hidden">
+    <div class="bg-white rounded-2xl shadow-2xl p-8 max-w-md w-full mx-4 text-center transform scale-95 transition-transform" id="modalContent">
+      <!-- Success Icon -->
+      <div class="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+        <svg class="w-12 h-12 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+        </svg>
+      </div>
+      
+      <h2 class="text-2xl font-bold text-gray-800 mb-2">Successfully Submitted!</h2>
+      <p class="text-gray-600 mb-6">Your statutory record has been saved.</p>
+      
+      <!-- Action Buttons -->
+      <div class="flex flex-col gap-3">
+        <div class="flex gap-3 justify-center">
+          <button onclick="printForm()" class="flex items-center gap-2 bg-purple-600 hover:bg-purple-700 text-white px-6 py-3 rounded-full font-semibold transition-colors">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"></path>
+            </svg>
+            Print
+          </button>
+          <button onclick="downloadForm()" class="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-full font-semibold transition-colors">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+            </svg>
+            Download
+          </button>
+        </div>
+        <button onclick="closeModal()" class="bg-gray-200 hover:bg-gray-300 text-gray-800 px-6 py-3 rounded-full font-semibold transition-colors mt-2">
+          Close & Add New Entry
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Logo Bar -->
+  <div class="logo-bar w-full flex items-center justify-between px-4 py-3 fixed top-0 left-0 z-50">
+    <img src="{{ url_for('static', filename='img/drive-logs.png') }}" alt="Drive Logs Logo" class="h-12 md:h-14 w-auto ml-2">
+    <div class="flex items-center gap-4">
+      <a href="{{ url_for('admin_dashboard') }}" class="bg-white text-red-600 px-3 py-2 rounded-full text-sm font-semibold transition-colors hover:bg-gray-100 flex items-center gap-1">
+        <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+          <path d="M10.707 2.293a1 1 0 00-1.414 0l-7 7a1 1 0 001.414 1.414L4 10.414V17a1 1 0 001 1h2a1 1 0 001-1v-2a1 1 0 011-1h2a1 1 0 011 1v2a1 1 0 001 1h2a1 1 0 001-1v-6.586l.293.293a1 1 0 001.414-1.414l-7-7z"/>
+        </svg>
+      </a>
+      <a href="{{ url_for('logout') }}" class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-full text-sm font-semibold transition-colors">
+        Logout
+      </a>
+    </div>
+  </div>
+
+  <!-- College Header -->
+  <div class="w-full flex justify-center items-center border-b border-gray-300 bg-white">
+    <img src="{{ url_for('static', filename='img/pmc-logo.png') }}" alt="College Header" class="w-full max-w-5xl h-auto p-2 md:p-4">
+  </div>
+
+  <!-- Main Content -->
+  <div class="flex-1 py-6 px-4">
+    <div class="bg-white rounded-2xl shadow-lg w-full max-w-3xl mx-auto p-6 md:p-8 border-2 border-dashed border-gray-300">
+      
+      <!-- Flash Messages -->
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          {% for category, message in messages %}
+            <div class="mb-4 p-4 rounded-lg {% if category == 'success' %}bg-green-100 text-green-800 border border-green-300{% elif category == 'danger' %}bg-red-100 text-red-800 border border-red-300{% else %}bg-blue-100 text-blue-800 border border-blue-300{% endif %}">
+              {{ message }}
+            </div>
+          {% endfor %}
+        {% endif %}
+      {% endwith %}
+      
+      <!-- Header with REF at right -->
+      <div class="flex items-center justify-between mb-6 pb-4 border-b-2 border-gray-300">
+        <h1 class="text-2xl md:text-3xl font-bold text-purple-700 underline text-left">STATUTORY</h1>
+        <p class="text-gray-700 font-semibold mt-2 text-right whitespace-nowrap">REF: PMCTECH/LOGI/FORM 5/{{ entry_no }}</p>
+      </div>
+
+      <!-- Form -->
+      <form method="POST" onsubmit="return handleSubmit(event)">
+        <input type="hidden" name="total_amount" value="">
+        
+        <div class="space-y-5">
+          
+          <!-- Date & Time -->
+          <div class="flex items-center gap-4">
+            <label class="form-label w-52">DATE & TIME</label>
+            <div class="flex gap-2 flex-1">
+              <input type="date" name="date" class="form-input" style="max-width: 180px;">
+              <input type="time" name="time" class="form-input" style="max-width: 140px;">
+            </div>
+          </div>
+          
+          <!-- Entry No -->
+          <div class="flex items-center gap-4">
+            <label class="form-label w-52">ENTRY NO.</label>
+            <span class="text-gray-600 font-bold">:</span>
+            <input type="text" name="entry_no" class="form-input" value="{{ entry_no }}" readonly style="background-color: #f3f4f6; font-weight: bold;">
+          </div>
+
+          <!-- Invoice No -->
+          <div class="flex items-center gap-4">
+            <label class="form-label w-52">INVOICE NO</label>
+            <span class="text-gray-600 font-bold">:</span>
+            <input type="text" name="invoice_no" class="form-input" placeholder="">
+          </div>
+
+          <!-- Invoice Date -->
+          <div class="flex items-center gap-4">
+            <label class="form-label w-52">INVOICE DATE</label>
+            <span class="text-gray-600 font-bold">:</span>
+            <input type="date" name="invoice_date" class="form-input">
+          </div>
+
+          <!-- Statutory Body ID -->
+          <div class="flex items-center gap-4">
+            <label class="form-label w-52">STATUTORY BODY ID</label>
+            <span class="text-gray-600 font-bold">:</span>
+            <input type="text" name="statutory_body_id" class="form-input" placeholder="">
+          </div>
+
+          <!-- Type of Transaction -->
+          <div class="flex items-center gap-4">
+            <label class="form-label w-52">TYPE OF TRANSACTION</label>
+            <span class="text-gray-600 font-bold">:</span>
+            <select name="type_of_transaction" class="form-input">
+              <option value="">Select</option>
+              <option value="Road Tax">Road Tax</option>
+              <option value="Insurance">Insurance</option>
+              <option value="Permit">Permit</option>
+              <option value="Fitness Certificate">Fitness Certificate</option>
+              <option value="Pollution Certificate">Pollution Certificate</option>
+              <option value="Registration">Registration</option>
+              <option value="Other">Other</option>
+            </select>
+          </div>
+
+          <!-- Validity Date -->
+          <div class="flex items-center gap-4">
+            <label class="form-label w-52">VALIDITY DATE</label>
+            <span class="text-gray-600 font-bold">:</span>
+            <input type="date" name="validity_date" class="form-input">
+          </div>
+
+          <!-- Rate -->
+          <div class="flex items-center gap-4">
+            <label class="form-label w-52">RATE</label>
+            <span class="text-gray-600 font-bold">:</span>
+            <input type="number" step="0.01" name="rate" class="form-input" placeholder="">
+          </div>
+
+          <!-- Taxable Amount -->
+          <div class="flex items-center gap-4">
+            <label class="form-label w-52">TAXABLE AMOUNT</label>
+            <span class="text-gray-600 font-bold">:</span>
+            <input type="number" step="0.01" name="taxable_amount" class="form-input" placeholder="">
+          </div>
+
+          <!-- GST Section -->
+          <div class="bg-gray-50 rounded-xl p-5 space-y-4 border border-gray-200">
+            
+            <!-- SGST Row -->
+            <div class="flex flex-wrap items-center gap-4 justify-between">
+              <div class="flex items-center gap-2">
+                <label class="tax-label">SGST %</label>
+                <span class="text-gray-600 font-bold">:</span>
+                <input type="number" step="0.01" name="sgst_percent" class="tax-input" placeholder="0">
+              </div>
+              <div class="flex items-center gap-2">
+                <label class="tax-label">SGST AMOUNT</label>
+                <span class="text-gray-600 font-bold">:</span>
+                <input type="number" step="0.01" name="sgst_amount" class="tax-input" readonly style="background-color: #f3f4f6;">
+              </div>
+            </div>
+
+            <!-- CGST Row -->
+            <div class="flex flex-wrap items-center gap-4 justify-between">
+              <div class="flex items-center gap-2">
+                <label class="tax-label">CGST %</label>
+                <span class="text-gray-600 font-bold">:</span>
+                <input type="number" step="0.01" name="cgst_percent" class="tax-input" placeholder="0">
+              </div>
+              <div class="flex items-center gap-2">
+                <label class="tax-label">CGST AMOUNT</label>
+                <span class="text-gray-600 font-bold">:</span>
+                <input type="number" step="0.01" name="cgst_amount" class="tax-input" readonly style="background-color: #f3f4f6;">
+              </div>
+            </div>
+
+            <!-- IGST Row -->
+            <div class="flex flex-wrap items-center gap-4 justify-between">
+              <div class="flex items-center gap-2">
+                <label class="tax-label">IGST %</label>
+                <span class="text-gray-600 font-bold">:</span>
+                <input type="number" step="0.01" name="igst_percent" class="tax-input" placeholder="0">
+              </div>
+              <div class="flex items-center gap-2">
+                <label class="tax-label">IGST AMOUNT</label>
+                <span class="text-gray-600 font-bold">:</span>
+                <input type="number" step="0.01" name="igst_amount" class="tax-input" readonly style="background-color: #f3f4f6;">
+              </div>
+            </div>
+
+          </div>
+
+          <!-- Entered By & Approved By -->
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-8 pt-6 border-t-2 border-gray-200">
+            <!-- Entered By -->
+            <div class="flex flex-col items-center gap-2">
+              <label class="form-label text-center">ENTERED BY</label>
+              <input type="text" name="entered_by" class="form-input text-center" style="max-width: 200px;" placeholder="">
+            </div>
+            
+            <!-- Approved By -->
+            <div class="flex flex-col items-center gap-2">
+              <label class="form-label text-center">APPROVED BY</label>
+              <div class="flex gap-4 mt-2">
+                <label class="cursor-pointer">
+                  <input type="radio" name="approved_by" value="YES" class="hidden">
+                  <span class="approval-btn approval-yes">YES</span>
+                </label>
+                <label class="cursor-pointer">
+                  <input type="radio" name="approved_by" value="NO" class="hidden">
+                  <span class="approval-btn approval-no">NO</span>
+                </label>
+              </div>
+            </div>
+          </div>
+
+        </div>
+        
+        <!-- Submit Button -->
+        <div class="flex justify-center mt-8">
+          <button type="submit" class="bg-blue-900 hover:bg-blue-800 text-white px-12 py-3 rounded-full font-bold text-lg shadow-lg transition-colors">
+            Submit
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+<script src="{{ url_for('static', filename='js/uppercase.js') }}"></script>
+{% include 'footer.html' %}
+</body>
+</html>
