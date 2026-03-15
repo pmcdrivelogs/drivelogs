@@ -2567,7 +2567,7 @@ def admin_analytics_dashboard():
             'total_distance': sum(float(r.get('trip_distance', 0) or 0) for r in daily_trips),
             'total_expenditure': sum(float(r.get('amount', 0) or 0) for r in daily_fuel),
             'total_purchases': len(daily_purchases),
-            'total_purchase_value': sum(float(r.get('total_payment', 0) or 0) for r in daily_purchases),
+            'total_purchase_value': sum(float(r.get('net_payable', 0) or r.get('total_payment', 0) or 0) for r in daily_purchases),
             'total_issues': len(daily_issues),
             'total_utilization': len(daily_utilization),
             'total_scrap': len(daily_scrap),
@@ -2623,7 +2623,7 @@ def admin_analytics_dashboard():
             'total_distance': sum(float(r.get('trip_distance', 0) or 0) for r in weekly_trips),
             'total_expenditure': sum(float(r.get('amount', 0) or 0) for r in weekly_fuel),
             'total_purchases': len(weekly_purchases),
-            'total_purchase_value': sum(float(r.get('total_payment', 0) or 0) for r in weekly_purchases),
+            'total_purchase_value': sum(float(r.get('net_payable', 0) or r.get('total_payment', 0) or 0) for r in weekly_purchases),
             'total_issues': len(weekly_issues),
             'total_utilization': len(weekly_utilization),
             'total_scrap': len(weekly_scrap),
@@ -2676,7 +2676,7 @@ def admin_analytics_dashboard():
             'total_distance': sum(float(r.get('trip_distance', 0) or 0) for r in monthly_trips),
             'total_expenditure': sum(float(r.get('amount', 0) or 0) for r in monthly_fuel),
             'total_purchases': len(monthly_purchases),
-            'total_purchase_value': sum(float(r.get('total_payment', 0) or 0) for r in monthly_purchases),
+            'total_purchase_value': sum(float(r.get('net_payable', 0) or r.get('total_payment', 0) or 0) for r in monthly_purchases),
             'total_issues': len(monthly_issues),
             'total_utilization': len(monthly_utilization),
             'total_scrap': len(monthly_scrap),
@@ -2700,14 +2700,18 @@ def admin_analytics_dashboard():
             if r.get('vehicle_id'):
                 vehicle_usage[r['vehicle_id']] += 1
         
-        top_vehicles_data = sorted(vehicle_usage.items(), key=lambda x: x[1], reverse=True)[:5]
+        # All vehicles sorted by trip count (no cap - show all)
+        all_vehicles_data = sorted(vehicle_usage.items(), key=lambda x: x[1], reverse=True)
+        # Keep top 5 for the doughnut chart labels/values (chart gets cluttered with too many)
+        chart_vehicles = all_vehicles_data[:5]
         for period_data in [daily_data, weekly_data, monthly_data]:
-            period_data['vehicle_labels'] = [v[0] for v in top_vehicles_data]
-            period_data['vehicle_values'] = [v[1] for v in top_vehicles_data]
+            period_data['vehicle_labels'] = [v[0] for v in chart_vehicles]
+            period_data['vehicle_values'] = [v[1] for v in chart_vehicles]
+            period_data['total_active_vehicles'] = len(all_vehicles_data)
         
-        # Top performing vehicles
+        # All performing vehicles (no :5 cap)
         top_vehicles = []
-        for vehicle_id, trip_count in top_vehicles_data[:5]:
+        for vehicle_id, trip_count in all_vehicles_data:
             vehicle_trips = [r for r in trip_records if r.get('vehicle_id') == vehicle_id]
             vehicle_fuel = [r for r in fuel_records if r.get('vehicle_id') == vehicle_id]
             
@@ -2751,6 +2755,12 @@ def admin_analytics_dashboard():
                              total_fuel=round(daily_data['total_fuel'], 2),
                              total_distance=round(daily_data['total_distance'], 2),
                              total_expenditure=round(daily_data['total_expenditure'], 2),
+                             total_purchases=daily_data['total_purchases'],
+                             total_purchase_value=round(daily_data['total_purchase_value'], 2),
+                             total_issues=daily_data['total_issues'],
+                             total_utilization=daily_data['total_utilization'],
+                             total_scrap=daily_data['total_scrap'],
+                             total_active_vehicles=len(all_vehicles_data),
                              top_vehicles=top_vehicles,
                              compliant_count=compliant_count,
                              due_soon_count=due_soon_count,
@@ -2762,6 +2772,111 @@ def admin_analytics_dashboard():
         traceback.print_exc()
         flash(f'Error loading analytics: {str(e)}', 'danger')
         return redirect(url_for('admin_dashboard'))
+
+
+@app.route('/api/analytics-custom')
+@admin_required
+def api_analytics_custom():
+    """Return analytics data JSON for a custom date range."""
+    from datetime import datetime
+    from collections import defaultdict
+    import re
+
+    start_str = request.args.get('start')
+    end_str = request.args.get('end')
+    if not start_str or not end_str:
+        return jsonify({'error': 'start and end required'}), 400
+
+    try:
+        start_date = datetime.strptime(start_str, '%Y-%m-%d').date()
+        end_date = datetime.strptime(end_str, '%Y-%m-%d').date()
+    except ValueError:
+        return jsonify({'error': 'Invalid date format. Use YYYY-MM-DD'}), 400
+
+    def to_date(val):
+        if not val:
+            return None
+        try:
+            s = str(val).strip()
+            m = re.match(r'(\d{4}-\d{2}-\d{2})', s)
+            if m:
+                return datetime.strptime(m.group(1), '%Y-%m-%d').date()
+        except Exception:
+            pass
+        return None
+
+    fuel_records = get_all_fuel_records()
+    trip_records = get_all_trip_sheets()
+    purchase_records = get_all_purchases()
+    stock_issue_records = get_all_stock_issues()
+    utilization_records = get_all_utilization()
+    scrap_records = get_all_scrap()
+
+    def in_range(r):
+        d = to_date(r.get('created_at'))
+        return d and start_date <= d <= end_date
+
+    f = [r for r in fuel_records if in_range(r)]
+    t = [r for r in trip_records if in_range(r)]
+    p = [r for r in purchase_records if in_range(r)]
+    si = [r for r in stock_issue_records if in_range(r)]
+    u = [r for r in utilization_records if in_range(r)]
+    sc = [r for r in scrap_records if in_range(r)]
+
+    # Build day-by-day labels
+    from datetime import timedelta
+    days = []
+    cur = start_date
+    while cur <= end_date:
+        days.append(cur)
+        cur += timedelta(days=1)
+
+    fuel_by_day = defaultdict(float)
+    trip_by_day = defaultdict(int)
+    for r in f:
+        d = to_date(r.get('created_at'))
+        if d:
+            fuel_by_day[d.strftime('%d/%m')] += float(r.get('quantity', 0) or 0)
+    for r in t:
+        d = to_date(r.get('created_at'))
+        if d:
+            trip_by_day[d.strftime('%d/%m')] += 1
+
+    labels = [d.strftime('%d/%m') for d in days]
+
+    vehicle_usage = defaultdict(int)
+    for r in t:
+        if r.get('vehicle_id'):
+            vehicle_usage[r['vehicle_id']] += 1
+    all_v = sorted(vehicle_usage.items(), key=lambda x: x[1], reverse=True)
+    top5 = all_v[:5]
+
+    data = {
+        'total_trips': len(t),
+        'total_fuel': round(sum(float(r.get('quantity', 0) or 0) for r in f), 2),
+        'total_distance': round(sum(float(r.get('trip_distance', 0) or 0) for r in t), 2),
+        'total_expenditure': round(sum(float(r.get('amount', 0) or 0) for r in f), 2),
+        'total_purchases': len(p),
+        'total_purchase_value': round(sum(float(r.get('net_payable', 0) or r.get('total_payment', 0) or 0) for r in p), 2),
+        'total_issues': len(si),
+        'total_utilization': len(u),
+        'total_scrap': len(sc),
+        'total_active_vehicles': len(all_v),
+        'fuel_labels': labels,
+        'fuel_values': [fuel_by_day.get(d.strftime('%d/%m'), 0) for d in days],
+        'trip_labels': labels,
+        'trip_values': [trip_by_day.get(d.strftime('%d/%m'), 0) for d in days],
+        'vehicle_labels': [v[0] for v in top5],
+        'vehicle_values': [v[1] for v in top5],
+        'expenditure_values': [
+            round(sum(float(r.get('amount', 0) or 0) for r in f), 2),
+            0, 0, 0
+        ],
+        'stock_labels': ['Purchases', 'Issues', 'Utilization', 'Scrap'],
+        'stock_values': [len(p), len(si), len(u), len(sc)]
+    }
+    return jsonify(data)
+
 
 # =====================================================
 # ADMIN USER MANAGEMENT ROUTES

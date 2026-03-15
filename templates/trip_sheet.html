@@ -342,14 +342,17 @@
         <div class="form-row">
           <label class="form-label">TRIP START KILOMETER</label>
           <span class="colon">:</span>
-          <input type="number" step="0.01" name="trip_start_km" class="form-input" required placeholder="Enter starting kilometer">
+          <input type="number" step="0.01" name="trip_start_km" id="tripStartKm" class="form-input" required placeholder="Enter starting kilometer" oninput="validateKm()">
         </div>
 
         <!-- Trip Close Kilometer -->
         <div class="form-row">
           <label class="form-label">TRIP CLOSE KILOMETER</label>
           <span class="colon">:</span>
-          <input type="number" step="0.01" name="trip_close_km" class="form-input" required placeholder="Enter closing kilometer">
+          <input type="number" step="0.01" name="trip_close_km" id="tripCloseKm" class="form-input" required placeholder="Enter closing kilometer (must be > start)" oninput="validateKm()">
+        </div>
+        <div id="kmError" style="display:none; color:#dc2626; font-size:0.85rem; font-weight:600; margin:-10px 0 14px 236px;">
+          ⚠️ Trip Close Kilometer must be greater than Trip Start Kilometer.
         </div>
 
         <!-- Trip Start & Close Time -->
@@ -487,15 +490,75 @@
   </div>
 
   <script>
-    // Auto-fill vehicle number when vehicle is selected
+    // Validate that close km > start km
+    function validateKm() {
+      const startKm = parseFloat(document.getElementById('tripStartKm').value);
+      const closeKm = parseFloat(document.getElementById('tripCloseKm').value);
+      const errorEl = document.getElementById('kmError');
+      const closeInput = document.getElementById('tripCloseKm');
+
+      if (!isNaN(startKm) && !isNaN(closeKm) && closeKm <= startKm) {
+        errorEl.style.display = 'block';
+        closeInput.style.borderColor = '#dc2626';
+        closeInput.style.boxShadow = '0 0 0 4px rgba(220,38,38,0.15)';
+        return false;
+      } else {
+        errorEl.style.display = 'none';
+        closeInput.style.borderColor = '#f59e0b';
+        closeInput.style.boxShadow = '';
+        return true;
+      }
+    }
+
+    // Block form submission if km validation fails; also save close KM per vehicle for next entry
+    document.querySelector('form').addEventListener('submit', function(e) {
+      const startKm = parseFloat(document.getElementById('tripStartKm').value);
+      const closeKm = parseFloat(document.getElementById('tripCloseKm').value);
+      if (!isNaN(startKm) && !isNaN(closeKm) && closeKm <= startKm) {
+        e.preventDefault();
+        validateKm();
+        document.getElementById('tripCloseKm').focus();
+        return;
+      }
+      // Save close KM keyed by vehicle ID so next entry for same vehicle auto-fills
+      const vehicleId = document.getElementById('vehicleSelect').value;
+      if (!isNaN(closeKm) && vehicleId) {
+        localStorage.setItem('lastCloseKm_' + vehicleId, closeKm);
+      }
+    });
+
     function fillVehicleDetails() {
       const select = document.getElementById('vehicleSelect');
       const selectedOption = select.options[select.selectedIndex];
-      
+      const startKmInput = document.getElementById('tripStartKm');
+
       if (selectedOption.value) {
+        // Fill vehicle registration number
         document.getElementById('vehicleNo').value = selectedOption.getAttribute('data-vehicle-no');
+
+        // Auto-fill Trip Start KM from last recorded Close KM for this vehicle
+        const savedKm = localStorage.getItem('lastCloseKm_' + selectedOption.value);
+        if (savedKm !== null && savedKm !== '') {
+          startKmInput.value = savedKm;
+          startKmInput.style.borderColor = '#10b981';
+          startKmInput.style.boxShadow = '0 0 0 4px rgba(16,185,129,0.15)';
+          startKmInput.title = 'Auto-filled: last closing KM for this vehicle was ' + savedKm + ' km';
+        } else {
+          startKmInput.value = '';
+          startKmInput.style.borderColor = '#f59e0b';
+          startKmInput.style.boxShadow = '';
+          startKmInput.title = '';
+        }
+        // Re-validate KM whenever vehicle changes (clear any stale error)
+        document.getElementById('kmError').style.display = 'none';
+        document.getElementById('tripCloseKm').style.borderColor = '#f59e0b';
+        document.getElementById('tripCloseKm').style.boxShadow = '';
       } else {
         document.getElementById('vehicleNo').value = '';
+        startKmInput.value = '';
+        startKmInput.style.borderColor = '#f59e0b';
+        startKmInput.style.boxShadow = '';
+        startKmInput.title = '';
       }
     }
 
@@ -528,7 +591,7 @@
       document.getElementById('cumulativeStrengthInput').value = grandTotal;
     }
 
-    // Set current date and time on load
+    // Set current date and time on load; auto-fill Trip Start KM from last Close KM
     document.addEventListener('DOMContentLoaded', function() {
       const now = new Date();
       const year = now.getFullYear();
@@ -539,7 +602,9 @@
       
       const datetimeStr = `${year}-${month}-${day}T${hours}:${minutes}`;
       document.querySelector('input[name="date_time"]').value = datetimeStr;
-      
+
+      // Trip Start KM is auto-filled per vehicle when a vehicle is selected (see fillVehicleDetails)
+
       // Initialize totals on load
       calculateTotals();
     });

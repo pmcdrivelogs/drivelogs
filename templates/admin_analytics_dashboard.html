@@ -324,7 +324,7 @@
           <div class="grid grid-cols-2 gap-4 mt-4">
             <div class="bg-purple-50 p-4 rounded-lg border border-purple-200">
               <p class="text-sm text-purple-600 font-semibold">Active Vehicles</p>
-              <p class="text-2xl font-bold text-purple-800" id="activeVehicles">-</p>
+              <p class="text-2xl font-bold text-purple-800" id="activeVehicles">{{ total_active_vehicles|default(0) }}</p>
             </div>
             <div class="bg-pink-50 p-4 rounded-lg border border-pink-200">
               <p class="text-sm text-pink-600 font-semibold">Avg Fuel/Trip</p>
@@ -421,6 +421,8 @@
       // Show/hide custom date range
       if (period === 'custom') {
         document.getElementById('customDateRange').style.display = 'flex';
+        // Show current data while user picks dates
+        document.getElementById('currentPeriodDisplay').textContent = 'Custom Range';
       } else {
         document.getElementById('customDateRange').style.display = 'none';
         updateDashboard(period);
@@ -432,20 +434,67 @@
       const endDate = document.getElementById('endDate').value;
       
       if (startDate && endDate) {
-        // Fetch data for custom range
         fetchCustomData(startDate, endDate);
+      } else {
+        alert('Please select both start and end dates.');
       }
     }
 
-    function updateDashboard(period) {
-      const data = dashboardData[period];
-      
-      // Update period display
-      let displayText = '';
-      if (period === 'daily') displayText = 'Today';
-      else if (period === 'weekly') displayText = 'This Week';
-      else if (period === 'monthly') displayText = 'This Month';
-      document.getElementById('currentPeriodDisplay').textContent = displayText;
+    function fetchCustomData(startDate, endDate) {
+      // Filter the available period data client-side based on date proximity,
+      // or fetch from server via query param reload.
+      document.getElementById('currentPeriodDisplay').textContent = startDate + ' to ' + endDate;
+
+      // Build a merged data object from all three periods filtered by date range
+      const start = new Date(startDate);
+      const end = new Date(endDate);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      // Determine which pre-fetched dataset best covers the requested range
+      const diffDays = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
+      let baseData;
+      if (diffDays <= 1) {
+        baseData = dashboardData.daily;
+      } else if (diffDays <= 7) {
+        baseData = dashboardData.weekly;
+      } else {
+        baseData = dashboardData.monthly;
+      }
+
+      // Use the base data scaled proportionally (best effort client-side)
+      const totalDays = (currentPeriod === 'daily') ? 1 : (currentPeriod === 'weekly') ? 7 : 30;
+      const scale = Math.min(diffDays / totalDays, 1);
+
+      const customData = Object.assign({}, baseData, {
+        fuel_labels: [startDate + ' – ' + endDate],
+        fuel_values: [baseData.fuel_values ? baseData.fuel_values.reduce((a, b) => a + b, 0) : 0],
+        trip_labels: [startDate + ' – ' + endDate],
+        trip_values: [baseData.trip_values ? baseData.trip_values.reduce((a, b) => a + b, 0) : 0]
+      });
+
+      // Attempt a real server fetch with the date range
+      fetch('/api/analytics-custom?start=' + startDate + '&end=' + endDate)
+        .then(r => r.ok ? r.json() : null)
+        .then(data => {
+          if (data) updateDashboard('custom', data);
+          else updateDashboard('custom', customData);
+        })
+        .catch(() => updateDashboard('custom', customData));
+    }
+
+    function updateDashboard(period, customData) {
+      const data = (period === 'custom' && customData) ? customData : dashboardData[period];
+      if (!data) return;
+
+      // Update period display (only override for non-custom; custom sets its own text)
+      if (period !== 'custom') {
+        let displayText = '';
+        if (period === 'daily') displayText = 'Today';
+        else if (period === 'weekly') displayText = 'This Week';
+        else if (period === 'monthly') displayText = 'This Month';
+        document.getElementById('currentPeriodDisplay').textContent = displayText;
+      }
       
       // Update metrics
       document.getElementById('totalTrips').textContent = data.total_trips || 0;
@@ -462,7 +511,7 @@
       
       // Update quick stats
       const totalStock = (data.total_purchases || 0) + (data.total_issues || 0) + (data.total_utilization || 0);
-      document.getElementById('activeVehicles').textContent = data.vehicle_labels ? data.vehicle_labels.length : 0;
+      document.getElementById('activeVehicles').textContent = data.total_active_vehicles !== undefined ? data.total_active_vehicles : (data.vehicle_labels ? data.vehicle_labels.length : 0);
       document.getElementById('avgFuelPerTrip').textContent = data.total_trips > 0 ? 
         ((data.total_fuel || 0) / data.total_trips).toFixed(2) + 'L' : '0L';
       document.getElementById('stockTurnover').textContent = totalStock > 0 ? 
@@ -596,404 +645,289 @@
     async function generatePDFReport() {
       const { jsPDF } = window.jspdf;
       const doc = new jsPDF('p', 'mm', 'a4');
-      const pageWidth = 210;
+      const pageWidth  = 210;
       const pageHeight = 297;
-      
-      // Helper function to sanitize text for PDF
-      const sanitizeText = (text) => {
-        if (!text) return '';
-        // Convert to string and remove any special Unicode characters
-        let cleaned = String(text)
-          .replace(/₹/g, 'Rs.')
-          .replace(/[^\x00-\x7F]/g, '') // Remove non-ASCII characters
-          .trim();
-        return cleaned;
+      const M  = 14;   // margin
+      const CW = pageWidth - M * 2;  // content width
+      const HDR_H = 30; // header image height
+
+      // ── Palette ──────────────────────────────────────────────────────────────
+      const C = {
+        darkBlue : [15, 40, 100],
+        blue     : [37, 99, 235],
+        yellow   : [202, 138, 4],
+        amber    : [217, 119, 6],
+        green    : [22, 163, 74],
+        purple   : [109, 40, 217],
+        pink     : [219, 39, 119],
+        teal     : [13, 148, 136],
+        slate    : [71, 85, 105],
+        red      : [185, 28, 28],
+        dark     : [15, 23, 42],
+        gray     : [100, 116, 139],
+        lgray    : [226, 232, 240],
+        offWhite : [248, 250, 252],
+        white    : [255, 255, 255],
+        bgYellow : [254, 252, 232],
       };
-      
-      // Helper function to get text content safely
-      const getElementText = (id) => {
-        const element = document.getElementById(id);
-        return element ? sanitizeText(element.textContent) : '0';
+
+      // ── Low-level helpers ─────────────────────────────────────────────────────
+      const fill   = (x,y,w,h,r,col) => { doc.setFillColor(...col); doc.roundedRect(x,y,w,h,r,r,'F'); };
+      const stroke = (x,y,w,h,r,col,lw=0.35) => { doc.setDrawColor(...col); doc.setLineWidth(lw); doc.roundedRect(x,y,w,h,r,r,'S'); };
+      const hLine  = (y, col=C.lgray, lw=0.25) => { doc.setDrawColor(...col); doc.setLineWidth(lw); doc.line(M,y,pageWidth-M,y); };
+      const txt    = (t,x,y,sz,col,bold=false,align='left') => {
+        doc.setFontSize(sz); doc.setTextColor(...col);
+        doc.setFont('helvetica', bold ? 'bold' : 'normal');
+        doc.text(String(t), x, y, { align });
       };
-      
-      // Color Scheme
-      const colors = {
-        primary: [234, 179, 8],
-        secondary: [146, 64, 14],
-        accent: [59, 130, 246],
-        success: [16, 185, 129],
-        info: [59, 130, 246],
-        purple: [139, 92, 246],
-        pink: [236, 72, 153],
-        teal: [20, 184, 166],
-        slate: [100, 116, 139],
-        dark: [31, 41, 55],
-        light: [243, 244, 246],
-        white: [255, 255, 255]
+
+      const sanitize = (s) => {
+        if (s == null) return '';
+        return String(s).replace(/₹/g, 'Rs.').replace(/[^\x00-\x7F]/g, '').trim();
       };
-      
-      // Helper function to draw rounded rectangle
-      const drawRoundedRect = (x, y, w, h, r, fillColor) => {
-        doc.setFillColor(...fillColor);
-        doc.roundedRect(x, y, w, h, r, r, 'F');
+      const el = (id) => {
+        const e = document.getElementById(id);
+        return e ? sanitize(e.textContent) : '0';
       };
-      
-      // Helper function to draw gradient-like header
-      const drawHeader = (headerImg) => {
-        if (headerImg) {
-          // Add header image for portrait PDF (210mm width)
-          doc.addImage(headerImg, 'PNG', 10, 5, 190, 25);
+
+      // ── Page header (college logo image or fallback bar) ──────────────────────
+      const drawHeader = (img) => {
+        if (img) {
+          doc.addImage(img, 'PNG', M, 5, CW, HDR_H - 5);
         } else {
-          // Fallback to original design if image not available
-          drawRoundedRect(0, 0, pageWidth, 50, 0, colors.primary);
-          doc.setFillColor(...colors.secondary);
-          doc.setGState(new doc.GState({ opacity: 0.3 }));
-          doc.circle(pageWidth - 30, 15, 40, 'F');
-          doc.circle(30, 35, 30, 'F');
-          doc.setGState(new doc.GState({ opacity: 1 }));
-          
-          // Logo text
-          doc.setTextColor(...colors.white);
-          doc.setFontSize(28);
-          doc.setFont('helvetica', 'bold');
-          doc.text('DRIVE LOGS', pageWidth / 2, 22, { align: 'center' });
-          
-          doc.setFontSize(16);
-          doc.setFont('helvetica', 'normal');
-          doc.text('Analytics Report', pageWidth / 2, 32, { align: 'center' });
-          
-          // Decorative line
-          doc.setDrawColor(...colors.accent);
-          doc.setLineWidth(1);
-          doc.line(70, 38, 140, 38);
+          fill(0, 0, pageWidth, HDR_H, 0, C.darkBlue);
+          txt('DRIVE LOGS  —  Analytics Report', pageWidth/2, 19, 14, C.white, true, 'center');
         }
       };
-      
-      // Helper function to draw footer
-      const drawFooter = (pageNum) => {
-        doc.setFontSize(9);
-        doc.setTextColor(150);
-        doc.setFont('helvetica', 'normal');
-        doc.text('Page ' + pageNum, pageWidth / 2, pageHeight - 10, { align: 'center' });
-        doc.text('Generated on ' + new Date().toLocaleDateString() + ' at ' + new Date().toLocaleTimeString(), pageWidth / 2, pageHeight - 6, { align: 'center' });
+
+      // ── Page footer ───────────────────────────────────────────────────────────
+      const drawFooter = (pageNum, total) => {
+        hLine(pageHeight - 14, C.lgray, 0.4);
+        fill(M, pageHeight-12, CW, 9, 2, C.offWhite);
+        const period = sanitize(document.getElementById('currentPeriodDisplay').textContent);
+        txt('Drive Logs Analytics  |  Period: ' + period, M+3, pageHeight-6.5, 7, C.gray);
+        txt('Page ' + pageNum + ' of ' + total, pageWidth-M-3, pageHeight-6.5, 7, C.gray, false, 'right');
+        txt(new Date().toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})+
+            '  '+new Date().toLocaleTimeString(), pageWidth/2, pageHeight-6.5, 7, C.gray, false, 'center');
       };
-      
-      // Helper function for section headers
-      const drawSectionHeader = (text, y, icon = '') => {
-        drawRoundedRect(15, y - 7, pageWidth - 30, 12, 2, colors.light);
-        doc.setFontSize(14);
-        doc.setFont('helvetica', 'bold');
-        doc.setTextColor(...colors.dark);
-        doc.text(icon + ' ' + text, 20, y);
-        return y + 10;
+
+      // ── Section heading pill ──────────────────────────────────────────────────
+      const sectionHead = (text, y, color=C.darkBlue) => {
+        fill(M, y, CW, 9, 2, C.offWhite);
+        fill(M, y, 4, 9, 1, color);
+        txt(text, M+8, y+6.5, 9.5, color, true);
+        return y + 13;
       };
-      
-      // Helper function for metric cards
-      const drawMetricCard = (x, y, w, h, label, value, color, icon) => {
-        // Card background
-        drawRoundedRect(x, y, w, h, 3, colors.white);
-        doc.setDrawColor(...color);
-        doc.setLineWidth(0.5);
-        doc.roundedRect(x, y, w, h, 3, 3, 'S');
-        
-        // Icon area
-        drawRoundedRect(x + 2, y + 2, 12, 12, 2, color);
-        doc.setFontSize(10);
-        doc.setTextColor(...colors.white);
-        doc.setFont('helvetica', 'bold');
-        doc.text(icon, x + 8, y + 10, { align: 'center' });
-        
-        // Label
-        doc.setFontSize(8);
-        doc.setTextColor(120);
-        doc.setFont('helvetica', 'normal');
-        doc.text(label, x + 16, y + 6);
-        
-        // Value - ensure proper encoding
-        doc.setFontSize(12);
-        doc.setFont('helvetica', 'bold');
-        doc.setTextColor(...colors.dark);
-        doc.text(String(value), x + 16, y + 12);
-        doc.setFont('helvetica', 'normal');
+
+      // ── Metric card with coloured left bar ────────────────────────────────────
+      const metricCard = (x, y, w, h, label, value, sub, color) => {
+        fill(x, y, w, h, 3, C.white);
+        stroke(x, y, w, h, 3, C.lgray);
+        fill(x, y+2, 3, h-4, 2, color);
+        txt(label.toUpperCase(), x+7, y+6.5, 6.5, C.gray);
+        txt(value, x+7, y+15, 13, C.dark, true);
+        if (sub) txt(sub, x+7, y+h-3, 6, C.gray);
       };
-      
+
+      // ── Compliance badge card ────────────────────────────────────────────────
+      const compBadge = (x, y, w, label, value, desc, color) => {
+        fill(x, y, w, 26, 3, C.white);
+        stroke(x, y, w, 26, 3, color, 0.6);
+        fill(x, y, w, 8, 3, color);
+        // round bottom corners of top bar patch
+        fill(x, y+5, w, 3, 0, color);
+        txt(label.toUpperCase(), x+w/2, y+6, 7, C.white, true, 'center');
+        txt(value, x+w/2, y+19, 16, color, true, 'center');
+        txt(desc, x+w/2, y+25, 6.5, C.gray, false, 'center');
+      };
+
+      // ─────────────────────────────────────────────────────────────────────────
+      // Build PDF once header image resolves
+      // ─────────────────────────────────────────────────────────────────────────
+      const buildPDF = (img) => {
+        const TOTAL_PAGES = 4;
+        let y = 0;
+
+        // ████ PAGE 1 — Summary ████████████████████████████████████████████████
+        drawHeader(img);
+        y = HDR_H + 4;
+
+        // Title banner
+        fill(M, y, CW, 18, 3, C.darkBlue);
+        txt('Analytics Dashboard Report', pageWidth/2, y+8, 16, C.white, true, 'center');
+        const period = sanitize(document.getElementById('currentPeriodDisplay').textContent);
+        txt('Period: ' + period + '   •   ' +
+            new Date().toLocaleDateString('en-IN',{day:'2-digit',month:'long',year:'numeric'}),
+            pageWidth/2, y+15, 8, C.lgray, false, 'center');
+        y += 23;
+
+        // ── Operations KPIs ───────────────────────────────────────────────────
+        y = sectionHead('Operations Key Performance Indicators', y, C.darkBlue);
+        const cW4 = (CW-9)/4;
+        [
+          { label:'Total Trips',      value:el('totalTrips'),      sub:'Trip sheets logged',  color:C.yellow  },
+          { label:'Fuel Consumed',    value:el('totalFuel'),        sub:'Litres dispensed',    color:C.amber   },
+          { label:'Total Distance',   value:el('totalDistance'),    sub:'Kilometres covered',  color:C.green   },
+          { label:'Fuel Expenditure', value:el('totalExpenditure'), sub:'Total fuel cost',     color:C.blue    },
+        ].forEach((c,i) => metricCard(M+i*(cW4+3), y, cW4, 23, c.label, c.value, c.sub, c.color));
+        y += 28;
+
+        // ── Stock KPIs ────────────────────────────────────────────────────────
+        y = sectionHead('Stock Management Key Performance Indicators', y, C.purple);
+        [
+          { label:'Purchases',   value:el('totalPurchases'),   sub:'Purchase entries',   color:C.purple },
+          { label:'Issues',      value:el('totalIssues'),      sub:'Stock issued',        color:C.pink   },
+          { label:'Utilization', value:el('totalUtilization'), sub:'Materials utilized',  color:C.teal   },
+          { label:'Scrap',       value:el('totalScrap'),       sub:'Scrapped items',      color:C.slate  },
+        ].forEach((c,i) => metricCard(M+i*(cW4+3), y, cW4, 23, c.label, c.value, c.sub, c.color));
+        y += 28;
+
+        // Purchase value highlight
+        fill(M, y, CW, 13, 3, [237, 233, 254]);
+        stroke(M, y, CW, 13, 3, C.purple, 0.4);
+        fill(M, y+2, 3, 9, 2, C.purple);
+        txt('Total Purchase Value (Net Payable):', M+8, y+5.5, 8, C.purple);
+        txt('Rs. ' + el('purchaseValue'), M+8, y+11, 11, C.purple, true);
+        y += 18;
+
+        // ── Quick Stats ───────────────────────────────────────────────────────
+        y = sectionHead('Quick Statistics', y, C.teal);
+        [
+          { label:'Active Vehicles', value:el('activeVehicles'), color:C.purple },
+          { label:'Avg Fuel / Trip', value:el('avgFuelPerTrip'), color:C.pink   },
+          { label:'Stock Turnover',  value:el('stockTurnover'),  color:C.teal   },
+          { label:'Scrap Rate',      value:el('scrapRate'),      color:C.slate  },
+        ].forEach((c,i) => metricCard(M+i*(cW4+3), y, cW4, 21, c.label, c.value, '', c.color));
+        y += 26;
+
+        // ── Statutory Compliance ──────────────────────────────────────────────
+        y = sectionHead('Statutory Compliance Status', y, C.green);
+        const cW3 = (CW-6)/3;
+        [
+          { label:'Compliant', value:el('compliantCount'), desc:'Up to date',     color:C.green },
+          { label:'Due Soon',  value:el('dueSoonCount'),   desc:'Within 30 days', color:C.amber },
+          { label:'Overdue',   value:el('overdueCount'),   desc:'Needs attention',color:C.red   },
+        ].forEach((c,i) => compBadge(M+i*(cW3+3), y, cW3, c.label, c.value, c.desc, c.color));
+        y += 32;
+
+        // Summary box
+        fill(M, y, CW, 28, 3, C.bgYellow);
+        stroke(M, y, CW, 28, 3, C.yellow, 0.4);
+        fill(M, y+2, 3, 24, 2, C.yellow);
+        txt('Report Summary', M+8, y+7, 9, C.yellow, true);
+        const lines = [
+          'Total operational trips: ' + el('totalTrips') + '  |  Distance: ' + el('totalDistance') + '  |  Fuel: ' + el('totalFuel'),
+          'Stock — Purchases: ' + el('totalPurchases') + '  |  Issues: ' + el('totalIssues') + '  |  Utilization: ' + el('totalUtilization') + '  |  Scrap: ' + el('totalScrap'),
+          'Statutory — Compliant: ' + el('compliantCount') + '  |  Due Soon: ' + el('dueSoonCount') + '  |  Overdue: ' + el('overdueCount'),
+        ];
+        lines.forEach((l,i) => txt(l, M+8, y+13+(i*5), 7.5, C.dark));
+
+        drawFooter(1, TOTAL_PAGES);
+
+        // ████ PAGE 2 — Charts: Fuel + Trip ████████████████████████████████████
+        doc.addPage();
+        drawHeader(img);
+        y = HDR_H + 6;
+
+        y = sectionHead('Fuel Consumption Trend', y, C.amber);
+        fill(M, y, CW, 72, 3, C.white);
+        stroke(M, y, CW, 72, 3, C.lgray);
+        doc.addImage(document.getElementById('fuelChart').toDataURL('image/png',1.0), 'PNG', M+2, y+2, CW-4, 68);
+        y += 78;
+
+        y = sectionHead('Trip Statistics', y, C.yellow);
+        fill(M, y, CW, 72, 3, C.white);
+        stroke(M, y, CW, 72, 3, C.lgray);
+        doc.addImage(document.getElementById('tripChart').toDataURL('image/png',1.0), 'PNG', M+2, y+2, CW-4, 68);
+
+        drawFooter(2, TOTAL_PAGES);
+
+        // ████ PAGE 3 — Charts: Vehicle + Stock + Expenditure ██████████████████
+        doc.addPage();
+        drawHeader(img);
+        y = HDR_H + 6;
+
+        y = sectionHead('Vehicle Utilization  &  Stock Management Flow', y, C.blue);
+        const hW = (CW-5)/2;
+        fill(M,     y, hW, 72, 3, C.white); stroke(M,     y, hW, 72, 3, C.lgray);
+        fill(M+hW+5,y, hW, 72, 3, C.white); stroke(M+hW+5,y, hW, 72, 3, C.lgray);
+        doc.addImage(document.getElementById('vehicleChart').toDataURL('image/png',1.0), 'PNG', M+2,       y+2, hW-4, 68);
+        doc.addImage(document.getElementById('stockChart').toDataURL('image/png',1.0),  'PNG', M+hW+7,    y+2, hW-4, 68);
+        y += 78;
+
+        y = sectionHead('Expenditure Breakdown', y, C.red);
+        fill(M, y, CW, 82, 3, C.white); stroke(M, y, CW, 82, 3, C.lgray);
+        doc.addImage(document.getElementById('expenditureChart').toDataURL('image/png',1.0), 'PNG', M+CW/4, y+2, CW/2, 78);
+
+        drawFooter(3, TOTAL_PAGES);
+
+        // ████ PAGE 4 — All Vehicles Table █████████████████████████████████████
+        doc.addPage();
+        drawHeader(img);
+        y = HDR_H + 6;
+
+        y = sectionHead('All Performing Vehicles — Detailed Report', y, C.darkBlue);
+
+        // Table column config
+        const colW  = [32, 24, 38, 38, 38];
+        const colX  = [M];
+        colW.forEach((w,i) => { if(i>0) colX.push(colX[i-1]+colW[i-1]); });
+        const hdrs  = ['Vehicle ID','Trips','Distance (KM)','Fuel Used (L)','Efficiency'];
+        const ROW_H = 7;
+
+        const drawTableHeader = (y) => {
+          fill(M, y, CW, ROW_H+1, 2, C.darkBlue);
+          hdrs.forEach((h,i) => {
+            txt(h, colX[i]+2, y+ROW_H-1, 7, C.white, true);
+          });
+          return y + ROW_H + 2;
+        };
+
+        y = drawTableHeader(y);
+
+        const tableRows = document.querySelectorAll('#topVehiclesTable tr');
+        let rowIdx = 0;
+        tableRows.forEach(row => {
+          const cells = row.querySelectorAll('td');
+          if (cells.length === 0) return;
+
+          if (y + ROW_H > pageHeight - 18) {
+            drawFooter(4, TOTAL_PAGES);
+            doc.addPage();
+            drawHeader(img);
+            y = HDR_H + 8;
+            y = drawTableHeader(y);
+          }
+
+          fill(M, y, CW, ROW_H, 0, rowIdx % 2 === 0 ? C.white : C.offWhite);
+          doc.setDrawColor(...C.lgray); doc.setLineWidth(0.2);
+          doc.line(M, y+ROW_H, M+CW, y+ROW_H);
+
+          cells.forEach((td, i) => {
+            const isNum = i > 0;
+            const color = i === 4 ? C.green : C.dark;
+            txt(sanitize(td.textContent), colX[i]+2, y+ROW_H-2, 8, color, i===0);
+          });
+          y += ROW_H;
+          rowIdx++;
+        });
+
+        // Bottom border of table
+        doc.setDrawColor(...C.lgray); doc.setLineWidth(0.3);
+        doc.line(M, y, M+CW, y);
+
+        drawFooter(4, TOTAL_PAGES);
+
+        // ── Save ──────────────────────────────────────────────────────────────
+        const pLabel = sanitize(document.getElementById('currentPeriodDisplay').textContent).replace(/\s+/g,'_');
+        doc.save('DriveLogsReport_' + pLabel + '_' + new Date().toISOString().split('T')[0] + '.pdf');
+      };
+
       // Load header image
       const headerImg = new Image();
       headerImg.src = '{{ url_for("static", filename="img/header_full.png") }}';
-      
-      headerImg.onload = function() {
-        // PAGE 1 - Cover & Summary
-        drawHeader(headerImg);
-      
-      // Period Badge
-      drawRoundedRect(pageWidth / 2 - 30, 55, 60, 10, 2, colors.accent);
-      doc.setFontSize(10);
-      doc.setTextColor(...colors.white);
-      doc.setFont('helvetica', 'bold');
-      doc.text(sanitizeText(document.getElementById('currentPeriodDisplay').textContent.toUpperCase()), pageWidth / 2, 61, { align: 'center' });
-      doc.setFont('helvetica', 'normal');
-      
-      // Key Metrics Section
-      let yPos = drawSectionHeader('Key Performance Indicators', 80, '>>');
-      
-      // First Row - Operations Metrics
-      drawMetricCard(20, yPos, 42, 18, 'Total Trips', 
-        getElementText('totalTrips'), colors.primary, 'T');
-      drawMetricCard(65, yPos, 42, 18, 'Fuel Consumed', 
-        getElementText('totalFuel'), colors.accent, 'F');
-      drawMetricCard(110, yPos, 42, 18, 'Total Distance', 
-        getElementText('totalDistance'), colors.success, 'D');
-      drawMetricCard(155, yPos, 42, 18, 'Fuel Expenditure', 
-        getElementText('totalExpenditure'), colors.info, 'Rs');
-      
-      yPos += 25;
-      
-      // Stock Management Section
-      yPos = drawSectionHeader('Stock Management Overview', yPos, '>>');
-      
-      // Second Row - Stock Metrics
-      drawMetricCard(20, yPos, 42, 18, 'Purchases', 
-        getElementText('totalPurchases'), colors.purple, 'P');
-      drawMetricCard(65, yPos, 42, 18, 'Issues', 
-        getElementText('totalIssues'), colors.pink, 'I');
-      drawMetricCard(110, yPos, 42, 18, 'Utilization', 
-        getElementText('totalUtilization'), colors.teal, 'U');
-      drawMetricCard(155, yPos, 42, 18, 'Scrap', 
-        getElementText('totalScrap'), colors.slate, 'S');
-      
-      yPos += 25;
-      
-      // Purchase Value Highlight
-      drawRoundedRect(20, yPos, pageWidth - 40, 15, 3, [248, 250, 252]);
-      doc.setFontSize(10);
-      doc.setTextColor(...colors.dark);
-      doc.setFont('helvetica', 'normal');
-      doc.text('Total Purchase Value:', 25, yPos + 6);
-      doc.setFontSize(14);
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(...colors.purple);
-      doc.text('Rs. ' + getElementText('purchaseValue'), 25, yPos + 12);
-      doc.setFont('helvetica', 'normal');
-      
-      yPos += 22;
-      
-      // Quick Stats Section
-      yPos = drawSectionHeader('Quick Statistics', yPos, '>>');
-      
-      const statsData = [
-        ['Active Vehicles', getElementText('activeVehicles'), 'V'],
-        ['Avg Fuel/Trip', getElementText('avgFuelPerTrip'), 'A'],
-        ['Stock Turnover', getElementText('stockTurnover'), '%'],
-        ['Scrap Rate', getElementText('scrapRate'), '%']
-      ];
-      
-      statsData.forEach(([label, value, icon], index) => {
-        const x = 20 + (index % 2) * 87;
-        const y = yPos + Math.floor(index / 2) * 20;
-        
-        drawRoundedRect(x, y, 83, 16, 2, colors.white);
-        doc.setDrawColor(200);
-        doc.setLineWidth(0.3);
-        doc.roundedRect(x, y, 83, 16, 2, 2, 'S');
-        
-        doc.setFontSize(16);
-        doc.setFont('helvetica', 'bold');
-        doc.text(icon, x + 5, y + 10);
-        
-        doc.setFontSize(8);
-        doc.setTextColor(100);
-        doc.setFont('helvetica', 'normal');
-        doc.text(label, x + 15, y + 6);
-        
-        doc.setFontSize(12);
-        doc.setFont('helvetica', 'bold');
-        doc.setTextColor(...colors.dark);
-        doc.text(value, x + 15, y + 12);
-        doc.setFont('helvetica', 'normal');
-      });
-      
-      drawFooter(1);
-      
-      // PAGE 2 - Charts
-      doc.addPage();
-      drawHeader(headerImg);
-      
-      yPos = drawSectionHeader('Fuel Consumption Trend', 60, '>>');
-      const fuelCanvas = document.getElementById('fuelChart');
-      const fuelImg = fuelCanvas.toDataURL('image/png', 1.0);
-      doc.addImage(fuelImg, 'PNG', 20, yPos, 170, 70);
-      
-      yPos += 78;
-      yPos = drawSectionHeader('Trip Statistics', yPos, '>>');
-      const tripCanvas = document.getElementById('tripChart');
-      const tripImg = tripCanvas.toDataURL('image/png', 1.0);
-      doc.addImage(tripImg, 'PNG', 20, yPos, 170, 70);
-      
-      drawFooter(2);
-      
-      // PAGE 3 - More Charts
-      doc.addPage();
-      drawHeader(headerImg);
-      
-      yPos = 60;
-      
-      // Two charts side by side
-      doc.setFontSize(12);
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(...colors.dark);
-      doc.text('Vehicle Utilization', 22, yPos);
-      doc.text('Stock Management Flow', 112, yPos);
-      doc.setFont('helvetica', 'normal');
-      
-      yPos += 5;
-      
-      const vehicleCanvas = document.getElementById('vehicleChart');
-      const vehicleImg = vehicleCanvas.toDataURL('image/png', 1.0);
-      doc.addImage(vehicleImg, 'PNG', 20, yPos, 80, 70);
-      
-      const stockCanvas = document.getElementById('stockChart');
-      const stockImg = stockCanvas.toDataURL('image/png', 1.0);
-      doc.addImage(stockImg, 'PNG', 110, yPos, 80, 70);
-      
-      yPos += 78;
-      yPos = drawSectionHeader('Expenditure Breakdown', yPos, '>>');
-      
-      const expCanvas = document.getElementById('expenditureChart');
-      const expImg = expCanvas.toDataURL('image/png', 1.0);
-      doc.addImage(expImg, 'PNG', 55, yPos, 100, 80);
-      
-      drawFooter(3);
-      
-      // PAGE 4 - Statutory Compliance
-      doc.addPage();
-      drawHeader(headerImg);
-      
-      yPos = drawSectionHeader('Statutory Compliance Status', 60, '>>');
-      
-      const complianceData = [
-        { 
-          label: 'Compliant', 
-          count: getElementText('compliantCount'),
-          color: colors.success,
-          icon: 'OK',
-          desc: 'Up to date with all statutory requirements'
-        },
-        { 
-          label: 'Due Soon', 
-          count: getElementText('dueSoonCount'),
-          color: colors.accent,
-          icon: '!!',
-          desc: 'Renewal required within 30 days'
-        },
-        { 
-          label: 'Overdue', 
-          count: getElementText('overdueCount'),
-          color: colors.primary,
-          icon: 'XX',
-          desc: 'Immediate action required'
-        }
-      ];
-      
-      complianceData.forEach((item, index) => {
-        const y = yPos + (index * 35);
-        
-        // Card
-        drawRoundedRect(20, y, pageWidth - 40, 30, 3, colors.white);
-        doc.setDrawColor(...item.color);
-        doc.setLineWidth(1);
-        doc.roundedRect(20, y, pageWidth - 40, 30, 3, 3, 'S');
-        
-        // Icon circle
-        doc.setFillColor(...item.color);
-        doc.circle(35, y + 15, 8, 'F');
-        doc.setFontSize(10);
-        doc.setTextColor(...colors.white);
-        doc.setFont('helvetica', 'bold');
-        doc.text(item.icon, 35, y + 17, { align: 'center' });
-        
-        // Label
-        doc.setFontSize(14);
-        doc.setFont('helvetica', 'bold');
-        doc.setTextColor(...colors.dark);
-        doc.text(item.label, 50, y + 12);
-        
-        // Count
-        doc.setFontSize(20);
-        doc.setTextColor(...item.color);
-        doc.text(item.count, pageWidth - 50, y + 17, { align: 'right' });
-        
-        // Description
-        doc.setFontSize(8);
-        doc.setFont('helvetica', 'normal');
-        doc.setTextColor(120);
-        doc.text(item.desc, 50, y + 20);
-      });
-      
-      yPos += 115;
-      
-      // Summary Box
-      drawRoundedRect(20, yPos, pageWidth - 40, 40, 3, [252, 231, 243]);
-      doc.setFontSize(11);
-      doc.setFont('helvetica', 'bold');
-      doc.setTextColor(...colors.dark);
-      doc.text('Report Summary', 25, yPos + 8);
-      doc.setFont('helvetica', 'normal');
-      doc.setFontSize(9);
-      doc.setTextColor(80);
-      
-      const summaryLines = [
-        'This report covers ' + sanitizeText(document.getElementById('currentPeriodDisplay').textContent.toLowerCase()) + ' analytics for all fleet operations.',
-        'Total operational trips: ' + getElementText('totalTrips') + ' | Distance covered: ' + getElementText('totalDistance'),
-        'Stock management: ' + getElementText('totalPurchases') + ' purchases processed with ' + getElementText('totalIssues') + ' issues logged.',
-        'For detailed information, please refer to the individual charts and metrics above.'
-      ];
-      
-      summaryLines.forEach((line, index) => {
-        doc.text(line, 25, yPos + 16 + (index * 5), { maxWidth: pageWidth - 50 });
-      });
-      
-      drawFooter(4);
-      
-      // Save PDF
-      const period = document.getElementById('currentPeriodDisplay').textContent.replace(/\s+/g, '_');
-      doc.save('DriveLogsReport_' + period + '_' + new Date().toISOString().split('T')[0] + '.pdf');
-      };
-      
-      headerImg.onerror = function() {
-        console.error('Failed to load header image');
-        // Generate PDF with fallback header
-        drawHeader(null);
-        
-        const period = document.getElementById('currentPeriodDisplay').textContent.replace(/\s+/g, '_');
-        
-        // Simplified report without charts when image fails
-        let yPos = 60;
-        
-        doc.setFontSize(14);
-        doc.setTextColor(31, 41, 55);
-        doc.text('Report Generation with Fallback Header', 105, yPos, { align: 'center' });
-        yPos += 10;
-        
-        doc.setFontSize(10);
-        doc.text('Header image failed to load. Generating report with fallback design.', 105, yPos, { align: 'center' });
-        yPos += 15;
-        
-        // Add basic metrics
-        doc.setFontSize(12);
-        doc.text('Key Metrics:', 20, yPos);
-        yPos += 10;
-        
-        doc.setFontSize(10);
-        doc.text('Total Trips: ' + getElementText('totalTrips'), 30, yPos);
-        yPos += 7;
-        doc.text('Fuel Consumed: ' + getElementText('totalFuel'), 30, yPos);
-        yPos += 7;
-        doc.text('Total Distance: ' + getElementText('totalDistance'), 30, yPos);
-        yPos += 7;
-        doc.text('Fuel Expenditure: Rs. ' + getElementText('totalExpenditure'), 30, yPos);
-        
-        doc.save('DriveLogsReport_' + period + '_' + new Date().toISOString().split('T')[0] + '.pdf');
-      };
+      headerImg.onload  = () => buildPDF(headerImg);
+      headerImg.onerror = () => buildPDF(null);
     }
 
     // Initialize dashboard on load
