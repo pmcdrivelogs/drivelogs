@@ -379,17 +379,17 @@
           <h2 class="section-title">Statutory Compliance Status</h2>
         </div>
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
-          <div class="p-4 bg-green-50 border border-green-200 rounded-lg">
+          <div onclick="showStatutoryList('compliant')" role="button" tabindex="0" class="p-4 bg-green-50 border border-green-200 rounded-lg cursor-pointer">
             <div class="text-green-600 font-semibold text-sm mb-1">Up to Date</div>
             <div class="text-2xl font-bold text-green-700" id="compliantCount">{{ compliant_count|default(0) }}</div>
             <div class="text-xs text-green-600 mt-1">Vehicles</div>
           </div>
-          <div class="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+          <div onclick="showStatutoryList('due_soon')" role="button" tabindex="0" class="p-4 bg-yellow-50 border border-yellow-200 rounded-lg cursor-pointer">
             <div class="text-yellow-600 font-semibold text-sm mb-1">Due Soon</div>
             <div class="text-2xl font-bold text-yellow-700" id="dueSoonCount">{{ due_soon_count|default(0) }}</div>
             <div class="text-xs text-yellow-600 mt-1">Within 30 days</div>
           </div>
-          <div class="p-4 bg-red-50 border border-red-200 rounded-lg">
+          <div onclick="showStatutoryList('overdue')" role="button" tabindex="0" class="p-4 bg-red-50 border border-red-200 rounded-lg cursor-pointer">
             <div class="text-red-600 font-semibold text-sm mb-1">Overdue</div>
             <div class="text-2xl font-bold text-red-700" id="overdueCount">{{ overdue_count|default(0) }}</div>
             <div class="text-xs text-red-600 mt-1">Requires attention</div>
@@ -397,10 +397,39 @@
         </div>
       </div>
 
-    </div>
-  </div>
+        </div>
+      </div>
 
-  <script>
+      <!-- Statutory records modal -->
+      <div id="statModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 flex items-start justify-center p-6">
+        <div class="bg-white rounded-lg w-full max-w-5xl overflow-hidden">
+          <div class="flex items-center justify-between p-4 border-b">
+            <h3 id="statModalTitle" class="text-lg font-semibold">Records</h3>
+            <button onclick="closeStatModal()" class="text-gray-500 hover:text-gray-700">Close ✕</button>
+          </div>
+          <div class="p-4 overflow-auto" style="max-height:70vh;">
+            <table class="w-full">
+              <thead class="bg-gray-50">
+                <tr>
+                  <th class="px-4 py-2 text-left text-sm font-semibold">Entry No</th>
+                  <th class="px-4 py-2 text-left text-sm font-semibold">Invoice No</th>
+                  <th class="px-4 py-2 text-left text-sm font-semibold">Statutory Body</th>
+                  <th class="px-4 py-2 text-left text-sm font-semibold">Type</th>
+                  <th class="px-4 py-2 text-left text-sm font-semibold">Due Date</th>
+                  <th class="px-4 py-2 text-left text-sm font-semibold">Amount</th>
+                  <th class="px-4 py-2 text-left text-sm font-semibold">Details</th>
+                </tr>
+              </thead>
+              <tbody id="statModalTableBody"></tbody>
+            </table>
+          </div>
+          <div class="p-3 border-t text-right">
+            <button onclick="closeStatModal()" class="px-4 py-2 bg-gray-200 rounded">Close</button>
+          </div>
+        </div>
+      </div>
+
+      <script>
     let currentPeriod = 'daily';
     let fuelChart, tripChart, vehicleChart, expenditureChart, stockChart;
     
@@ -935,7 +964,81 @@
       updateDashboard('daily');
     });
   </script>
+</script>
 
+<script>
+  // Modal helpers for statutory records
+  function closeStatModal() {
+    const modal = document.getElementById('statModal');
+    if (modal) modal.classList.add('hidden');
+    const body = document.getElementById('statModalTableBody');
+    if (body) body.innerHTML = '';
+  }
+
+  async function showStatutoryList(status) {
+    const titleMap = { 'compliant': 'Up to Date', 'due_soon': 'Due Soon', 'overdue': 'Overdue' };
+    const title = titleMap[status] || status;
+    document.getElementById('statModalTitle').textContent = title + ' Records';
+    const tbody = document.getElementById('statModalTableBody');
+    if (!tbody) return;
+    tbody.innerHTML = '<tr><td colspan="7" class="p-4 text-center">Loading...</td></tr>';
+    const modal = document.getElementById('statModal');
+    if (modal) modal.classList.remove('hidden');
+
+    try {
+      const res = await fetch('/api/statutory-records?status=' + encodeURIComponent(status));
+      if (!res.ok) {
+        tbody.innerHTML = '<tr><td colspan="7" class="p-4 text-center text-red-600">Failed to fetch records</td></tr>';
+        return;
+      }
+      const data = await res.json();
+      const rows = data.records || [];
+      if (rows.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" class="p-4 text-center">No records found</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = '';
+      rows.forEach(r => {
+        const tr = document.createElement('tr');
+        tr.className = 'border-t hover:bg-gray-50';
+
+        const addTd = (txt) => {
+          const td = document.createElement('td');
+          td.className = 'px-4 py-3';
+          td.textContent = txt == null ? '' : txt;
+          return td;
+        };
+
+        tr.appendChild(addTd(r.entry_no || r.entry_no || ''));
+        tr.appendChild(addTd(r.invoice_no || ''));
+        tr.appendChild(addTd(r.statutory_body_id || ''));
+        tr.appendChild(addTd(r.type_of_transaction || r.record_type || ''));
+        tr.appendChild(addTd(r.due_date || r.validity_date || r.invoice_date || ''));
+        tr.appendChild(addTd(r.total_amount || r.total_amount || ''));
+
+        const detailsTd = document.createElement('td');
+        detailsTd.className = 'px-4 py-3';
+        const details = document.createElement('details');
+        const summary = document.createElement('summary');
+        summary.textContent = 'Show details';
+        summary.className = 'cursor-pointer text-sm text-blue-600';
+        const pre = document.createElement('pre');
+        pre.style.whiteSpace = 'pre-wrap';
+        pre.style.fontSize = '0.75rem';
+        try { pre.textContent = JSON.stringify(r, null, 2); } catch (e) { pre.textContent = String(r); }
+        details.appendChild(summary);
+        details.appendChild(pre);
+        detailsTd.appendChild(details);
+        tr.appendChild(detailsTd);
+
+        tbody.appendChild(tr);
+      });
+    } catch (err) {
+      tbody.innerHTML = '<tr><td colspan="7" class="p-4 text-center text-red-600">Error: ' + (err && err.message ? err.message : String(err)) + '</td></tr>';
+    }
+  }
+</script>
 
 <script src="{{ url_for('static', filename='js/uppercase.js') }}"></script>
 {% include 'footer.html' %}

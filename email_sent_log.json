@@ -1,0 +1,60 @@
+{
+  "2026-03-15": [
+    {
+      "vehicle_id": "6",
+      "field": "fitness_validity",
+      "ts": "2026-03-15T06:52:09.133716",
+      "info": {
+        "days_left": 0
+      }
+    },
+    {
+      "vehicle_id": "6",
+      "field": "insurance_validity",
+      "ts": "2026-03-15T06:52:14.011888",
+      "info": {
+        "days_left": 1
+      }
+    },
+    {
+      "vehicle_id": "6",
+      "field": "permit_validity",
+      "ts": "2026-03-15T06:52:19.469856",
+      "info": {
+        "days_left": 3
+      }
+    },
+    {
+      "vehicle_id": "6",
+      "field": "pucc_validity",
+      "ts": "2026-03-15T06:52:24.604179",
+      "info": {
+        "days_left": 0
+      }
+    },
+    {
+      "vehicle_id": "6",
+      "field": "tax_validity",
+      "ts": "2026-03-15T06:52:29.305170",
+      "info": {
+        "days_left": 0
+      }
+    },
+    {
+      "vehicle_id": "91",
+      "field": "permit_validity",
+      "ts": "2026-03-15T06:57:35.710169",
+      "info": {
+        "days_left": 0
+      }
+    },
+    {
+      "vehicle_id": "91",
+      "field": "pucc_validity",
+      "ts": "2026-03-15T06:57:40.819739",
+      "info": {
+        "days_left": 13
+      }
+    }
+  ]
+}

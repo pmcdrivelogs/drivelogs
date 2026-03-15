@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Reminder Settings</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100">
+  <div class="container mx-auto p-6">
+    <h1 class="text-2xl font-bold mb-4">Reminder Settings</h1>
+    <form method="post" class="bg-white p-6 rounded shadow-md max-w-2xl">
+      <div class="mb-4">
+        <label class="block font-semibold mb-1">Recipients (comma-separated)</label>
+        <input name="recipients" type="text" value="{{ settings.recipients or '' }}" class="w-full border px-3 py-2 rounded" placeholder="admin@example.com,ops@example.com">
+      </div>
+
+      <div class="mb-4 flex items-center gap-4">
+        <label class="inline-flex items-center">
+          <input type="checkbox" name="enabled" {% if settings.enabled %}checked{% endif %} class="mr-2"> Enable scheduled reminders
+        </label>
+        <label class="inline-flex items-center">
+          <input type="checkbox" name="immediate_enabled" {% if settings.immediate_enabled %}checked{% endif %} class="mr-2"> Enable immediate notifications on edits
+        </label>
+      </div>
+
+      <div class="mb-4">
+        <label class="block font-semibold mb-1">Reminder days before due</label>
+        <input name="reminder_days" type="number" min="1" value="{{ settings.reminder_days or 15 }}" class="w-32 border px-3 py-2 rounded">
+      </div>
+
+      <div class="flex gap-4">
+        <button type="submit" class="bg-green-600 text-white px-4 py-2 rounded">Save</button>
+        <a href="{{ url_for('admin_dashboard') }}" class="bg-gray-300 px-4 py-2 rounded">Back</a>
+      </div>
+    </form>
+  </div>
+</body>
+</html>

@@ -60,13 +60,18 @@
             <!-- Vehicle ID -->
             <div>
               <label class="block text-gray-700 font-bold mb-2">Vehicle ID *</label>
-              <select name="vehicle_id" required class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none">
+              <select id="vehicle_id_select_add" name="vehicle_id" required class="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none">
                 <option value="">Select Vehicle ID</option>
                 {% for i in range(1, 101) %}
                 <option value="{{ i }}">{{ i }}</option>
                 {% endfor %}
+                {% for suffix in ['A','B','C','D','E'] %}
+                <option value="96{{ suffix }}">96{{ suffix }}</option>
+                {% endfor %}
+                <option value="manual">Manual</option>
               </select>
-              <p class="text-sm text-gray-500 mt-1">Must be unique</p>
+              <input id="vehicle_id_manual_add" name="vehicle_id_manual" type="text" placeholder="Enter vehicle id manually" style="display:none" class="mt-2 w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:outline-none">
+              <p class="text-sm text-gray-500 mt-1">Must be unique. Choose or enter manually.</p>
             </div>
 
             <!-- Registration No -->
@@ -286,6 +291,21 @@
   </div>
 
 <script src="{{ url_for('static', filename='js/uppercase.js') }}"></script>
+<script>
+  document.addEventListener('DOMContentLoaded', function() {
+    const select = document.getElementById('vehicle_id_select_add');
+    const manual = document.getElementById('vehicle_id_manual_add');
+    if (!select || !manual) return;
+    select.addEventListener('change', function() {
+      if (this.value === 'manual') {
+        manual.style.display = 'block';
+        manual.focus();
+      } else {
+        manual.style.display = 'none';
+      }
+    });
+  });
+</script>
 {% include 'footer.html' %}
 </body>
 </html>

@@ -55,6 +55,11 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# Email helper for immediate notifications
+from email_helper import send_email, format_vehicle_reminder
+# Reminder settings API
+from reminders import get_settings, save_settings
+
 app = Flask(__name__)
 app.secret_key = os.getenv('SECRET_KEY', 'your-secret-key-change-this-in-production')
 
@@ -98,6 +103,55 @@ def _format_date(value, with_time=False):
 
 # Register the filter
 app.jinja_env.filters['fmt_dt'] = _format_date
+
+# Fields to watch on admin vehicle edits for immediate notifications
+VEHICLE_DATE_FIELDS = {
+    'fitness_validity': 'Fitness Validity',
+    'insurance_validity': 'Insurance Validity',
+    'permit_validity': 'Permit Validity',
+    'pucc_validity': 'PUCC Validity',
+    'tax_validity': 'Tax Validity'
+}
+
+
+def parse_date_str(dt_string):
+    """Parse a variety of date-like strings into a date object.
+    Returns a datetime.date or None if parsing fails.
+    """
+    if not dt_string:
+        return None
+    s = str(dt_string).strip()
+    try:
+        # Handle ISO-like strings first (YYYY-MM-DD or YYYY-MM-DDTHH:MM:SS)
+        if 'T' in s:
+            s_date = s.split('T')[0]
+            return datetime.fromisoformat(s_date).date()
+        try:
+            return datetime.fromisoformat(s).date()
+        except Exception:
+            # fallback to common YYYY-MM-DD pattern
+            try:
+                return datetime.strptime(s.split(' ')[0], '%Y-%m-%d').date()
+            except Exception:
+                pass
+    except Exception:
+        pass
+
+    # Try extracting a YYYY-MM-DD fragment with regex
+    try:
+        import re as _re
+        m = _re.search(r"(\d{4}-\d{2}-\d{2})", s)
+        if m:
+            return datetime.strptime(m.group(1), '%Y-%m-%d').date()
+    except Exception:
+        pass
+
+    # Last resort: try dateutil if available
+    try:
+        from dateutil import parser as date_parser
+        return date_parser.parse(s).date()
+    except Exception:
+        return None
 
 # In-memory log buffer for recent application logs (temporary, for debugging)
 LOG_BUFFER = deque(maxlen=400)
@@ -2731,21 +2785,39 @@ def admin_analytics_dashboard():
         compliant_count = 0
         due_soon_count = 0
         overdue_count = 0
-        
+
+        # Support multiple possible date fields that may be present in the
+        # statutory records returned by different schema versions.
         for record in statutory_records:
-            if record.get('next_due_date'):
-                try:
-                    next_due = datetime.strptime(str(record['next_due_date']), '%Y-%m-%d').date()
-                    days_until = (next_due - today).days
-                    
-                    if days_until < 0:
-                        overdue_count += 1
-                    elif days_until <= 30:
-                        due_soon_count += 1
-                    else:
-                        compliant_count += 1
-                except:
-                    pass
+            # Prefer explicit next_due_date, fall back to validity_date, invoice_date or date
+            due_date_value = None
+            for k in ('next_due_date', 'validity_date', 'invoice_date', 'date'):
+                if record.get(k):
+                    due_date_value = record.get(k)
+                    break
+            if not due_date_value:
+                continue
+            try:
+                # Use the local parse_datetime helper where possible (handles multiple formats)
+                next_due = parse_datetime(due_date_value)
+                if not next_due:
+                    # Last-resort: try parsing as YYYY-MM-DD
+                    try:
+                        next_due = datetime.strptime(str(due_date_value).split('T')[0], '%Y-%m-%d').date()
+                    except Exception:
+                        continue
+
+                days_until = (next_due - today).days
+
+                if days_until < 0:
+                    overdue_count += 1
+                elif days_until <= 30:
+                    due_soon_count += 1
+                else:
+                    compliant_count += 1
+            except Exception:
+                # ignore parse errors for individual records
+                continue
         
         return render_template('admin_analytics_dashboard.html',
                              daily_data=daily_data,
@@ -2772,6 +2844,80 @@ def admin_analytics_dashboard():
         traceback.print_exc()
         flash(f'Error loading analytics: {str(e)}', 'danger')
         return redirect(url_for('admin_dashboard'))
+
+
+@app.route('/api/statutory-records')
+@admin_required
+def api_statutory_records():
+    """Return statutory records filtered by status query param.
+    Query param `status` accepts: `compliant`, `due_soon`, `overdue`, or `all`.
+    """
+    status_filter = (request.args.get('status') or 'all').strip().lower()
+    try:
+        statutory_records = get_all_statutory_records() or []
+    except Exception:
+        statutory_records = []
+
+    today = datetime.now().date()
+    out = []
+    for record in statutory_records:
+        # pick possible due-date fields in preference order
+        due_date_value = None
+        for k in ('next_due_date', 'validity_date', 'invoice_date', 'date'):
+            if record.get(k):
+                due_date_value = record.get(k)
+                break
+
+        parsed = parse_date_str(due_date_value)
+        days_until = None
+        status_label = 'unknown'
+        due_iso = None
+        if parsed:
+            days_until = (parsed - today).days
+            due_iso = parsed.isoformat()
+            if days_until < 0:
+                status_label = 'overdue'
+            elif days_until <= 30:
+                status_label = 'due_soon'
+            else:
+                status_label = 'compliant'
+
+        if status_filter != 'all' and status_filter != status_label:
+            continue
+
+        # sanitize values for JSON (dates -> isoformat strings)
+        def _clean(v):
+            try:
+                if v is None:
+                    return None
+                if isinstance(v, (str, int, float, bool, list, dict)):
+                    return v
+                if hasattr(v, 'isoformat'):
+                    try:
+                        return v.isoformat()
+                    except Exception:
+                        return str(v)
+                return str(v)
+            except Exception:
+                return str(v)
+
+        cleaned = {}
+        if isinstance(record, dict):
+            for k, v in record.items():
+                cleaned[k] = _clean(v)
+        else:
+            # fallback: try to convert to dict-like
+            try:
+                cleaned = dict(record)
+            except Exception:
+                cleaned = {'record': str(record)}
+
+        cleaned['statutory_status'] = status_label
+        cleaned['days_until'] = days_until
+        cleaned['due_date'] = due_iso
+        out.append(cleaned)
+
+    return jsonify({'success': True, 'records': out}), 200
 
 
 @app.route('/api/analytics-custom')
@@ -3051,7 +3197,11 @@ def admin_add_vehicle_page():
             'pucc_validity': request.form.get('pucc_validity') or None,
             'tax_validity': request.form.get('tax_validity') or None
         }
-        
+        # If a manual vehicle id was provided, prefer that over the select value
+        manual_vid = request.form.get('vehicle_id_manual')
+        if manual_vid and str(manual_vid).strip() != '':
+            vehicle_data['vehicle_id'] = str(manual_vid).strip()
+
         result = admin_add_vehicle(vehicle_data)
         if result:
             flash('Vehicle added successfully!', 'success')
@@ -3101,14 +3251,101 @@ def admin_edit_vehicle(vehicle_id):
             'tax_validity': request.form.get('tax_validity') or None
         }
         
+        # If a manual vehicle id was provided, prefer that over the select value
+        manual_vid = request.form.get('vehicle_id_manual')
+        if manual_vid and str(manual_vid).strip() != '':
+            vehicle_data['vehicle_id'] = str(manual_vid).strip()
+
         result = admin_update_vehicle(vehicle_id, vehicle_data)
         if result:
+            # Send immediate notification emails for any changed validity dates
+            try:
+                from datetime import date as _date
+
+                updated_vehicle = {}
+                try:
+                    if isinstance(vehicle, dict):
+                        updated_vehicle = vehicle.copy()
+                except Exception:
+                    updated_vehicle = {}
+                # Merge submitted changes so the email shows latest values
+                try:
+                    updated_vehicle.update(vehicle_data)
+                except Exception:
+                    pass
+
+                # Load admin-controlled reminder settings (if any)
+                try:
+                    settings = get_settings() or {}
+                except Exception:
+                    settings = {}
+
+                # If immediate notifications are disabled, skip sending
+                if not settings.get('immediate_enabled', True):
+                    settings = settings  # no-op to keep lint happy
+                else:
+                    recipients = settings.get('recipients') or None
+                    for fk, label in VEHICLE_DATE_FIELDS.items():
+                        old_val = vehicle.get(fk) if isinstance(vehicle, dict) else None
+                        new_val = vehicle_data.get(fk)
+                        if new_val and str(new_val).strip() != '' and str(old_val or '') != str(new_val):
+                            parsed = parse_date_str(new_val)
+                            try:
+                                days_left = (parsed - _date.today()).days if parsed else None
+                            except Exception:
+                                days_left = None
+                            subj, body = format_vehicle_reminder(updated_vehicle, label, days_left if days_left is not None else 'N/A', due_date_iso=(parsed.isoformat() if parsed else None))
+                            try:
+                                send_email(subj, body, to_addrs=recipients)
+                            except Exception:
+                                try:
+                                    app.logger.exception('Failed to send immediate vehicle update email for %s', fk)
+                                except Exception:
+                                    pass
+            except Exception:
+                try:
+                    app.logger.exception('Error while sending vehicle update notifications')
+                except Exception:
+                    pass
+
             flash('Vehicle updated successfully!', 'success')
             return redirect(url_for('admin_vehicles'))
         else:
             flash('Failed to update vehicle.', 'danger')
     
     return render_template('admin_edit_vehicle.html', vehicle=vehicle)
+
+
+@app.route('/admin/reminder-settings', methods=['GET', 'POST'])
+@admin_required
+def admin_reminder_settings():
+    try:
+        settings = get_settings() or {}
+    except Exception:
+        settings = {}
+
+    if request.method == 'POST':
+        recipients = request.form.get('recipients') or None
+        enabled = True if request.form.get('enabled') == 'on' else False
+        immediate_enabled = True if request.form.get('immediate_enabled') == 'on' else False
+        try:
+            reminder_days = int(request.form.get('reminder_days') or settings.get('reminder_days', 15))
+        except Exception:
+            reminder_days = settings.get('reminder_days', 15)
+
+        new_settings = {
+            'recipients': recipients,
+            'enabled': enabled,
+            'immediate_enabled': immediate_enabled,
+            'reminder_days': reminder_days,
+            'reminder_hour': settings.get('reminder_hour', 7),
+            'reminder_minute': settings.get('reminder_minute', 0)
+        }
+        save_settings(new_settings)
+        flash('Reminder settings saved', 'success')
+        return redirect(url_for('admin_reminder_settings'))
+
+    return render_template('admin_reminder_settings.html', settings=settings)
 
 @app.route('/admin/vehicles/delete/<int:vehicle_id>', methods=['POST'])
 @admin_required
@@ -3239,14 +3476,67 @@ def vehicle_profile():
             flash('Please select a vehicle ID', 'danger')
             return redirect(url_for('vehicle_profile'))
         
+        # Load existing annual record to compare changes
+        try:
+            old_record = get_vehicle_annual_record(vehicle_data.get('vehicle_id'))
+        except Exception:
+            old_record = None
+
         # Save to database
         result = save_vehicle_annual_record(vehicle_data)
-        
+
         if result:
+            # Send immediate notifications for changed validity fields (if enabled)
+            try:
+                from datetime import date as _date
+                settings = {}
+                try:
+                    settings = get_settings() or {}
+                except Exception:
+                    settings = {}
+
+                if settings.get('immediate_enabled', True):
+                    recipients = settings.get('recipients') or None
+                    # Map vehicle_profile keys to human labels
+                    profile_fields = {
+                        'fitness_due_date': 'Fitness Validity',
+                        'insurance_due_date': 'Insurance Validity',
+                        'permit_due_date': 'Permit Validity'
+                    }
+
+                    updated_vehicle = {} if not isinstance(old_record, dict) else old_record.copy()
+                    try:
+                        updated_vehicle.update(vehicle_data)
+                    except Exception:
+                        pass
+
+                    for fk, label in profile_fields.items():
+                        old_val = (old_record.get(fk) if isinstance(old_record, dict) else None)
+                        new_val = vehicle_data.get(fk)
+                        if new_val and str(new_val).strip() != '' and str(old_val or '') != str(new_val):
+                            parsed = parse_date_str(new_val)
+                            try:
+                                days_left = (parsed - _date.today()).days if parsed else None
+                            except Exception:
+                                days_left = None
+                            subj, body = format_vehicle_reminder(updated_vehicle, label, days_left if days_left is not None else 'N/A', due_date_iso=(parsed.isoformat() if parsed else None))
+                            try:
+                                send_email(subj, body, to_addrs=recipients)
+                            except Exception:
+                                try:
+                                    app.logger.exception('Failed to send immediate vehicle profile email for %s', fk)
+                                except Exception:
+                                    pass
+            except Exception:
+                try:
+                    app.logger.exception('Error while sending vehicle profile notifications')
+                except Exception:
+                    pass
+
             flash('Vehicle annual record saved successfully!', 'success')
         else:
             flash('Error saving vehicle record. Please try again.', 'danger')
-        
+
         return redirect(url_for('vehicle_profile'))
     
     return render_template('vehicle_profile.html')
@@ -5271,6 +5561,18 @@ def api_internal_audit():
     except Exception as e:
         app.logger.exception('Bad request for internal_audit')
         return jsonify({'success': False, 'message': str(e)}), 400
+
+try:
+    # Start background reminders scheduler if available. This will schedule
+    # daily checks for vehicle validity dates and send emails when configured.
+    from reminders import start_scheduler
+    start_scheduler(app)
+except Exception:
+    # Don't fail app startup if scheduler cannot be started
+    try:
+        app.logger.exception('Could not start reminders scheduler')
+    except Exception:
+        pass
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)
