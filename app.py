@@ -42,6 +42,7 @@ from database import (
     save_statutory, get_next_statutory_entry_no,
     get_all_users, get_all_vehicles, get_users_count, get_vehicles_count,
     get_user_by_id, get_vehicle_by_id, admin_create_user, admin_update_user,
+    get_vehicle_by_vehicle_id,
     admin_delete_user, admin_toggle_user_status, admin_add_vehicle, admin_update_vehicle,
     admin_delete_vehicle, get_all_fuel_records, get_all_statutory_records, 
     get_all_trip_sheets, get_all_purchases, get_all_stock_issues, get_all_utilization, 
@@ -108,6 +109,7 @@ app.jinja_env.filters['fmt_dt'] = _format_date
 VEHICLE_DATE_FIELDS = {
     'fitness_validity': 'Fitness Validity',
     'insurance_validity': 'Insurance Validity',
+    'registration_validity': 'Registration Validity',
     'permit_validity': 'Permit Validity',
     'pucc_validity': 'PUCC Validity',
     'tax_validity': 'Tax Validity'
@@ -281,6 +283,7 @@ def super_admin_login():
 def dashboard():
     # Fetch current user's assigned modules (if any) and pass to template
     user_modules = []
+    due_soon_alerts = []
     try:
         uid = session.get('user_id')
         if uid:
@@ -289,7 +292,42 @@ def dashboard():
                 user_modules = u.get('modules') or []
     except Exception:
         user_modules = []
-    return render_template('dashboard.html', modules=user_modules)
+
+    # Build statutory alerts for user dashboard popup (same behavior as admin dashboard).
+    try:
+        today = datetime.now().date()
+        statutory_records = get_all_statutory_records() or []
+        for record in statutory_records:
+            raw_validity = record.get('validity_date')
+            if not raw_validity:
+                continue
+            try:
+                validity_date_str = str(raw_validity)
+                if 'T' in validity_date_str:
+                    validity_date = datetime.fromisoformat(validity_date_str.split('T')[0]).date()
+                else:
+                    validity_date = datetime.strptime(validity_date_str.split(' ')[0], '%Y-%m-%d').date()
+
+                days_remaining = (validity_date - today).days
+                if days_remaining <= 7:
+                    vehicle_id = record.get('vehicle_id') or record.get('statutory_body_id') or 'Unknown'
+                    registration_no = record.get('registration_no') or 'N/A'
+                    due_soon_alerts.append({
+                        'statutory_body_id': record.get('statutory_body_id', 'Unknown'),
+                        'vehicle_id': vehicle_id,
+                        'registration_no': registration_no,
+                        'record_type': record.get('type_of_transaction', 'Statutory'),
+                        'next_due': validity_date.strftime('%d-%m-%Y'),
+                        'days_remaining': days_remaining,
+                        'alert_type': 'overdue' if days_remaining < 0 else 'warning'
+                    })
+            except Exception:
+                continue
+        due_soon_alerts.sort(key=lambda x: x['days_remaining'])
+    except Exception:
+        due_soon_alerts = []
+
+    return render_template('dashboard.html', modules=user_modules, due_soon_alerts=due_soon_alerts)
 
 
 @app.route('/maintenance-image', methods=['GET', 'POST'])
@@ -2207,11 +2245,18 @@ def fuel():
 @module_required('Statutory')
 def statutory():
     if request.method == 'POST':
+        selected_vehicle_id = (request.form.get('vehicle_id') or '').strip()
+        selected_registration_no = (request.form.get('registration_no') or '').strip()
+        selected_transaction = (request.form.get('type_of_transaction') or '').strip()
+        selected_validity_date = (request.form.get('validity_date') or request.form.get('registration_validity') or '').strip()
+
         # Collect form data
         data = {
             'date': request.form.get('date', ''),
             'time': request.form.get('time', ''),
             'entry_no': request.form.get('entry_no', ''),
+            'vehicle_id': selected_vehicle_id,
+            'registration_no': selected_registration_no,
             'invoice_no': request.form.get('invoice_no', ''),
             'invoice_date': request.form.get('invoice_date', ''),
             'statutory_body_id': request.form.get('statutory_body_id', ''),
@@ -2237,13 +2282,81 @@ def statutory():
         result = save_statutory(data)
         
         if result:
+            # Sync statutory validity to vehicle master so admin edit page reflects the latest value.
+            validity_field_map = {
+                'Road Tax': 'tax_validity',
+                'Insurance': 'insurance_validity',
+                'Permit': 'permit_validity',
+                'Fitness Certificate': 'fitness_validity',
+                'Pollution Certificate': 'pucc_validity',
+                'Registration': 'registration_validity'
+            }
+
+            vehicle_patch = {}
+            mapped_field = validity_field_map.get(selected_transaction)
+            if mapped_field and selected_validity_date:
+                vehicle_patch[mapped_field] = selected_validity_date
+            if selected_registration_no:
+                vehicle_patch['registration_no'] = selected_registration_no
+
+            if selected_vehicle_id and vehicle_patch:
+                try:
+                    vehicle_row = get_vehicle_by_vehicle_id(selected_vehicle_id)
+                    if not vehicle_row and selected_vehicle_id.isdigit():
+                        vehicle_row = get_vehicle_by_id(int(selected_vehicle_id))
+
+                    if vehicle_row and vehicle_row.get('id'):
+                        updated_vehicle = admin_update_vehicle(vehicle_row.get('id'), vehicle_patch)
+                        if updated_vehicle:
+                            flash('Linked vehicle validity updated in admin vehicle records.', 'success')
+                            # Send immediate SMTP notification for statutory-driven validity change.
+                            if mapped_field and selected_validity_date:
+                                try:
+                                    from datetime import date as _date
+                                    settings = get_settings() or {}
+                                    if settings.get('immediate_enabled', True):
+                                        recipients = settings.get('recipients') or None
+                                        merged_vehicle = {}
+                                        if isinstance(vehicle_row, dict):
+                                            merged_vehicle.update(vehicle_row)
+                                        merged_vehicle.update(vehicle_patch)
+                                        parsed = parse_date_str(selected_validity_date)
+                                        try:
+                                            days_left = (parsed - _date.today()).days if parsed else None
+                                        except Exception:
+                                            days_left = None
+                                        label = VEHICLE_DATE_FIELDS.get(mapped_field, mapped_field)
+                                        subj, body = format_vehicle_reminder(
+                                            merged_vehicle,
+                                            label,
+                                            days_left if days_left is not None else 'N/A',
+                                            due_date_iso=(parsed.isoformat() if parsed else None)
+                                        )
+                                        sent = send_email(subj, body, to_addrs=recipients)
+                                        if not sent:
+                                            flash('Vehicle updated, but SMTP email was not sent. Check reminder recipients/SMTP settings.', 'warning')
+                                except Exception:
+                                    app.logger.exception('Failed to send statutory immediate email notification')
+                        else:
+                            flash('Statutory saved, but vehicle update failed.', 'warning')
+                    else:
+                        flash('Statutory saved, but selected vehicle was not found for update.', 'warning')
+                except Exception as sync_err:
+                    app.logger.exception('Failed syncing statutory validity to vehicle')
+                    flash(f'Statutory saved, but vehicle sync failed: {sync_err}', 'warning')
+
             flash('Statutory record saved successfully!', 'success')
             return redirect(url_for('statutory', success='true'))
         else:
             flash('Error saving statutory record. Please try again.', 'danger')
     
     next_entry_no = get_next_statutory_entry_no()
-    return render_template('statutory.html', entry_no=next_entry_no)
+    # Provide vehicle list so the statutory form can show vehicle choices
+    try:
+        vehicles = get_all_vehicles() or []
+    except Exception:
+        vehicles = []
+    return render_template('statutory.html', entry_no=next_entry_no, vehicles=vehicles)
 
 @app.route('/trip-sheet', methods=['GET', 'POST'])
 @login_required
@@ -2355,8 +2468,12 @@ def admin_dashboard():
                 # Alert if due within 7 days or overdue
                 if days_remaining <= 7:
                     alert_type = 'overdue' if days_remaining < 0 else 'warning'
+                    vehicle_id = record.get('vehicle_id') or record.get('statutory_body_id') or 'Unknown'
+                    registration_no = record.get('registration_no') or 'N/A'
                     due_soon_alerts.append({
                         'statutory_body_id': record.get('statutory_body_id', 'Unknown'),
+                        'vehicle_id': vehicle_id,
+                        'registration_no': registration_no,
                         'record_type': record.get('type_of_transaction', 'Statutory'),
                         'next_due': validity_date.strftime('%d-%m-%Y'),
                         'days_remaining': days_remaining,
@@ -3163,6 +3280,25 @@ def admin_view_vehicle(vehicle_id):
     
     return render_template('admin_view_vehicle.html', vehicle=vehicle)
 
+
+@app.route('/api/vehicle-by-vehicle-id')
+@admin_required
+def api_vehicle_by_vehicle_id():
+    vid = request.args.get('vehicle_id') or request.args.get('vid')
+    if not vid:
+        return jsonify({'success': False, 'error': 'missing vehicle_id'}), 400
+    try:
+        v = get_vehicle_by_vehicle_id(vid)
+        if not v:
+            return jsonify({'success': False, 'found': False})
+        return jsonify({'success': True, 'found': True, 'vehicle': v})
+    except Exception as e:
+        try:
+            app.logger.exception('Error in api_vehicle_by_vehicle_id')
+        except Exception:
+            pass
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 @app.route('/admin/vehicles/add', methods=['GET', 'POST'])
 @admin_required
 def admin_add_vehicle_page():
@@ -3195,7 +3331,8 @@ def admin_add_vehicle_page():
             'permit_validity': request.form.get('permit_validity') or None,
             'permit_district': request.form.get('permit_district') or None,
             'pucc_validity': request.form.get('pucc_validity') or None,
-            'tax_validity': request.form.get('tax_validity') or None
+            'tax_validity': request.form.get('tax_validity') or None,
+            'registration_validity': request.form.get('registration_validity') or None
         }
         # If a manual vehicle id was provided, prefer that over the select value
         manual_vid = request.form.get('vehicle_id_manual')
@@ -3248,7 +3385,8 @@ def admin_edit_vehicle(vehicle_id):
             'permit_validity': request.form.get('permit_validity') or None,
             'permit_district': request.form.get('permit_district') or None,
             'pucc_validity': request.form.get('pucc_validity') or None,
-            'tax_validity': request.form.get('tax_validity') or None
+            'tax_validity': request.form.get('tax_validity') or None,
+            'registration_validity': request.form.get('registration_validity') or None
         }
         
         # If a manual vehicle id was provided, prefer that over the select value

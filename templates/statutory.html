@@ -87,6 +87,36 @@
         // Remove the success parameter from URL without reloading
         window.history.replaceState({}, document.title, window.location.pathname);
       }
+      // Auto-fill registration number when a vehicle is selected
+      (function() {
+        const vidSelect = document.getElementById('vehicle_id_select');
+        const regInput = document.querySelector('input[name="registration_no"]');
+        if (!vidSelect || !regInput) return;
+
+        function setRegFromSelect() {
+          let opt = null;
+          if (vidSelect.selectedOptions && vidSelect.selectedOptions.length > 0) {
+            opt = vidSelect.selectedOptions[0];
+          } else if (vidSelect.options && vidSelect.selectedIndex >= 0) {
+            opt = vidSelect.options[vidSelect.selectedIndex];
+          }
+          const reg = opt ? (opt.getAttribute('data-reg') || '') : '';
+          if (reg && (!regInput.value || regInput.value.trim() === '')) {
+            regInput.value = reg;
+          }
+        }
+
+        // Initialize registration field from current selection if empty
+        setRegFromSelect();
+
+        // Update registration when selection changes
+        vidSelect.addEventListener('change', function() {
+          let opt = this.selectedOptions && this.selectedOptions[0];
+          if (!opt && this.options && this.selectedIndex >= 0) opt = this.options[this.selectedIndex];
+          const reg = opt ? (opt.getAttribute('data-reg') || '') : '';
+          regInput.value = reg || '';
+        });
+      })();
     });
     
     // Show success modal
@@ -364,6 +394,27 @@
             <label class="form-label w-52">ENTRY NO.</label>
             <span class="text-gray-600 font-bold">:</span>
             <input type="text" name="entry_no" class="form-input" value="{{ entry_no }}" readonly style="background-color: #f3f4f6; font-weight: bold;">
+          </div>
+
+          <!-- Vehicle ID -->
+          <div class="flex items-center gap-4">
+            <label class="form-label w-52">VEHICLE ID</label>
+            <span class="text-gray-600 font-bold">:</span>
+            <select name="vehicle_id" id="vehicle_id_select" class="form-input">
+              <option value="">Select Vehicle</option>
+              {% if vehicles %}
+                {% for v in vehicles %}
+                  <option value="{{ v.vehicle_id or v.id }}" data-reg="{{ v.registration_no or '' }}">{{ v.vehicle_id or v.id }}{% if v.registration_no %} — {{ v.registration_no }}{% endif %}</option>
+                {% endfor %}
+              {% endif %}
+            </select>
+          </div>
+
+          <!-- Registration No -->
+          <div class="flex items-center gap-4">
+            <label class="form-label w-52">REGISTRATION NO</label>
+            <span class="text-gray-600 font-bold">:</span>
+            <input type="text" name="registration_no" class="form-input" value="{{ registration_no or '' }}" placeholder="e.g., TN01AB1234">
           </div>
 
           <!-- Invoice No -->

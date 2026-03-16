@@ -13,6 +13,7 @@ logger = logging.getLogger(__name__)
 VEHICLE_DATE_FIELDS = {
     'fitness_validity': 'Fitness Validity',
     'insurance_validity': 'Insurance Validity',
+    'registration_validity': 'Registration Validity',
     'permit_validity': 'Permit Validity',
     'pucc_validity': 'PUCC Validity',
     'tax_validity': 'Tax Validity'

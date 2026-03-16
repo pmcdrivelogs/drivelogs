@@ -243,20 +243,32 @@
       background: #fffbeb;
     }
     
-    .notification-badge {
-      position: absolute;
-      top: 12px;
-      right: 12px;
-      background: #10b981;
-      color: white;
-      border-radius: 50%;
-      width: 24px;
-      height: 24px;
-      display: flex;
+    .top-alert-btn {
+      position: relative;
+      display: inline-flex;
       align-items: center;
       justify-content: center;
-      font-size: 12px;
-      font-weight: bold;
+      gap: 6px;
+      min-width: 90px;
+      padding: 8px 14px;
+    }
+
+    .top-alert-badge {
+      position: absolute;
+      top: -8px;
+      right: -8px;
+      color: white;
+      border-radius: 9999px;
+      min-width: 22px;
+      height: 22px;
+      padding: 0 6px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      font-weight: 700;
+      line-height: 1;
+      border: 2px solid #ffffff;
       animation: pulse 2s infinite;
     }
     
@@ -289,6 +301,13 @@
     <img src="{{ url_for('static', filename='img/drive-logs.png') }}" alt="Drive Logs Logo" class="h-12 md:h-14 w-auto ml-2">
     <div class="flex items-center gap-4">
       <span class="text-white text-sm font-medium hidden md:block">Admin: {{ admin }}</span>
+      <button onclick="showNotifications()" class="top-alert-btn bg-white text-yellow-700 rounded-full text-sm font-semibold hover:bg-gray-100 transition-colors" title="Statutory alerts" aria-label="Open statutory alerts">
+        <span class="inline-flex items-center gap-1 leading-none">
+          <span>🔔</span>
+          <span class="hidden sm:inline">Alerts</span>
+        </span>
+        <span class="top-alert-badge" style="background: {% if due_soon_alerts|length > 0 %}#ef4444{% else %}#64748b{% endif %};">{{ due_soon_alerts|length }}</span>
+      </button>
       <a href="{{ url_for('logout') }}" class="bg-white text-yellow-700 px-4 py-2 rounded-full text-sm font-semibold hover:bg-gray-100 transition-colors">
         Logout
       </a>
@@ -315,7 +334,8 @@
               <div class="flex justify-between items-start mb-2">
                 <div>
                   <h3 class="font-bold text-gray-800">{{ alert.record_type|replace('_', ' ')|title }}</h3>
-                  <p class="text-sm text-gray-600">ID: {{ alert.statutory_body_id }}</p>
+                  <p class="text-sm text-gray-600">Vehicle ID: {{ alert.vehicle_id or alert.statutory_body_id }}</p>
+                  <p class="text-sm text-gray-600">Reg No: {{ alert.registration_no or 'N/A' }}</p>
                 </div>
                 <span class="px-3 py-1 rounded-full text-xs font-bold {% if alert.alert_type == 'overdue' %}bg-red-100 text-red-600{% else %}bg-yellow-100 text-yellow-800{% endif %}">
                   {% if alert.days_remaining < 0 %}
@@ -367,14 +387,6 @@
             <p class="text-blue-100 text-sm md:text-base">Complete control over system management</p>
           </div>
           <div class="flex gap-3">
-            <!-- Notification Bell -->
-            {% if due_soon_alerts %}
-            <button onclick="showNotifications()" class="stat-pill relative cursor-pointer hover:bg-white/20 transition-all" style="min-width: 60px;">
-              <div class="text-xs opacity-80">Alerts</div>
-              <div class="text-xl font-bold">🔔</div>
-              <span class="notification-badge">{{ due_soon_alerts|length }}</span>
-            </button>
-            {% endif %}
             <div class="stat-pill">
               <div class="text-xs opacity-80">Users</div>
               <div class="text-xl font-bold">{{ users_count|default(0) }}</div>

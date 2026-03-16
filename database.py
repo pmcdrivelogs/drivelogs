@@ -1164,6 +1164,7 @@ def save_statutory(statutory_data):
         
         # Convert empty strings to None for text fields
         text_fields = ['time', 'entry_no', 'invoice_no', 'statutory_body_id', 
+                       'vehicle_id', 'registration_no',
                        'type_of_transaction', 'entered_by', 'approved_by',
                        'approver_name', 'rejection_reason']
         for field in text_fields:
@@ -1231,6 +1232,16 @@ def get_vehicle_by_id(vehicle_id):
         return response.data[0] if response.data and len(response.data) > 0 else None
     except Exception as e:
         print(f"Error getting vehicle by ID: {e}")
+        return None
+
+
+def get_vehicle_by_vehicle_id(vehicle_id_value):
+    """Get a single vehicle by its `vehicle_id` field (not the numeric PK)."""
+    try:
+        response = supabase.table('vehicles').select('*').eq('vehicle_id', vehicle_id_value).execute()
+        return response.data[0] if response.data and len(response.data) > 0 else None
+    except Exception as e:
+        print(f"Error getting vehicle by vehicle_id: {e}")
         return None
 
 def admin_create_user(user_data):
