@@ -1475,49 +1475,91 @@ def utilization():
         # Add purchased quantities (skip rows already issued/consumed)
         if purchases.data:
             for item in purchases.data:
-                part_no = item.get('part_number') or item.get('part_no')
-                if not part_no:
+                raw_part = item.get('part_number') or item.get('part_no') or item.get('part') or item.get('part_id') or item.get('partId')
+                if not raw_part:
                     continue
+                part_no = str(raw_part).strip()
+                pkey = part_no.lower()
                 status_val = (item.get('status') or '')
+                is_ignored_status = False
                 try:
                     if status_val and status_val.lower() in ('issued', 'consumed', 'removed', 'scrapped', 'deleted'):
-                        continue
+                        is_ignored_status = True
                 except Exception:
                     pass
 
-                if part_no not in parts_dict:
-                    parts_dict[part_no] = {
+                if pkey not in parts_dict:
+                    parts_dict[pkey] = {
+                        'part_no': part_no,
+                        'part_name': item.get('part_name') or '',
+                        'purchased': 0,
+                        'utilized': 0,
+                        'scrapped': 0,
+                        'has_purchase': False
+                    }
+                # Mark that a purchase row exists for this part (even if status means quantity shouldn't be counted)
+                parts_dict[pkey]['has_purchase'] = True
+                if not is_ignored_status:
+                    try:
+                        parts_dict[pkey]['purchased'] += float(item.get('quantity', 0) or 0)
+                    except Exception:
+                        # ignore malformed quantity values
+                        pass
+        
+        # Subtract utilized quantities (ensure parts present only in utilization are counted)
+        if utilized.data:
+            for item in utilized.data:
+                raw_part = item.get('part_no') or item.get('part_number') or item.get('part') or item.get('part_id') or item.get('partId')
+                if not raw_part:
+                    continue
+                part_no = str(raw_part).strip()
+                pkey = part_no.lower()
+                if pkey not in parts_dict:
+                    parts_dict[pkey] = {
                         'part_no': part_no,
                         'part_name': item.get('part_name') or '',
                         'purchased': 0,
                         'utilized': 0,
                         'scrapped': 0
                     }
-                parts_dict[part_no]['purchased'] += float(item.get('quantity', 0) or 0)
+                try:
+                    parts_dict[pkey]['utilized'] += float(item.get('quantity', 0) or 0)
+                except Exception:
+                    pass
         
-        # Subtract utilized quantities
-        if utilized.data:
-            for item in utilized.data:
-                part_no = item['part_no']
-                if part_no in parts_dict:
-                    parts_dict[part_no]['utilized'] += float(item.get('quantity', 0))
-        
-        # Subtract scrapped quantities
+        # Subtract scrapped quantities (ensure parts present only in scrap are counted)
         if scrapped.data:
             for item in scrapped.data:
-                part_no = item['part_no']
-                if part_no in parts_dict:
-                    parts_dict[part_no]['scrapped'] += float(item.get('quantity', 0))
+                raw_part = item.get('part_no') or item.get('part_number') or item.get('part') or item.get('part_id') or item.get('partId')
+                if not raw_part:
+                    continue
+                part_no = str(raw_part).strip()
+                pkey = part_no.lower()
+                if pkey not in parts_dict:
+                    parts_dict[pkey] = {
+                        'part_no': part_no,
+                        'part_name': item.get('part_name') or '',
+                        'purchased': 0,
+                        'utilized': 0,
+                        'scrapped': 0
+                    }
+                try:
+                    parts_dict[pkey]['scrapped'] += float(item.get('quantity', 0) or 0)
+                except Exception:
+                    pass
         
         # Calculate available quantity and filter
         parts_list = []
         for part in parts_dict.values():
             available = part['purchased'] - part['utilized'] - part['scrapped']
-            if available > 0:
+            # Display available as zero when negative (don't show negative stock),
+            # but include parts that appear in any table (purchased/utilized/scrapped)
+            display_avail = round(available, 2) if available > 0 else 0.0
+            if part.get('has_purchase') or part.get('purchased', 0) > 0 or part.get('utilized', 0) > 0 or part.get('scrapped', 0) > 0 or available > 0:
                 parts_list.append({
-                    'part_no': part['part_no'] or '',
-                    'part_name': part['part_name'] or '',
-                    'available_quantity': round(available, 2)
+                    'part_no': part.get('part_no') or '',
+                    'part_name': part.get('part_name') or '',
+                    'available_quantity': display_avail
                 })
         
         # Sort by part_no (handle None values)
@@ -1804,11 +1846,27 @@ def stock_inventory():
                 part_key = str(raw_part_no)
             
             purchased_qty = float(item.get('quantity', 0) or 0)
+            # some rows use 'original_quantity' to record the received amount before edits
+            original_qty = float(item.get('original_quantity', 0) or 0)
+            # monetary fields
             item_net_payable = float(item.get('net_payable', 0) or 0)
-            
-            # Calculate per-unit cost
+            # rate may be present as per-unit or total depending on how data was entered
+            try:
+                rate_val = float(item.get('rate')) if item.get('rate') is not None else None
+            except Exception:
+                rate_val = None
+
+            # Calculate per-unit cost using sensible fallbacks for service/zero-quantity rows
             if purchased_qty > 0:
-                cost_per_unit = item_net_payable / purchased_qty
+                cost_per_unit = item_net_payable / purchased_qty if item_net_payable and purchased_qty else (rate_val or 0)
+            elif original_qty > 0:
+                cost_per_unit = item_net_payable / original_qty if item_net_payable and original_qty else (rate_val or 0)
+            elif rate_val and rate_val > 0:
+                # treat `rate` as the unit price for service items
+                cost_per_unit = rate_val
+            elif item_net_payable > 0:
+                # fallback: treat the whole payable as one unit price
+                cost_per_unit = item_net_payable
             else:
                 cost_per_unit = 0
             
