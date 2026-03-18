@@ -44,11 +44,31 @@
   <!-- Main Content -->
   <div class="container mx-auto p-4 md:p-8">
     <!-- Action Bar -->
-    <div class="flex justify-between items-center mb-6">
-      <h2 class="text-xl font-bold text-gray-800">All Vehicles ({{ vehicles|length }})</h2>
-      <a href="{{ url_for('admin_add_vehicle_page') }}" class="bg-green-500 hover:bg-green-600 text-white px-6 py-2 rounded-lg font-semibold transition-colors">
-        + Add New Vehicle
-      </a>
+    <div class="flex flex-col md:flex-row justify-between items-center mb-6 gap-3">
+      <div class="flex items-center gap-4">
+        <h2 class="text-xl font-bold text-gray-800">All Vehicles ({{ vehicles|length }})</h2>
+        <a href="{{ url_for('admin_add_vehicle_page') }}" class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg font-semibold transition-colors">
+          + Add New Vehicle
+        </a>
+      </div>
+
+      <form method="GET" class="flex items-center gap-2">
+        <input id="vehicle_search" name="q" type="search" placeholder="Search vehicles (ID, reg no, make, model)" value="{{ request.args.get('q','') }}" class="border rounded px-3 py-2 text-sm" style="min-width:220px;">
+        <label for="per_page" class="text-sm font-medium text-gray-700">Show</label>
+        <select id="per_page_select" name="per_page" class="border rounded px-3 py-2 text-sm" aria-label="Rows per page">
+          <option value="all" {% if rows_per_page == 'all' %}selected{% endif %}>Show All</option>
+          <option value="25" {% if rows_per_page == '25' %}selected{% endif %}>25</option>
+          <option value="50" {% if rows_per_page == '50' %}selected{% endif %}>50</option>
+          <option value="75" {% if rows_per_page == '75' %}selected{% endif %}>75</option>
+          <option value="custom" {% if id_from or id_to %}selected{% endif %}>Custom (ID range)</option>
+        </select>
+
+        <input id="id_from_input" name="id_from" type="number" placeholder="ID from" value="{{ id_from or request.args.get('id_from','') }}" class="border rounded px-3 py-2 text-sm" style="min-width:90px;">
+        <input id="id_to_input" name="id_to" type="number" placeholder="ID to" value="{{ id_to or request.args.get('id_to','') }}" class="border rounded px-3 py-2 text-sm" style="min-width:90px;">
+
+        <button type="submit" class="bg-blue-600 text-white px-3 py-2 rounded text-sm">Apply</button>
+        <a href="{{ url_for('admin_vehicles') }}" class="bg-gray-200 text-gray-700 px-3 py-2 rounded text-sm">Clear</a>
+      </form>
     </div>
 
     <!-- Vehicles Table -->
@@ -104,6 +124,9 @@
                 <td colspan="10" class="px-4 py-8 text-center text-gray-500">No vehicles found</td>
               </tr>
             {% endif %}
+            <tr id="noResultsRow" style="display:none">
+              <td colspan="10" class="px-4 py-8 text-center text-gray-500">No matching vehicles</td>
+            </tr>
           </tbody>
         </table>
         <div id="vehiclesPagination" class="flex items-center justify-center gap-2 mt-4"></div>
@@ -111,25 +134,41 @@
     </div>
   </div>
 
-  <script src="{{ url_for('static', filename='js/uppercase.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/uppercase.js') }}"></script>
   <script>
     function setupPagination(tableId, paginationId, rowsPerPage) {
       const table = document.getElementById(tableId);
       const pagination = document.getElementById(paginationId);
       if (!table || !pagination) return;
 
-      const rows = Array.from(table.querySelectorAll('tbody tr'));
-      const totalPages = Math.max(1, Math.ceil(rows.length / rowsPerPage));
+      // All rows excluding the special no-results row
+      const allRows = Array.from(table.querySelectorAll('tbody tr')).filter(r => r.id !== 'noResultsRow');
+      // Rows currently visible (not hidden by search)
+      const visibleRows = allRows.filter(r => r.style.display !== 'none');
+
+      const totalPages = Math.max(1, Math.ceil(visibleRows.length / rowsPerPage));
 
       let currentPage = parseInt(pagination.getAttribute('data-page') || '1', 10);
       if (currentPage > totalPages) currentPage = totalPages;
       pagination.setAttribute('data-page', String(currentPage));
 
-      rows.forEach((row, index) => {
-        const start = (currentPage - 1) * rowsPerPage;
-        const end = start + rowsPerPage;
-        row.style.display = index >= start && index < end ? '' : 'none';
+      // Hide all rows initially
+      allRows.forEach(r => r.style.display = 'none');
+
+      // Show only the rows for the current page
+      const start = (currentPage - 1) * rowsPerPage;
+      const end = start + rowsPerPage;
+      visibleRows.forEach((row, idx) => {
+        if (idx >= start && idx < end) row.style.display = '';
       });
+
+      // Handle no-results row
+      const noRow = document.getElementById('noResultsRow');
+      if (visibleRows.length === 0) {
+        if (noRow) noRow.style.display = '';
+      } else {
+        if (noRow) noRow.style.display = 'none';
+      }
 
       pagination.innerHTML = '';
       const createButton = (label, page, disabled = false, isActive = false) => {
@@ -158,8 +197,64 @@
       pagination.appendChild(createButton('Next', Math.min(totalPages, currentPage + 1), currentPage === totalPages));
     }
 
+    // Simple debounce helper
+    function debounce(fn, wait) {
+      let t = null;
+      return function(...args) {
+        clearTimeout(t);
+        t = setTimeout(() => fn.apply(this, args), wait);
+      };
+    }
+
     document.addEventListener('DOMContentLoaded', () => {
-      setupPagination('vehiclesTable', 'vehiclesPagination', 10);
+      // Use rows per page provided by server (js_rows_per_page)
+      const rowsPerPage = {{ js_rows_per_page }} || 10;
+      setupPagination('vehiclesTable', 'vehiclesPagination', rowsPerPage);
+
+      // Show/hide custom ID inputs depending on selection
+      const perSelect = document.getElementById('per_page_select');
+      const idFrom = document.getElementById('id_from_input');
+      const idTo = document.getElementById('id_to_input');
+      function toggleCustom() {
+        if (!perSelect || !idFrom || !idTo) return;
+        if (perSelect.value === 'custom') {
+          idFrom.style.display = 'inline-block';
+          idTo.style.display = 'inline-block';
+        } else {
+          idFrom.style.display = 'none';
+          idTo.style.display = 'none';
+        }
+      }
+      perSelect.addEventListener('change', toggleCustom);
+      toggleCustom();
+
+      // Live search
+      const searchInput = document.getElementById('vehicle_search');
+      function applySearchFilter() {
+        const term = (searchInput && searchInput.value) ? searchInput.value.trim().toLowerCase() : '';
+        const table = document.getElementById('vehiclesTable');
+        if (!table) return;
+        const rows = Array.from(table.querySelectorAll('tbody tr')).filter(r => r.id !== 'noResultsRow');
+        let matches = 0;
+        rows.forEach(row => {
+          const text = row.innerText.toLowerCase();
+          if (!term || text.indexOf(term) !== -1) {
+            row.style.display = '';
+            matches += 1;
+          } else {
+            row.style.display = 'none';
+          }
+        });
+
+        // Reset to first page and re-run pagination
+        const pagination = document.getElementById('vehiclesPagination');
+        if (pagination) pagination.setAttribute('data-page', '1');
+        setupPagination('vehiclesTable', 'vehiclesPagination', rowsPerPage);
+      }
+
+      if (searchInput) {
+        searchInput.addEventListener('input', debounce(applySearchFilter, 250));
+      }
     });
   </script>
 {% include 'footer.html' %}

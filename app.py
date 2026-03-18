@@ -2566,7 +2566,7 @@ def admin_reports():
         # Fetch all records
         fuel_records = get_all_fuel_records()
         statutory_records = get_all_statutory_records()
-        trip_records = get_all_trip_sheets()
+        trip_records = list(get_all_trip_sheets())
         
         # Calculate summaries
         fuel_total_liters = sum(float(r.get('quantity', 0) or 0) for r in fuel_records)
@@ -2633,8 +2633,8 @@ def admin_trip_records():
         date_from = request.args.get('date_from', '')
         date_to = request.args.get('date_to', '')
         
-        # Fetch all trip records
-        trip_records = get_all_trip_sheets()
+        # Fetch all trip records (ensure we have a list, not a generator)
+        trip_records = list(get_all_trip_sheets())
         
         # Apply filters
         if route_filter:
@@ -2663,7 +2663,7 @@ def admin_trip_records():
             record['trip_close_place'] = clean_text(record.get('trip_close_place'))
         
         # Get unique values for filter dropdowns
-        all_records = get_all_trip_sheets()
+        all_records = list(get_all_trip_sheets())
         unique_routes = sorted(set(r.get('route_id', '') for r in all_records if r.get('route_id')))
         unique_vehicles = sorted(set(r.get('vehicle_id', '') for r in all_records if r.get('vehicle_id')))
         
@@ -2675,6 +2675,168 @@ def admin_trip_records():
         total_guests = sum(int(r.get('guest_total', 0) or 0) for r in trip_records)
         total_passengers = sum(int(r.get('cumulative_strength', 0) or r.get('total_strength', 0) or 0) for r in trip_records)
         
+        # Compute daily and monthly averages (based on currently filtered trip_records)
+        unique_dates = set()
+        monthly_counts = {}
+        for r in trip_records:
+            dt = r.get('date_time')
+            if not dt:
+                continue
+            try:
+                date_str = str(dt)[:10]
+            except:
+                continue
+            unique_dates.add(date_str)
+            month_key = date_str[:7]  # YYYY-MM
+            monthly_counts[month_key] = monthly_counts.get(month_key, 0) + 1
+
+        days_with_entries = len(unique_dates)
+        months_with_entries = len(monthly_counts)
+        daily_avg = (total_trips / days_with_entries) if days_with_entries else 0
+        monthly_avg = (total_trips / months_with_entries) if months_with_entries else 0
+
+        # Determine days to use for per-day averages: prefer explicit filter range if provided
+        days_for_avg = None
+        avg_range_label = ''
+        try:
+            if date_from and date_to:
+                df = datetime.strptime(date_from, '%Y-%m-%d').date()
+                dt_obj = datetime.strptime(date_to, '%Y-%m-%d').date()
+                if dt_obj < df:
+                    days_for_avg = 1
+                else:
+                    days_for_avg = (dt_obj - df).days + 1
+                avg_range_label = f"{df.isoformat()} to {dt_obj.isoformat()}"
+            elif date_from and not date_to:
+                df = datetime.strptime(date_from, '%Y-%m-%d').date()
+                if unique_dates:
+                    max_date = max(unique_dates)
+                    dmax = datetime.strptime(max_date, '%Y-%m-%d').date()
+                    days_for_avg = (dmax - df).days + 1 if dmax >= df else 1
+                    avg_range_label = f"{df.isoformat()} to {dmax.isoformat()}"
+                else:
+                    days_for_avg = 1
+                    avg_range_label = df.isoformat()
+            elif date_to and not date_from:
+                dt_obj = datetime.strptime(date_to, '%Y-%m-%d').date()
+                if unique_dates:
+                    min_date = min(unique_dates)
+                    dmin = datetime.strptime(min_date, '%Y-%m-%d').date()
+                    days_for_avg = (dt_obj - dmin).days + 1 if dt_obj >= dmin else 1
+                    avg_range_label = f"{dmin.isoformat()} to {dt_obj.isoformat()}"
+                else:
+                    days_for_avg = 1
+                    avg_range_label = dt_obj.isoformat()
+            else:
+                days_for_avg = days_with_entries if days_with_entries else 1
+                avg_range_label = f"{days_with_entries} days with entries" if days_with_entries else 'no range'
+        except Exception:
+            days_for_avg = days_with_entries if days_with_entries else 1
+            avg_range_label = f"{days_with_entries} days with entries" if days_with_entries else 'no range'
+
+        # Per-day averages (based on filter range when available)
+        avg_trips_per_day = (total_trips / days_for_avg) if days_for_avg else 0
+        avg_km_per_day = (total_distance / days_for_avg) if days_for_avg else 0
+        avg_students_per_day = (total_students / days_for_avg) if days_for_avg else 0
+        avg_faculty_per_day = (total_faculty / days_for_avg) if days_for_avg else 0
+        avg_guests_per_day = (total_guests / days_for_avg) if days_for_avg else 0
+        avg_passengers_per_day = (total_passengers / days_for_avg) if days_for_avg else 0
+
+        # Aggregate monthly sums for additional metrics (trips, km, students, faculty, guests, passengers)
+        monthly_agg = {}
+        for r in trip_records:
+            dt = r.get('date_time')
+            if not dt:
+                continue
+            try:
+                date_str = str(dt)[:10]
+            except:
+                continue
+            month_key = date_str[:7]
+            if month_key not in monthly_agg:
+                monthly_agg[month_key] = {
+                    'trips': 0,
+                    'km': 0.0,
+                    'students': 0,
+                    'faculty': 0,
+                    'guests': 0,
+                    'passengers': 0
+                }
+            m = monthly_agg[month_key]
+            m['trips'] += 1
+            try:
+                start_km = float(r.get('trip_start_km') or 0)
+            except:
+                start_km = 0.0
+            try:
+                close_km = float(r.get('trip_close_km') or 0)
+            except:
+                close_km = 0.0
+            m['km'] += max(0.0, close_km - start_km)
+
+            # students
+            try:
+                students = int(r.get('student_total') or 0)
+            except:
+                students = 0
+            if not students:
+                try:
+                    students = int(r.get('student_male') or 0) + int(r.get('student_female') or 0) + int(r.get('student_transgender') or 0)
+                except:
+                    students = students or 0
+            m['students'] += students
+
+            # faculty
+            try:
+                faculty = int(r.get('faculty_total') or 0)
+            except:
+                faculty = 0
+            if not faculty:
+                try:
+                    faculty = int(r.get('faculty_male') or 0) + int(r.get('faculty_female') or 0) + int(r.get('faculty_transgender') or 0)
+                except:
+                    faculty = faculty or 0
+            m['faculty'] += faculty
+
+            # guests
+            try:
+                guests = int(r.get('guest_total') or 0)
+            except:
+                guests = 0
+            if not guests:
+                try:
+                    guests = int(r.get('guest_male') or 0) + int(r.get('guest_female') or 0) + int(r.get('guest_transgender') or 0)
+                except:
+                    guests = guests or 0
+            m['guests'] += guests
+
+            # passengers (cumulative_strength/total_strength or male/female/transgender counts)
+            try:
+                passengers = int(r.get('cumulative_strength') or r.get('total_strength') or 0)
+            except:
+                passengers = 0
+            if not passengers:
+                try:
+                    passengers = int(r.get('male_count') or 0) + int(r.get('female_count') or 0) + int(r.get('transgender_count') or 0)
+                except:
+                    passengers = passengers or 0
+            m['passengers'] += passengers
+
+        # Prepare sorted lists for template
+        monthly_counts_items = sorted(monthly_counts.items(), reverse=True)
+        monthly_aggregates_items = sorted(monthly_agg.items(), reverse=True)
+
+        # Compute averages across months
+        if months_with_entries:
+            avg_trips_per_month = sum(m['trips'] for m in monthly_agg.values()) / months_with_entries
+            avg_km_per_month = sum(m['km'] for m in monthly_agg.values()) / months_with_entries
+            avg_students_per_month = sum(m['students'] for m in monthly_agg.values()) / months_with_entries
+            avg_faculty_per_month = sum(m['faculty'] for m in monthly_agg.values()) / months_with_entries
+            avg_guests_per_month = sum(m['guests'] for m in monthly_agg.values()) / months_with_entries
+            avg_passengers_per_month = sum(m['passengers'] for m in monthly_agg.values()) / months_with_entries
+        else:
+            avg_trips_per_month = avg_km_per_month = avg_students_per_month = avg_faculty_per_month = avg_guests_per_month = avg_passengers_per_month = 0
+
         # Get all vehicles for dropdown
         vehicles = supabase.table('vehicles').select('vehicle_id, registration_no').order('vehicle_id').execute()
         
@@ -2692,7 +2854,26 @@ def admin_trip_records():
                              total_students=total_students,
                              total_faculty=total_faculty,
                              total_guests=total_guests,
-                             total_passengers=total_passengers)
+                             total_passengers=total_passengers,
+                             daily_avg=daily_avg,
+                             monthly_avg=monthly_avg,
+                             monthly_counts=monthly_counts_items,
+                             monthly_aggregates=monthly_aggregates_items,
+                             avg_trips_per_month=avg_trips_per_month,
+                             avg_km_per_month=avg_km_per_month,
+                             avg_students_per_month=avg_students_per_month,
+                             avg_faculty_per_month=avg_faculty_per_month,
+                             avg_guests_per_month=avg_guests_per_month,
+                             avg_passengers_per_month=avg_passengers_per_month,
+                             avg_trips_per_day=avg_trips_per_day,
+                             avg_km_per_day=avg_km_per_day,
+                             avg_students_per_day=avg_students_per_day,
+                             avg_faculty_per_day=avg_faculty_per_day,
+                             avg_guests_per_day=avg_guests_per_day,
+                             avg_passengers_per_day=avg_passengers_per_day,
+                             avg_range_label=avg_range_label,
+                             unique_days=days_with_entries,
+                             months_count=months_with_entries)
     except Exception as e:
         flash(f'Error loading trip records: {str(e)}', 'danger')
         return redirect(url_for('admin_dashboard'))
@@ -2772,7 +2953,7 @@ def admin_analytics_dashboard():
     try:
         # Fetch all records
         fuel_records = get_all_fuel_records()
-        trip_records = get_all_trip_sheets()
+        trip_records = list(get_all_trip_sheets())
         statutory_records = get_all_statutory_records()
         purchase_records = get_all_purchases()
         stock_issue_records = get_all_stock_issues()
@@ -3127,7 +3308,7 @@ def api_analytics_custom():
         return None
 
     fuel_records = get_all_fuel_records()
-    trip_records = get_all_trip_sheets()
+    trip_records = list(get_all_trip_sheets())
     purchase_records = get_all_purchases()
     stock_issue_records = get_all_stock_issues()
     utilization_records = get_all_utilization()
@@ -3325,8 +3506,65 @@ def admin_save_user_modules(user_id):
 @app.route('/admin/vehicles')
 @admin_required
 def admin_vehicles():
+    # Support per-page and vehicle-id range filters via query params
+    per_page = request.args.get('per_page', '25')
+    id_from = (request.args.get('id_from') or '').strip()
+    id_to = (request.args.get('id_to') or '').strip()
+
     vehicles = get_all_vehicles()
-    return render_template('admin_vehicles.html', vehicles=vehicles)
+
+    # If id range provided, filter vehicles by numeric `vehicle_id` where possible
+    if id_from or id_to:
+        try:
+            start = int(id_from) if id_from else None
+        except Exception:
+            start = None
+        try:
+            end = int(id_to) if id_to else None
+        except Exception:
+            end = None
+
+        filtered = []
+        for v in vehicles:
+            vid_raw = v.get('vehicle_id')
+            vid_int = None
+            try:
+                vid_int = int(str(vid_raw).strip())
+            except Exception:
+                try:
+                    if isinstance(vid_raw, int):
+                        vid_int = vid_raw
+                except Exception:
+                    vid_int = None
+
+            if vid_int is None:
+                # skip entries that don't have numeric vehicle_id
+                continue
+
+            if start is not None and end is not None:
+                if start <= vid_int <= end:
+                    filtered.append(v)
+            elif start is not None:
+                if vid_int >= start:
+                    filtered.append(v)
+            elif end is not None:
+                if vid_int <= end:
+                    filtered.append(v)
+
+        vehicles = filtered
+
+    # Determine rows per page for client-side pagination
+    if per_page == 'all':
+        js_rows_per_page = len(vehicles) if len(vehicles) > 0 else 1
+    else:
+        try:
+            js_rows_per_page = int(per_page)
+            if js_rows_per_page <= 0:
+                js_rows_per_page = 25
+        except Exception:
+            js_rows_per_page = 25
+
+    return render_template('admin_vehicles.html', vehicles=vehicles, rows_per_page=per_page, js_rows_per_page=js_rows_per_page, id_from=id_from, id_to=id_to)
 
 @app.route('/admin/vehicles/view/<int:vehicle_id>', methods=['GET'])
 @admin_required

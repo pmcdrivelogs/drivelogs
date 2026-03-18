@@ -270,31 +270,37 @@
         {% endif %}
       {% endwith %}
       
-      <!-- Statistics Cards -->
+      <!-- Statistics Cards with per-day averages (uses filter range when provided) -->
       <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 mb-6">
         <div class="stat-card">
           <div class="stat-value">{{ total_trips }}</div>
           <div class="stat-label">Total Trips</div>
+          <div class="text-sm opacity-90 mt-2">Avg / day: {{ "%.1f"|format(avg_trips_per_day) }} <div class="text-xs opacity-80">({{ avg_range_label }})</div></div>
         </div>
         <div class="stat-card green">
           <div class="stat-value">{{ "%.1f"|format(total_distance) }}</div>
           <div class="stat-label">Total KM</div>
+          <div class="text-sm opacity-90 mt-2">Avg / day: {{ "%.1f"|format(avg_km_per_day) }} <div class="text-xs opacity-80">({{ avg_range_label }})</div></div>
         </div>
         <div class="stat-card orange">
           <div class="stat-value">{{ total_students }}</div>
           <div class="stat-label">Students</div>
+          <div class="text-sm opacity-90 mt-2">Avg / day: {{ "%.1f"|format(avg_students_per_day) }} <div class="text-xs opacity-80">({{ avg_range_label }})</div></div>
         </div>
         <div class="stat-card purple">
           <div class="stat-value">{{ total_faculty }}</div>
           <div class="stat-label">Faculty</div>
+          <div class="text-sm opacity-90 mt-2">Avg / day: {{ "%.1f"|format(avg_faculty_per_day) }} <div class="text-xs opacity-80">({{ avg_range_label }})</div></div>
         </div>
         <div class="stat-card pink">
           <div class="stat-value">{{ total_guests }}</div>
           <div class="stat-label">Guests</div>
+          <div class="text-sm opacity-90 mt-2">Avg / day: {{ "%.1f"|format(avg_guests_per_day) }} <div class="text-xs opacity-80">({{ avg_range_label }})</div></div>
         </div>
         <div class="stat-card cyan">
           <div class="stat-value">{{ total_passengers }}</div>
           <div class="stat-label">Total Passengers</div>
+          <div class="text-sm opacity-90 mt-2">Avg / day: {{ "%.1f"|format(avg_passengers_per_day) }} <div class="text-xs opacity-80">({{ avg_range_label }})</div></div>
         </div>
       </div>
       
@@ -452,6 +458,8 @@
         </div>
         <div id="tripPagination" class="flex items-center justify-center gap-2"></div>
       </div>
+      
+      <!-- removed duplicate averages block; monthly averages now shown in stat cards above -->
       
       <!-- Records Count -->
       <div class="mt-4 text-center text-gray-600">
