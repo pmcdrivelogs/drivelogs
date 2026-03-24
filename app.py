@@ -1460,102 +1460,89 @@ def utilization():
         # Get all vehicles for dropdown
         vehicles = supabase.table('vehicles').select('vehicle_id, registration_no').order('vehicle_id').execute()
         
-        # Get parts from purchases (include status so we can skip already-issued rows)
+        # --- Compute available quantities the same way stock_inventory does ---
+        # purchases.quantity is ALREADY decremented by consume_part_from_purchases on every
+        # utilization save, so we must NOT subtract utilization/scrap records a second time.
+        # Instead we reconstruct original_qty = current_qty + utilized + scrapped, then
+        # available = original_qty - utilized - scrapped  ==  current_qty  (same as stock_inventory).
+
+        # Get ALL purchase rows so we can use their current (already-deducted) quantity
         purchases = supabase.table('purchases').select('part_number, part_name, quantity, status').execute()
-        
+
         # Get all utilized quantities from material_utilization
         utilized = supabase.table('material_utilization').select('part_no, quantity').execute()
-        
+
         # Get all scrapped quantities from scrap
         scrapped = supabase.table('scrap').select('part_no, quantity').execute()
-        
-        # Calculate available quantities
+
+        # ---- Build utilization totals keyed by lowercase part_no ----
+        utilized_by_part = {}
+        if utilized.data:
+            for item in utilized.data:
+                raw_part = item.get('part_no') or item.get('part_number') or ''
+                if not raw_part:
+                    continue
+                pkey = str(raw_part).strip().lower()
+                try:
+                    utilized_by_part[pkey] = utilized_by_part.get(pkey, 0) + float(item.get('quantity', 0) or 0)
+                except Exception:
+                    pass
+
+        # ---- Build scrap totals keyed by lowercase part_no ----
+        scrapped_by_part = {}
+        if scrapped.data:
+            for item in scrapped.data:
+                raw_part = item.get('part_no') or item.get('part_number') or ''
+                if not raw_part:
+                    continue
+                pkey = str(raw_part).strip().lower()
+                try:
+                    scrapped_by_part[pkey] = scrapped_by_part.get(pkey, 0) + float(item.get('quantity', 0) or 0)
+                except Exception:
+                    pass
+
+        # ---- Aggregate purchases by part (current remaining qty) ----
         parts_dict = {}
-        
-        # Add purchased quantities (skip rows already issued/consumed)
         if purchases.data:
             for item in purchases.data:
-                raw_part = item.get('part_number') or item.get('part_no') or item.get('part') or item.get('part_id') or item.get('partId')
+                raw_part = item.get('part_number') or item.get('part_no') or item.get('part') or ''
                 if not raw_part:
                     continue
                 part_no = str(raw_part).strip()
                 pkey = part_no.lower()
-                status_val = (item.get('status') or '')
-                is_ignored_status = False
-                try:
-                    if status_val and status_val.lower() in ('issued', 'consumed', 'removed', 'scrapped', 'deleted'):
-                        is_ignored_status = True
-                except Exception:
-                    pass
 
                 if pkey not in parts_dict:
                     parts_dict[pkey] = {
                         'part_no': part_no,
                         'part_name': item.get('part_name') or '',
-                        'purchased': 0,
-                        'utilized': 0,
-                        'scrapped': 0,
-                        'has_purchase': False
+                        'current_qty': 0,   # sum of purchases.quantity (already deducted)
                     }
-                # Mark that a purchase row exists for this part (even if status means quantity shouldn't be counted)
-                parts_dict[pkey]['has_purchase'] = True
-                if not is_ignored_status:
-                    try:
-                        parts_dict[pkey]['purchased'] += float(item.get('quantity', 0) or 0)
-                    except Exception:
-                        # ignore malformed quantity values
-                        pass
-        
-        # Subtract utilized quantities (ensure parts present only in utilization are counted)
-        if utilized.data:
-            for item in utilized.data:
-                raw_part = item.get('part_no') or item.get('part_number') or item.get('part') or item.get('part_id') or item.get('partId')
-                if not raw_part:
+
+                status_val = (item.get('status') or '').lower()
+                # Skip rows fully consumed/removed — their quantity is already 0
+                if status_val in ('issued', 'consumed', 'removed', 'scrapped', 'deleted'):
                     continue
-                part_no = str(raw_part).strip()
-                pkey = part_no.lower()
-                if pkey not in parts_dict:
-                    parts_dict[pkey] = {
-                        'part_no': part_no,
-                        'part_name': item.get('part_name') or '',
-                        'purchased': 0,
-                        'utilized': 0,
-                        'scrapped': 0
-                    }
+
                 try:
-                    parts_dict[pkey]['utilized'] += float(item.get('quantity', 0) or 0)
+                    parts_dict[pkey]['current_qty'] += float(item.get('quantity', 0) or 0)
                 except Exception:
                     pass
-        
-        # Subtract scrapped quantities (ensure parts present only in scrap are counted)
-        if scrapped.data:
-            for item in scrapped.data:
-                raw_part = item.get('part_no') or item.get('part_number') or item.get('part') or item.get('part_id') or item.get('partId')
-                if not raw_part:
-                    continue
-                part_no = str(raw_part).strip()
-                pkey = part_no.lower()
-                if pkey not in parts_dict:
-                    parts_dict[pkey] = {
-                        'part_no': part_no,
-                        'part_name': item.get('part_name') or '',
-                        'purchased': 0,
-                        'utilized': 0,
-                        'scrapped': 0
-                    }
-                try:
-                    parts_dict[pkey]['scrapped'] += float(item.get('quantity', 0) or 0)
-                except Exception:
-                    pass
-        
-        # Calculate available quantity and filter
+
+        # ---- Reconstruct available the same way stock_inventory does ----
+        # available = current_qty  (== original_qty - utilized - scrapped, simplified)
         parts_list = []
-        for part in parts_dict.values():
-            available = part['purchased'] - part['utilized'] - part['scrapped']
-            # Display available as zero when negative (don't show negative stock),
-            # but include parts that appear in any table (purchased/utilized/scrapped)
+        for pkey, part in parts_dict.items():
+            current_qty = part['current_qty']
+            utilized_qty = utilized_by_part.get(pkey, 0)
+            scrapped_qty = scrapped_by_part.get(pkey, 0)
+
+            # Reconstruct original to derive correct available (matches stock_inventory logic)
+            original_qty = current_qty + utilized_qty + scrapped_qty
+            available = original_qty - utilized_qty - scrapped_qty  # == current_qty
             display_avail = round(available, 2) if available > 0 else 0.0
-            if part.get('has_purchase') or part.get('purchased', 0) > 0 or part.get('utilized', 0) > 0 or part.get('scrapped', 0) > 0 or available > 0:
+
+            # Only show parts that have some stock history
+            if original_qty > 0 or current_qty > 0:
                 parts_list.append({
                     'part_no': part.get('part_no') or '',
                     'part_name': part.get('part_name') or '',
