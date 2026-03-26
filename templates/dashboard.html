@@ -104,6 +104,7 @@
     .card-statutory { --accent-start: #06b6d4; --accent-end: #0891b2; --shadow-color: rgba(6, 182, 212, 0.35); }
     .card-logbook { --accent-start: #1e40af; --accent-end: #1e3a8a; --shadow-color: rgba(30, 64, 175, 0.35); }
     .card-maintenance { --accent-start: #059669; --accent-end: #047857; --shadow-color: rgba(5, 150, 105, 0.35); }
+    .card-dc { --accent-start: #7c3aed; --accent-end: #5b21b6; --shadow-color: rgba(124, 58, 237, 0.35); }
     
     .welcome-section {
       background: linear-gradient(135deg, #1e3a8a 0%, #1e40af 50%, #3b82f6 100%);
@@ -296,6 +297,10 @@
     .floating {
       animation: float 6s ease-in-out infinite;
     }
+
+    /* Top alert badge colors (avoid inline Jinja in style attributes) */
+    .top-alert-badge { background: #64748b; }
+    .top-alert-badge.has-alert { background: #ef4444; }
   </style>
 </head>
 <body class="min-h-screen flex flex-col pt-20">
@@ -303,12 +308,12 @@
     <div class="logo-bar w-full flex items-center justify-between px-4 py-3 fixed top-0 left-0 z-50">
     <img src="{{ url_for('static', filename='img/drive-logs.png') }}" alt="Drive Logs Logo" class="h-12 md:h-14 w-auto ml-2">
     <div class="flex items-center gap-4">
-        <button onclick="showNotifications()" class="top-alert-btn bg-white text-red-600 rounded-full text-sm font-semibold transition-colors hover:bg-gray-100" title="Statutory alerts" aria-label="Open statutory alerts">
+        <button id="topAlertBtn" data-has-due-soon="{{ 1 if due_soon_alerts else 0 }}" onclick="showNotifications()" class="top-alert-btn bg-white text-red-600 rounded-full text-sm font-semibold transition-colors hover:bg-gray-100" title="Statutory alerts" aria-label="Open statutory alerts">
           <span class="inline-flex items-center gap-1 leading-none">
             <span>🔔</span>
             <span class="hidden sm:inline">Alerts</span>
           </span>
-          <span class="top-alert-badge" style="background: {% if due_soon_alerts|length > 0 %}#ef4444{% else %}#64748b{% endif %};">{{ due_soon_alerts|length }}</span>
+          <span class="top-alert-badge {% if due_soon_alerts|length > 0 %}has-alert{% endif %}">{{ due_soon_alerts|length }}</span>
         </button>
       <div class="flex items-center gap-3">
         <div class="w-9 h-9 bg-white rounded-full flex items-center justify-center shadow-sm">
@@ -515,6 +520,19 @@
             <span class="subtitle">Trip details</span>
           </a>
           {% endif %}
+
+          <!-- DC / Gate Pass -->
+          {% if 'DC' in modules %}
+          <button id="dcBtn" type="button" class="menu-card card-dc" aria-haspopup="dialog" aria-controls="dcModal">
+            <div class="icon-wrapper">
+              <svg fill="currentColor" viewBox="0 0 24 24">
+                <path d="M19 2H8c-1.1 0-2 .9-2 2v3H5c-1.1 0-2 .9-2 2v11c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2v-1h1c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM16 20H5V9h11v11zm3-3h-1V9c0-1.1-.9-2-2-2H8V4h11v13zM7 12h7v2H7v-2zm0 3h7v2H7v-2z"/>
+              </svg>
+            </div>
+            <span class="title">DC / Gate Pass</span>
+            <span class="subtitle">Create or view history</span>
+          </button>
+          {% endif %}
           
           <!-- Log Book -->
           {% if 'Log Book' in modules %}
@@ -534,10 +552,6 @@
       
     </div>
   </div>
-
-  <!-- Internal Audit Section removed (moved/handled elsewhere) -->
-
-</div>
 
 <!-- Maintenance selection modal -->
 <div id="maintenanceModal" class="fixed inset-0 z-60 hidden items-center justify-center overflow-auto">
@@ -584,6 +598,51 @@
   </div>
 </div>
 
+<!-- DC selection modal -->
+<div id="dcModal" class="fixed inset-0 z-60 hidden items-center justify-center overflow-auto">
+  <div id="dcOverlay" class="absolute inset-0 bg-black/50 backdrop-blur-sm"></div>
+  <div class="relative bg-white rounded-2xl shadow-2xl max-w-lg w-full mx-4 p-6 z-70 max-h-[90vh] overflow-auto">
+    <div class="flex items-start justify-between mb-2">
+      <div class="flex items-start gap-3">
+        <div class="w-10 h-10 bg-gradient-to-br from-purple-600 to-violet-700 rounded-lg flex items-center justify-center shadow-md">
+          <svg class="w-5 h-5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M19 2H8c-1.1 0-2 .9-2 2v3H5c-1.1 0-2 .9-2 2v11c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2v-1h1c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM16 20H5V9h11v11zm3-3h-1V9c0-1.1-.9-2-2-2H8V4h11v13zM7 12h7v2H7v-2z" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <div>
+          <h3 class="text-lg font-bold text-slate-800">DC / Gate Pass</h3>
+          <p class="text-sm text-slate-500">Create a new DC or view history.</p>
+        </div>
+      </div>
+      <button id="dcClose" aria-label="Close" class="text-gray-400 hover:text-gray-700 rounded-full p-1.5 border border-transparent hover:bg-gray-100">
+        <svg class="w-4 h-4" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 8.586L15.95 2.636a1 1 0 111.414 1.414L11.414 10l5.95 5.95a1 1 0 01-1.414 1.414L10 11.414l-5.95 5.95A1 1 0 012.636 15.95L8.586 10 2.636 4.05A1 1 0 114.05 2.636L10 8.586z" clip-rule="evenodd"/></svg>
+      </button>
+    </div>
+
+    <div class="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <a href="{{ url_for('dc_gate_pass') }}" class="flex items-center gap-3 px-5 py-4 bg-sky-600 hover:bg-sky-700 text-white rounded-xl shadow-md transition">
+        <div class="w-10 h-10 bg-white/10 rounded-md flex items-center justify-center">
+          <svg class="w-5 h-5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 2v4M7 7l3 3M17 7l-3 3M3 21h18" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <div class="text-left">
+          <div class="font-semibold">Create DC</div>
+          <div class="text-xs text-white/80">Open DC form</div>
+        </div>
+      </a>
+
+      <a href="{{ url_for('dc_history') }}" class="flex items-center gap-3 px-5 py-4 bg-white border border-slate-200 hover:shadow-md rounded-xl transition">
+        <div class="w-10 h-10 bg-purple-600 rounded-md flex items-center justify-center shadow-sm">
+          <svg class="w-5 h-5 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 7h18M7 7v13M17 7v13M9 3h6v4H9z" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </div>
+        <div class="text-left">
+          <div class="font-semibold text-slate-800">DC History</div>
+          <div class="text-xs text-slate-500">View saved DC entries</div>
+        </div>
+      </a>
+    </div>
+
+    <div class="mt-5 text-xs text-slate-400">Tip: You can also press <kbd class="px-2 py-0.5 bg-slate-100 rounded">Esc</kbd> to close.</div>
+  </div>
+</div>
+
 <script>
   function showNotifications() {
     const overlay = document.getElementById('notificationOverlay');
@@ -604,11 +663,13 @@
     });
   }
 
-  {% if due_soon_alerts %}
-  window.addEventListener('load', function() {
-    setTimeout(showNotifications, 800);
-  });
-  {% endif %}
+  (function(){
+    const topAlertBtn = document.getElementById('topAlertBtn');
+    const hasDue = topAlertBtn && topAlertBtn.dataset.hasDueSoon === '1';
+    if (hasDue) {
+      window.addEventListener('load', function() { setTimeout(showNotifications, 800); });
+    }
+  })();
 
   (function(){
     const btn = document.getElementById('maintenanceBtn');
@@ -619,6 +680,30 @@
     function openModal(){
       modal.classList.remove('hidden');
       modal.classList.add('flex');
+      document.body.classList.add('overflow-hidden');
+    }
+    function closeModal(){
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+      document.body.classList.remove('overflow-hidden');
+    }
+
+    if(btn){ btn.addEventListener('click', openModal); }
+    if(overlay){ overlay.addEventListener('click', closeModal); }
+    if(close){ close.addEventListener('click', closeModal); }
+    document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeModal(); });
+  })();
+
+  (function(){
+    const btn = document.getElementById('dcBtn');
+    const modal = document.getElementById('dcModal');
+    const overlay = document.getElementById('dcOverlay');
+    const close = document.getElementById('dcClose');
+
+    function openModal(){
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+      
       document.body.classList.add('overflow-hidden');
     }
     function closeModal(){

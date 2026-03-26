@@ -48,6 +48,7 @@ from database import (
     get_all_trip_sheets, get_all_purchases, get_all_stock_issues, get_all_utilization, 
     get_all_scrap, save_maintenance_entry, update_maintenance_entry, supabase
 )
+from database import save_dc_entry, get_all_dc_entries, get_dc_entry, get_last_dc_save_error, _get_next_dc_number
 from database import save_material_utilization, consume_part_from_purchases
 from datetime import datetime
 import time
@@ -328,6 +329,327 @@ def dashboard():
         due_soon_alerts = []
 
     return render_template('dashboard.html', modules=user_modules, due_soon_alerts=due_soon_alerts)
+
+
+@app.route('/dc-gate-pass', methods=['GET', 'POST'])
+@login_required
+@module_required('DC')
+def dc_gate_pass():
+    """Render and submit DC/Gate Pass format page."""
+    header = {
+        'dc_no': '',
+        'to_name': '',
+        'pin': '',
+        'phone_no': '',
+        'date': '',
+        'person_carry': '',
+        'person_id_no': '',
+        'person_organization': '',
+        'vehicle_reg_no': '',
+        'driver_name': '',
+        'driver_phone': ''
+    }
+    rows = [
+        {'sl_no': '', 'part_no': '', 'ref_no': '', 'particulars': '', 'qty': '', 'reason': '', 'return_date': '', 'return_status': '', 'remarks': ''}
+        for _ in range(4)
+    ]
+    submitted = False
+
+    # On GET, prefill the next DC number so users see the upcoming Entry No
+    try:
+        next_num = _get_next_dc_number()
+        if next_num:
+            header['dc_no'] = 'PMC/LOGI/DC/' + str(next_num).zfill(3)
+    except Exception:
+        # leave header.dc_no empty to fallback to template default
+        pass
+
+    if request.method == 'POST':
+        submitted = True
+        for key in header:
+            header[key] = request.form.get(key, '')
+        # Always assign a fresh DC number on save so every submit increments.
+        header['dc_no'] = ''
+
+        sl_nos = request.form.getlist('sl_no[]')
+        part_nos = request.form.getlist('part_no[]')
+        ref_nos = request.form.getlist('ref_no[]')
+        particulars = request.form.getlist('particulars[]')
+        qtys = request.form.getlist('qty[]')
+        reasons = request.form.getlist('reason[]')
+        return_dates = request.form.getlist('return_date[]')
+        return_statuses = request.form.getlist('return_status[]')
+        remarks = request.form.getlist('remarks[]')
+
+        max_len = max(
+            len(sl_nos), len(part_nos), len(ref_nos), len(particulars), len(qtys),
+            len(reasons), len(return_dates), len(return_statuses), len(remarks), 4
+        )
+
+        rows = []
+        for idx in range(max_len):
+            rows.append({
+                'sl_no': sl_nos[idx] if idx < len(sl_nos) else '',
+                'part_no': part_nos[idx] if idx < len(part_nos) else '',
+                'ref_no': ref_nos[idx] if idx < len(ref_nos) else '',
+                'particulars': particulars[idx] if idx < len(particulars) else '',
+                'qty': qtys[idx] if idx < len(qtys) else '',
+                'reason': reasons[idx] if idx < len(reasons) else '',
+                'return_date': return_dates[idx] if idx < len(return_dates) else '',
+                'return_status': return_statuses[idx] if idx < len(return_statuses) else '',
+                'remarks': remarks[idx] if idx < len(remarks) else ''
+            })
+        # Server-side validation: ensure header.date and row return_date/sl_no are valid
+        def _is_blank(val):
+            return val is None or str(val).strip() == ''
+
+        def _validate_date_str(s):
+            if _is_blank(s):
+                return True
+            for fmt in ('%Y-%m-%d', '%d-%m-%Y', '%d/%m/%Y', '%m/%d/%Y'):
+                try:
+                    datetime.strptime(str(s).strip(), fmt)
+                    return True
+                except Exception:
+                    continue
+            return False
+
+        # Validate header date
+        if not _validate_date_str(header.get('date')):
+            flash('Header date must be YYYY-MM-DD (or leave blank).', 'danger')
+            return render_template('dc_gate_pass.html', header=header, rows=rows, submitted=False)
+
+        # Validate each row's return_date and sl_no
+        for i, r in enumerate(rows, start=1):
+            if not _validate_date_str(r.get('return_date')):
+                flash(f'Row {i}: Return date must be YYYY-MM-DD (or leave blank).', 'danger')
+                return render_template('dc_gate_pass.html', header=header, rows=rows, submitted=False)
+            sl = r.get('sl_no')
+            if not _is_blank(sl):
+                try:
+                    int(str(sl).strip())
+                except Exception:
+                    flash(f'Row {i}: Sl no must be an integer (or leave blank).', 'danger')
+                    return render_template('dc_gate_pass.html', header=header, rows=rows, submitted=False)
+
+        # Persist to DB (if Supabase configured)
+        try:
+            saved = save_dc_entry(header, rows, session.get('user_id'))
+            if saved:
+                # update header.dc_no with assigned value from DB
+                header['dc_no'] = saved.get('dc_no') or header.get('dc_no')
+                flash('DC saved to history.', 'success')
+                # After successful submit, redirect to history
+                return redirect(url_for('dc_history'))
+            reason = get_last_dc_save_error() or 'Unknown database error while saving DC.'
+            flash(f'Failed to save DC. {reason}', 'danger')
+        except Exception as e:
+            app.logger.exception('Failed to save DC entry: %s', e)
+            flash(f'Warning: failed to save DC history. {str(e)}', 'warning')
+
+    return render_template('dc_gate_pass.html', header=header, rows=rows, submitted=submitted)
+
+
+@app.route('/dc-history')
+@login_required
+@module_required('DC')
+def dc_history():
+    """Show recent DC entries (history)."""
+    entries = []
+    try:
+        entries = get_all_dc_entries()
+    except Exception as e:
+        app.logger.exception('Error fetching DC history: %s', e)
+        flash('Unable to load DC history', 'warning')
+    return render_template('dc_history.html', entries=entries)
+
+
+@app.route('/dc-view/<entry_id>')
+@login_required
+@module_required('DC')
+def dc_view(entry_id):
+    # entry_id may be an integer id or a string UUID depending on backend
+    data = get_dc_entry(entry_id)
+    if not data:
+        flash('DC entry not found', 'danger')
+        return redirect(url_for('dc_history'))
+
+    # Map DB row items to expected template rows structure
+    header = data.get('header') or {}
+    rows = []
+    for it in data.get('rows', []):
+        rows.append({
+            'sl_no': it.get('sl_no'),
+            'part_no': it.get('part_no'),
+            'ref_no': it.get('ref_no'),
+            'particulars': it.get('particulars'),
+            'qty': it.get('qty'),
+            'reason': it.get('reason'),
+            'return_date': it.get('return_date'),
+            'return_status': it.get('return_status'),
+            'remarks': it.get('remarks')
+        })
+
+    return render_template('dc_gate_pass.html', header=header, rows=rows, submitted=True, view_only=True)
+
+
+@app.route('/dc-view')
+@login_required
+@module_required('DC')
+def dc_view_query():
+    # Support query-parameter lookups: /dc-view?id=123 or /dc-view?dc_no=PMC/LOGI/DC/001
+    entry_id = request.args.get('id') or request.args.get('dc_no')
+    if not entry_id:
+        flash('DC entry not specified', 'danger')
+        return redirect(url_for('dc_history'))
+
+    data = get_dc_entry(entry_id)
+    if not data:
+        flash('DC entry not found', 'danger')
+        return redirect(url_for('dc_history'))
+
+    header = data.get('header') or {}
+    rows = []
+    for it in data.get('rows', []):
+        rows.append({
+            'sl_no': it.get('sl_no'),
+            'part_no': it.get('part_no'),
+            'ref_no': it.get('ref_no'),
+            'particulars': it.get('particulars'),
+            'qty': it.get('qty'),
+            'reason': it.get('reason'),
+            'return_date': it.get('return_date'),
+            'return_status': it.get('return_status'),
+            'remarks': it.get('remarks')
+        })
+
+    return render_template('dc_gate_pass.html', header=header, rows=rows, submitted=True, view_only=True)
+
+
+
+@app.route('/dc-items-json')
+@login_required
+def dc_items_json():
+    """Return dc_items for a given entry as JSON (used by status modal)."""
+    entry_id = request.args.get('entry_id')
+    if not entry_id:
+        return jsonify({'items': []})
+    try:
+        data = get_dc_entry(entry_id)
+        items = []
+        for it in (data.get('rows') or []) if data else []:
+            items.append({
+                'sl_no': it.get('sl_no') or '',
+                'part_no': it.get('part_no') or '',
+                'particulars': it.get('particulars') or '',
+                'return_status': it.get('return_status') or '',
+                'return_date': it.get('return_date') or '',
+                'remarks': it.get('remarks') or '',
+            })
+        return jsonify({'items': items})
+    except Exception as e:
+        return jsonify({'items': [], 'error': str(e)})
+
+
+@app.route('/dc-update-status', methods=['POST'])
+@login_required
+def dc_update_status():
+    """AJAX endpoint to update a single dc_items row's return status, date and remarks."""
+    try:
+        data = request.get_json(force=True) or {}
+        entry_id = data.get('entry_id')
+        item_index = data.get('item_index', 0)
+        status = data.get('status', '')
+        return_date = data.get('return_date', '')
+        remarks = data.get('remarks', '')
+        if not entry_id or not status:
+            return jsonify({'ok': False, 'error': 'entry_id and status are required'}), 400
+        from database import update_dc_item_status
+        ok, msg = update_dc_item_status(entry_id, int(item_index), status, return_date or None, remarks or None)
+        return jsonify({'ok': ok, 'message': msg})
+    except Exception as e:
+        app.logger.exception('dc_update_status error: %s', e)
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+@app.route('/dc-return-history')
+@login_required
+@module_required('DC')
+def dc_return_history():
+    """Show all dc_items with status Returnable."""
+    from database import get_dc_items_by_status
+    items = get_dc_items_by_status('Returnable')
+    return render_template('dc_return_history.html', items=items, title='Return History', status_filter='Returnable')
+
+
+@app.route('/dc-nonreturnable-history')
+@login_required
+@module_required('DC')
+def dc_nonreturnable_history():
+    """Show all dc_items with status Non-Returnable."""
+    from database import get_dc_items_by_status
+    items = get_dc_items_by_status('Non-Returnable')
+    return render_template('dc_return_history.html', items=items, title='Non-Returnable History', status_filter='Non-Returnable')
+
+
+@app.route('/_debug/logs')
+@login_required
+def debug_logs_json():
+    """Return recent in-memory server logs for debugging (login required)."""
+    try:
+        # Return last buffered log messages (BufferHandler stores dicts)
+        return jsonify(list(LOG_BUFFER))
+    except Exception as e:
+        app.logger.exception('Error returning debug logs: %s', e)
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/_debug/dc_list')
+@login_required
+def debug_dc_list():
+    """Return last 20 dc_entries with a count of dc_items for quick inspection."""
+    try:
+        entries = get_all_dc_entries(limit=20)
+        out = []
+        for e in entries:
+            eid = e.get('id')
+            try:
+                # ensure numeric id when possible
+                qid = int(eid) if isinstance(eid, (str,)) and str(eid).isdigit() else eid
+            except Exception:
+                qid = eid
+            try:
+                items_res = supabase.table('dc_items').select('*').eq('dc_entry_id', qid).execute()
+                items = items_res.data or []
+            except Exception as ex:
+                items = []
+            out.append({'id': eid, 'dc_no': e.get('dc_no'), 'items_count': len(items)})
+        return jsonify({'entries': out})
+    except Exception as e:
+        app.logger.exception('Error in debug_dc_list: %s', e)
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/_debug/dc_inspect/<entry_id>')
+@login_required
+def debug_dc_inspect(entry_id):
+    """Return raw db rows for a dc entry and its items."""
+    try:
+        # try integer conversion
+        try:
+            qid = int(entry_id) if str(entry_id).isdigit() else entry_id
+        except Exception:
+            qid = entry_id
+
+        e_res = supabase.table('dc_entries').select('*').eq('id', qid).execute()
+        items_res = supabase.table('dc_items').select('*').eq('dc_entry_id', qid).execute()
+        return jsonify({
+            'entry_raw': e_res.data or [],
+            'items_raw': items_res.data or []
+        })
+    except Exception as e:
+        app.logger.exception('Error in debug_dc_inspect: %s', e)
+        return jsonify({'error': str(e)}), 500
 
 
 @app.route('/maintenance-image', methods=['GET', 'POST'])
@@ -3371,11 +3693,15 @@ def api_analytics_custom():
 # ADMIN USER MANAGEMENT ROUTES
 # =====================================================
 
-@app.route('/admin/users')
+@app.route('/admin/users', methods=['GET'])
 @admin_required
 def admin_users():
-    users = get_all_users()
+    try:
+        users = get_all_users() or []
+    except Exception:
+        users = []
     return render_template('admin_users.html', users=users)
+
 
 @app.route('/admin/users/add', methods=['GET', 'POST'])
 @admin_required
@@ -3388,26 +3714,29 @@ def admin_add_user():
             'phone': request.form.get('phone') or None,
             'department': request.form.get('department') or None,
             'role': request.form.get('role', 'user'),
-            'is_active': request.form.get('is_active') == 'true'
+            'is_active': request.form.get('is_active', 'true') == 'true'
         }
-        
-        result = admin_create_user(user_data)
-        if result:
-            flash('User created successfully!', 'success')
-            return redirect(url_for('admin_users'))
-        else:
-            flash('Failed to create user. Email may already exist.', 'danger')
-    
+        try:
+            created = admin_create_user(user_data)
+            if created:
+                flash('User created successfully!', 'success')
+                return redirect(url_for('admin_users'))
+            else:
+                flash('Failed to create user.', 'danger')
+        except Exception as e:
+            flash('Error creating user: ' + str(e), 'danger')
+
     return render_template('admin_add_user.html')
+
 
 @app.route('/admin/users/edit/<user_id>', methods=['GET', 'POST'])
 @admin_required
 def admin_edit_user(user_id):
     user = get_user_by_id(user_id)
     if not user:
-        flash('User not found!', 'danger')
+        flash('User not found.', 'danger')
         return redirect(url_for('admin_users'))
-    
+
     if request.method == 'POST':
         user_data = {
             'email': request.form.get('email'),
@@ -3429,7 +3758,7 @@ def admin_edit_user(user_id):
             return redirect(url_for('admin_users'))
         else:
             flash('Failed to update user.', 'danger')
-    
+
     return render_template('admin_edit_user.html', user=user)
 
 @app.route('/admin/users/toggle/<user_id>', methods=['POST'])
@@ -3460,7 +3789,7 @@ def admin_save_user_modules(user_id):
     try:
         modules = request.form.getlist('modules[]') or request.form.getlist('modules') or []
         # Whitelist known module names to avoid arbitrary data
-        allowed = ['Purchase', 'Utilization', 'Maintenance', 'Internal Audit', 'Part ID', 'Scrap', 'Fuel', 'Statutory', 'Trip Sheet', 'Log Book']
+        allowed = ['Purchase', 'Utilization', 'Maintenance', 'Internal Audit', 'Part ID', 'Scrap', 'Fuel', 'Statutory', 'Trip Sheet', 'Log Book', 'DC']
         selected = [m for m in modules if m in allowed]
         # Try updating via Supabase directly so we can return any underlying error message
         try:

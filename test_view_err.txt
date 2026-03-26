@@ -1,0 +1,3 @@
+Dependencies: supabase=2.4.2 httpx=0.25.2 gotrue=2.8.0
+Error getting dc entry 6: BaseSelectRequestBuilder.order() got an unexpected keyword argument 'asc'
+Result: None

@@ -999,6 +999,368 @@ def save_purchase(purchase_data):
         traceback.print_exc()
         raise Exception(error_msg)
 
+
+def _get_next_dc_number():
+    """Return next DC number as zero-padded 3-digit string based on last entry."""
+    try:
+        try:
+            res = supabase.table('dc_entries').select('dc_no').order('created_at', desc=True).limit(1).execute()
+            if res.data and len(res.data) > 0:
+                last = res.data[0].get('dc_no') or ''
+                import re
+                m = re.search(r"(\d+)$", str(last))
+                if m:
+                    next_no = int(m.group(1)) + 1
+                    return f"{next_no:03d}"
+        except Exception:
+            pass
+
+        # Fallback to count-based
+        response = supabase.table('dc_entries').select('id', count='exact').execute()
+        count = response.count if response.count else 0
+        next_no = count + 1
+        return f"{next_no:03d}"
+    except Exception as e:
+        print(f"Error getting next dc number: {e}")
+        return "001"
+
+
+def save_dc_entry(header, rows, created_by=None):
+    """Save a DC entry and its line items to Supabase.
+
+    header: dict of header fields
+    rows: list of dicts for each row
+    created_by: optional user id
+    Returns inserted dc_entries record or None on failure
+    """
+    try:
+        global _last_dc_save_error
+        _last_dc_save_error = None
+
+        def _clean_item_value(value):
+            return None if value is None or str(value).strip() == '' else value
+
+        def _normalize_sl_no(value, fallback):
+            cleaned = _clean_item_value(value)
+            if cleaned is None:
+                return fallback
+            try:
+                return int(cleaned)
+            except Exception:
+                return fallback
+
+        def _normalize_return_date(value):
+            cleaned = _clean_item_value(value)
+            if cleaned is None:
+                return None
+            if isinstance(cleaned, datetime):
+                return cleaned.date().isoformat()
+
+            s = str(cleaned).strip()
+            for fmt in ('%Y-%m-%d', '%d-%m-%Y', '%d/%m/%Y', '%m/%d/%Y'):
+                try:
+                    return datetime.strptime(s, fmt).date().isoformat()
+                except Exception:
+                    continue
+            # If value is not parseable as date, store NULL instead of failing insert.
+            return None
+
+        def _normalize_header_date(value):
+            # Accept empty -> NULL, datetime -> YYYY-MM-DD, or try common formats
+            if value is None:
+                return None
+            if isinstance(value, datetime):
+                return value.date().isoformat()
+            s = str(value).strip()
+            if s == '':
+                return None
+            for fmt in ('%Y-%m-%d', '%d-%m-%Y', '%d/%m/%Y', '%m/%d/%Y'):
+                try:
+                    return datetime.strptime(s, fmt).date().isoformat()
+                except Exception:
+                    continue
+            # If parsing fails, return None to avoid DB errors
+            return None
+
+        def _build_dc_items_payload(entry_id, dc_rows):
+            items_payload = []
+            for idx, r in enumerate(dc_rows or []):
+                part_no = _clean_item_value(r.get('part_no'))
+                ref_no = _clean_item_value(r.get('ref_no'))
+                particulars = _clean_item_value(r.get('particulars'))
+                qty = _clean_item_value(r.get('qty'))
+                reason = _clean_item_value(r.get('reason'))
+                return_date = _clean_item_value(r.get('return_date'))
+                return_status = _clean_item_value(r.get('return_status'))
+                remarks = _clean_item_value(r.get('remarks'))
+
+                # Skip placeholder rows that are fully empty.
+                if not any([part_no, ref_no, particulars, qty, reason, return_date, return_status, remarks]):
+                    continue
+
+                item = {
+                    'dc_entry_id': entry_id,
+                    'sl_no': _normalize_sl_no(r.get('sl_no'), idx + 1),
+                    'part_no': part_no,
+                    'ref_no': ref_no,
+                    'particulars': particulars,
+                    'qty': qty,
+                    'reason': reason,
+                    'return_date': _normalize_return_date(return_date),
+                    'return_status': return_status,
+                    'remarks': remarks
+                }
+                items_payload.append(item)
+            return items_payload
+
+        import copy
+        max_attempts = 6
+        for attempt in range(max_attempts):
+            pdata = copy.deepcopy(header)
+            pdata['created_at'] = datetime.now().isoformat()
+            pdata['updated_at'] = datetime.now().isoformat()
+            if created_by:
+                try:
+                    pdata['created_by'] = int(created_by) if str(created_by).isdigit() else created_by
+                except Exception:
+                    pdata['created_by'] = created_by
+            # Normalize optional header date to avoid invalid date string inserts
+            try:
+                pdata['date'] = _normalize_header_date(pdata.get('date'))
+            except Exception:
+                pdata['date'] = None
+
+            # Always assign a fresh incremented dc_no for each submit.
+            try:
+                rpc_res = supabase.rpc('get_next_dc_entry_no').execute()
+                if rpc_res and rpc_res.data:
+                    if isinstance(rpc_res.data, list) and len(rpc_res.data) > 0:
+                        num = str(rpc_res.data[0])
+                    else:
+                        num = str(rpc_res.data)
+                    pdata['dc_no'] = 'PMC/LOGI/DC/' + num.zfill(3)
+                else:
+                    pdata['dc_no'] = 'PMC/LOGI/DC/' + _get_next_dc_number()
+            except Exception:
+                pdata['dc_no'] = 'PMC/LOGI/DC/' + _get_next_dc_number()
+
+            try:
+                res = supabase.table('dc_entries').insert(pdata).execute()
+                if res.data:
+                    entry = res.data[0]
+                    entry_id = entry.get('id')
+
+                    # Insert only meaningful line items and normalize empty values.
+                    items = _build_dc_items_payload(entry_id, rows)
+
+                    if items:
+                        try:
+                            supabase.table('dc_items').insert(items).execute()
+                        except Exception as item_bulk_error:
+                            print(f"save_dc_entry: bulk dc_items insert failed, trying row-by-row. error={item_bulk_error}")
+                            inserted_any = False
+                            for item in items:
+                                try:
+                                    supabase.table('dc_items').insert(item).execute()
+                                    inserted_any = True
+                                except Exception as one_item_error:
+                                    print(f"save_dc_entry: skipped invalid item {item}. error={one_item_error}")
+                            if not inserted_any:
+                                print("save_dc_entry: dc header saved but no valid item rows inserted")
+
+                    return entry
+                else:
+                    print(f"save_dc_entry: insert returned no data on attempt {attempt+1}")
+            except Exception as e:
+                msg = str(e).lower()
+                print(f"save_dc_entry: attempt {attempt+1} insert error: {msg}")
+                # Duplicate key on dc_no? retry
+                if 'duplicate key' in msg or '23505' in msg:
+                    continue
+                # Other errors: raise
+                raise
+
+        # Final fallback: timestamp-based temporary dc_no
+        try:
+            pdata = copy.deepcopy(header)
+            pdata['created_at'] = datetime.now().isoformat()
+            pdata['updated_at'] = datetime.now().isoformat()
+            pdata['dc_no'] = 'TMP' + datetime.now().strftime('%Y%m%d%H%M%S%f')
+            try:
+                pdata['date'] = _normalize_header_date(pdata.get('date'))
+            except Exception:
+                pdata['date'] = None
+            res = supabase.table('dc_entries').insert(pdata).execute()
+            if res.data:
+                entry = res.data[0]
+                entry_id = entry.get('id')
+                items = _build_dc_items_payload(entry_id, rows)
+                if items:
+                    try:
+                        supabase.table('dc_items').insert(items).execute()
+                    except Exception as item_bulk_error:
+                        print(f"save_dc_entry fallback: bulk dc_items insert failed, trying row-by-row. error={item_bulk_error}")
+                        for item in items:
+                            try:
+                                supabase.table('dc_items').insert(item).execute()
+                            except Exception as one_item_error:
+                                print(f"save_dc_entry fallback: skipped invalid item {item}. error={one_item_error}")
+                return entry
+        except Exception as e:
+            print('save_dc_entry fallback failed:', e)
+            _last_dc_save_error = str(e)
+
+        # All attempts failed
+        raise Exception('Failed to save dc entry after multiple attempts')
+    except Exception as e:
+        print(f"Error saving dc entry: {e}")
+        import traceback
+        traceback.print_exc()
+        _last_dc_save_error = str(e)
+        return None
+
+
+_last_dc_save_error = None
+
+
+def get_last_dc_save_error():
+    return _last_dc_save_error
+
+
+def get_all_dc_entries(limit=200):
+    """Return list of recent DC entries that have NOT been given a Returnable/Non-Returnable status."""
+    try:
+        res = supabase.table('dc_entries').select('*').order('created_at', desc=True).limit(limit).execute()
+        all_entries = res.data or []
+        if not all_entries:
+            return []
+        # Collect entry IDs that already have a processed item status
+        proc_res = supabase.table('dc_items').select('dc_entry_id').in_('return_status', ['Returnable', 'Non-Returnable']).execute()
+        processed_ids = set(str(row['dc_entry_id']) for row in (proc_res.data or []))
+        return [e for e in all_entries if str(e.get('id')) not in processed_ids]
+    except Exception as e:
+        print(f"Error fetching dc entries: {e}")
+        return []
+
+
+def update_dc_item_status(entry_id, item_index, status, return_date=None, remarks=None):
+    """Update a dc_items row (by dc_entry_id + sl_no/order offset) with new status, return_date and remarks."""
+    try:
+        query_val = entry_id
+        try:
+            if isinstance(entry_id, str) and entry_id.isdigit():
+                query_val = int(entry_id)
+        except Exception:
+            pass
+        # Fetch items for this entry ordered by id
+        items_res = supabase.table('dc_items').select('id').eq('dc_entry_id', query_val).order('id', desc=False).execute()
+        items = items_res.data or []
+        if not items or item_index < 0 or item_index >= len(items):
+            return False, 'Item not found'
+        item_id = items[item_index]['id']
+        payload = {'return_status': status}
+        if return_date is not None:
+            payload['return_date'] = return_date if return_date else None
+        if remarks is not None:
+            payload['remarks'] = remarks
+        supabase.table('dc_items').update(payload).eq('id', item_id).execute()
+        return True, 'Updated'
+    except Exception as e:
+        print(f'update_dc_item_status error: {e}')
+        return False, str(e)
+
+
+def get_dc_items_by_status(status_filter=None, limit=500):
+    """Return all dc_items joined with their entry header, optionally filtered by return_status."""
+    try:
+        q = supabase.table('dc_items').select('*, dc_entries(dc_no, to_name, date)').order('id', desc=True).limit(limit)
+        if status_filter:
+            q = q.eq('return_status', status_filter)
+        res = q.execute()
+        return res.data or []
+    except Exception as e:
+        print(f'get_dc_items_by_status error: {e}')
+        return []
+
+
+def get_dc_entry(entry_id):
+    """Return a dict with header and rows for a specific entry id."""
+    try:
+        # Accept numeric strings as integers (Supabase may store ids as integers)
+        query_val = entry_id
+        try:
+            if isinstance(entry_id, str) and entry_id.isdigit():
+                query_val = int(entry_id)
+        except Exception:
+            query_val = entry_id
+
+        h = supabase.table('dc_entries').select('*').eq('id', query_val).execute()
+        if not h.data or len(h.data) == 0:
+            # Fallback: if direct id match failed, try matching dc_no (some callers may pass dc_no)
+            try:
+                fb = supabase.table('dc_entries').select('*').eq('dc_no', entry_id).execute()
+                if fb.data and len(fb.data) > 0:
+                    header = fb.data[0]
+                else:
+                    return None
+            except Exception:
+                return None
+        else:
+            header = h.data[0]
+        # Build candidate key variants because some clients surface bigint ids as
+        # strings while others use integers.
+        candidates = []
+
+        def _push_candidate(v):
+            if v is None:
+                return
+            if v not in candidates:
+                candidates.append(v)
+
+        try:
+            entry_pk = header.get('id') if header and header.get('id') is not None else query_val
+        except Exception:
+            entry_pk = query_val
+
+        _push_candidate(entry_pk)
+        _push_candidate(query_val)
+
+        for v in [entry_pk, query_val, entry_id]:
+            try:
+                if isinstance(v, str):
+                    s = v.strip()
+                    _push_candidate(s)
+                    if s.isdigit():
+                        _push_candidate(int(s))
+                elif isinstance(v, int):
+                    _push_candidate(str(v))
+            except Exception:
+                continue
+
+        rows = []
+        for key in candidates:
+            try:
+                items = supabase.table('dc_items').select('*').eq('dc_entry_id', key).order('id', desc=False).execute()
+                rows = items.data or []
+                if rows:
+                    break
+            except Exception:
+                continue
+
+        # Prefer sl_no ordering where present, then id for stable display.
+        rows = sorted(
+            rows,
+            key=lambda r: (
+                r.get('sl_no') is None,
+                r.get('sl_no') if r.get('sl_no') is not None else 10**9,
+                r.get('id') if r.get('id') is not None else 0,
+            ),
+        )
+        return {'header': header, 'rows': rows}
+    except Exception as e:
+        print(f"Error getting dc entry {entry_id}: {e}")
+        return None
+
 # =====================================================
 # FUEL MANAGEMENT FUNCTIONS
 # =====================================================

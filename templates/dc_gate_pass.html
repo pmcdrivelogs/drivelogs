@@ -1,0 +1,595 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>DC / Gate Pass - Drive Logs</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --ink: #0f172a;
+      --muted: #475569;
+      --line: #94a3b8;
+      --paper-border: #cbd5e1;
+      --head-bg: #e0f2fe;
+      --head-ink: #0c4a6e;
+      --accent: #0f766e;
+      --accent-2: #0891b2;
+      --surface: rgba(255, 255, 255, 0.9);
+    }
+
+    body {
+      font-family: 'Manrope', sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at 10% 12%, rgba(56, 189, 248, 0.16), transparent 45%),
+        radial-gradient(circle at 88% 8%, rgba(45, 212, 191, 0.14), transparent 45%),
+        linear-gradient(160deg, #f8fbff 0%, #eef7ff 52%, #f6fffc 100%);
+    }
+
+    .paper {
+      background: var(--surface);
+      border: 1px solid var(--paper-border);
+      box-shadow: 0 28px 60px rgba(15, 23, 42, 0.15);
+      backdrop-filter: blur(6px);
+    }
+
+    .label {
+      font-size: 0.82rem;
+      color: var(--muted);
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .input-line {
+      border: 1px solid transparent;
+      border-bottom: 1px solid var(--line);
+      border-radius: 8px 8px 0 0;
+      width: 100%;
+      min-height: 34px;
+      outline: none;
+      background: transparent;
+      padding: 5px 8px;
+      font-size: 0.92rem;
+      transition: border-color 0.2s ease, background 0.2s ease;
+    }
+
+    .input-line:focus {
+      border-color: #7dd3fc;
+      background: rgba(224, 242, 254, 0.35);
+    }
+
+    .section-card {
+      border: 1px solid #dbeafe;
+      border-radius: 14px;
+      padding: 14px;
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.95), rgba(248, 250, 252, 0.9));
+    }
+
+    .table-input {
+      width: 100%;
+      border: 0;
+      background: transparent;
+      outline: none;
+      min-height: 34px;
+      padding: 4px;
+      font-size: 0.88rem;
+    }
+
+    /* Multiline auto-resize textarea styling */
+    .auto-resize {
+      resize: none;
+      overflow: hidden;
+      min-height: 56px;
+      line-height: 1.2;
+      padding-top: 8px;
+      padding-bottom: 8px;
+    }
+
+    .dc-table th,
+    .dc-table td {
+      border: 1px solid #64748b;
+      vertical-align: top;
+    }
+
+    .dc-table th {
+      font-size: 0.8rem;
+      font-weight: 700;
+      color: var(--head-ink);
+      background: linear-gradient(180deg, #e0f2fe, #dbeafe);
+      padding: 6px;
+      text-align: center;
+      font-family: 'Space Grotesk', sans-serif;
+    }
+
+    .dc-table td {
+      padding: 4px;
+    }
+
+    .dc-table tr:nth-child(even) td {
+      background: #f8fafc;
+    }
+
+    .title-font {
+      font-family: 'Space Grotesk', sans-serif;
+      letter-spacing: 0.03em;
+    }
+
+    .entry-chip {
+      display: inline-flex;
+      align-items: center;
+      border: 1px solid #bae6fd;
+      border-radius: 9999px;
+      padding: 2px 10px;
+      background: #f0f9ff;
+      color: #0c4a6e;
+      font-size: 0.78rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    /* Hide print-only blocks on screen; they will be shown explicitly inside @media print */
+    .print-only { display: none; }
+
+    @page { size: A4; margin: 6mm; }
+
+    @media print {
+      .no-print { display: none !important; }
+      .print-only { display: block !important; }
+
+      html, body {
+        height: auto;
+        background: #fff;
+        color: #000;
+        font-family: 'Manrope', sans-serif;
+        font-size: 10pt;
+        line-height: 1.12;
+        margin: 0;
+      }
+
+      .paper {
+        box-shadow: none !important;
+        border: 0 !important;
+        background: #fff !important;
+        padding: 6mm 8mm !important;
+        margin: 0 auto !important;
+        max-width: 210mm !important;
+        border-radius: 0 !important;
+        min-height: 238mm !important; /* ~80% of A4 height (297mm) */
+      }
+
+      /* Hide screen-only chrome */
+      .logo-bar, .entry-chip, .text-slate-500 { display: none !important; }
+      /* Hide the on-screen centered title; we'll render a print title below the header image */
+      .paper > .text-center { display: none !important; }
+
+      /* Form header: hide on print (replaced by .print-header) */
+      .dc-header-grid { display: none !important; }
+      .print-header { display: block !important; font-size: 8pt; }
+      .print-header img {
+        width: 100% !important;
+        height: auto !important;
+        max-height: 35mm !important;
+        display: block !important;
+        object-fit: cover !important;
+      }
+      .print-header .print-title {
+        text-align: center !important;
+        font-weight: 800 !important;
+        font-size: 16pt !important;
+        margin: 6px 0 8px 0 !important;
+      }
+
+      /* Table */
+      .dc-table { width: 100% !important; border-collapse: collapse !important; font-size: 9pt !important; }
+      .dc-table th, .dc-table td { border: 1px solid #000 !important; padding: 4px 6px !important; vertical-align: top !important; }
+      .dc-table th { background: #eef4ff !important; font-weight: 700 !important; }
+      .dc-table tr:nth-child(even) td { background: #fff !important; }
+
+      /* Inputs/textareas render as plain text */
+      .input-line, .table-input, .auto-resize {
+        border: 0 !important;
+        border-bottom: 0 !important;
+        background: transparent !important;
+        min-height: 0 !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        font-size: inherit !important;
+        resize: none !important;
+        overflow: visible !important;
+        height: auto !important;
+      }
+
+      /* Declaration + signatures */
+      .declaration-signatures {
+        margin-top: 4mm !important;
+        page-break-inside: avoid !important;
+      }
+      .signatures {
+        display: flex !important;
+        justify-content: space-between !important;
+        align-items: flex-end !important;
+        margin-top: 3mm !important;
+        gap: 10mm !important;
+      }
+      .sig-left, .sig-right { flex: 1; }
+      .sign-line {
+        border: 0 !important;
+        border-bottom: 1px solid #000 !important;
+        height: 16px !important;
+        display: block !important;
+      }
+      .sign-label {
+        text-align: center !important;
+        margin-top: 3px !important;
+        font-size: 7.5pt !important;
+        font-weight: 700 !important;
+      }
+
+      /* Section cards: remove decorative borders */
+      .section-card { border: 0 !important; background: transparent !important; padding: 0 !important; }
+
+      /* Remove overflow container border */
+      .overflow-x-auto { border: 0 !important; border-radius: 0 !important; }
+
+      /* Reduce button area gap */
+      .no-print { display: none !important; }
+    }
+  </style>
+</head>
+<body class="min-h-screen pt-20 pb-10 px-3 sm:px-5" data-show-submit-modal="{{ 1 if submitted and not view_only else 0 }}">
+  <div class="logo-bar w-full flex items-center justify-between px-4 py-3 fixed top-0 left-0 z-50">
+    <img src="{{ url_for('static', filename='img/drive-logs.png') }}" alt="Drive Logs Logo" class="h-12 md:h-14 w-auto ml-2">
+    <div class="flex items-center gap-3">
+      <a href="{{ url_for('dashboard') }}" class="no-print bg-slate-200 hover:bg-slate-300 text-slate-800 px-4 py-2 rounded-full text-sm font-semibold transition-colors">Back to Dashboard</a>
+      {% if submitted %}
+      <button type="button" onclick="window.print()" class="no-print bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-full text-sm font-semibold transition-colors">Print</button>
+      {% endif %}
+      <a href="{{ url_for('logout') }}" class="no-print bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-full text-sm font-semibold transition-colors">Logout</a>
+    </div>
+  </div>
+
+  <div class="max-w-6xl mx-auto paper rounded-2xl p-4 sm:p-6 md:p-8">
+    <div class="text-center mb-5">
+      <span class="entry-chip">Dispatch Challan</span>
+      <h1 class="title-font text-2xl sm:text-3xl font-bold mt-2 text-slate-900">DC / GATE PASS</h1>
+      <p class="text-sm text-slate-500 mt-1">Fill the form and submit. Print to generate final signed format.</p>
+    </div>
+
+    {% if submitted or view_only %}
+    <div class="print-only print-header mb-2 pb-1 border-b border-slate-400" style="font-size:8.5pt;">
+      <div style="text-align:center; margin-bottom:6px;">
+        <img src="{{ url_for('static', filename='img/pmc-logo.png') }}" alt="PMC Logo">
+      </div>
+      <div class="print-title">DC / GATE PASS</div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; align-items:start;">
+        <div>
+          <div style="font-weight:700; font-size:11pt; margin-bottom:4px;">{{ header.dc_no }}</div>
+          <div style="font-weight:700; font-size:9pt;">TO</div>
+          <div style="margin-top:4px;">{{ header.to_name }}</div>
+          <div style="margin-top:6px; font-size:9pt;"><strong>PIN CODE:</strong> {{ header.pin or '-' }} &nbsp;&nbsp; <strong>Phone:</strong> {{ header.phone_no or '-' }}</div>
+        </div>
+        <div>
+          <table style="width:100%; border-collapse:collapse; font-size:9pt;">
+            <tr><td style="width:50%; font-weight:700; padding:2px 4px;">Date</td><td style="text-align:right; padding:2px 4px;">{{ header.date or '-' }}</td></tr>
+            <tr><td style="font-weight:700; padding:2px 4px;">Person carrying</td><td style="text-align:right; padding:2px 4px;">{{ header.person_carry or '-' }}</td></tr>
+            <tr><td style="font-weight:700; padding:2px 4px;">Person ID no.</td><td style="text-align:right; padding:2px 4px;">{{ header.person_id_no or '-' }}</td></tr>
+            <tr><td style="font-weight:700; padding:2px 4px;">Organization</td><td style="text-align:right; padding:2px 4px;">{{ header.person_organization or '-' }}</td></tr>
+            <tr><td style="font-weight:700; padding:2px 4px;">Vehicle Reg. no.</td><td style="text-align:right; padding:2px 4px;">{{ header.vehicle_reg_no or '-' }}</td></tr>
+            <tr><td style="font-weight:700; padding:2px 4px;">Driver Name</td><td style="text-align:right; padding:2px 4px;">{{ header.driver_name or '-' }}</td></tr>
+            <tr><td style="font-weight:700; padding:2px 4px;">Driver Ph.no</td><td style="text-align:right; padding:2px 4px;">{{ header.driver_phone or '-' }}</td></tr>
+          </table>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+
+    {% if submitted and not view_only %}
+    <div class="no-print mb-2 px-3 py-2 rounded bg-green-50 border border-green-200 text-green-800 text-xs font-medium">
+      Form submitted. Print to generate final DC with declaration and signatures.
+    </div>
+    {% endif %}
+
+    <form method="POST" action="{{ url_for('dc_gate_pass') }}">
+    <div class="paper-body">
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-5 mb-4 dc-header-grid">
+      <div class="space-y-2 section-card">
+        <div>
+          <label class="label">Entry No:</label>
+          <input class="input-line header-field" type="text" name="dc_no" value="{{ header.dc_no or 'PMC/LOGI/DC/001' }}" readonly>
+        </div>
+        <div>
+          <label class="label">TO</label>
+          <textarea class="input-line auto-resize header-field" name="to_name" rows="2" oninput="autoResize(this)" placeholder="Enter consignee name and address" {% if view_only %}readonly{% endif %}>{{ header.to_name }}</textarea>
+        </div>
+        <div>
+          <label class="label"> PIN CODE:</label>
+          <input class="input-line header-field" type="text" name="pin" value="{{ header.pin }}" {% if view_only %}readonly{% endif %}>
+        </div>
+        <div>
+          <label class="label">Phone no:</label>
+          <input class="input-line header-field" type="text" name="phone_no" value="{{ header.phone_no }}" {% if view_only %}readonly{% endif %}>
+        </div>
+      </div>
+
+      <div class="space-y-2 section-card header-right">
+        <div>
+          <label class="label">Date:</label>
+          <input class="input-line header-field" type="date" name="date" value="{{ header.date }}" {% if view_only %}readonly{% endif %}>
+        </div>
+        <div>
+          <label class="label">Person carrying:</label>
+          <input class="input-line header-field" type="text" name="person_carry" value="{{ header.person_carry }}" {% if view_only %}readonly{% endif %}>
+        </div>
+        <div>
+          <label class="label">Person ID no.:</label>
+          <input class="input-line header-field" type="text" name="person_id_no" value="{{ header.person_id_no }}" {% if view_only %}readonly{% endif %}>
+        </div>
+        <div>
+          <label class="label">Person organization:</label>
+          <input class="input-line header-field" type="text" name="person_organization" value="{{ header.person_organization }}" {% if view_only %}readonly{% endif %}>
+        </div>
+        <div>
+          <label class="label">vehicle Reg. no.:</label>
+          <input class="input-line header-field" type="text" name="vehicle_reg_no" value="{{ header.vehicle_reg_no }}" {% if view_only %}readonly{% endif %}>
+        </div>
+        <div>
+          <label class="label">Driver Name:</label>
+          <input class="input-line header-field" type="text" name="driver_name" value="{{ header.driver_name }}" {% if view_only %}readonly{% endif %}>
+        </div>
+        <div>
+          <label class="label">Driver ph.no:</label>
+          <input class="input-line header-field" type="text" name="driver_phone" value="{{ header.driver_phone }}" {% if view_only %}readonly{% endif %}>
+        </div>
+      </div>
+    </div>
+    </div>
+
+    <div class="overflow-x-auto rounded-xl border border-slate-300">
+      <table class="dc-table w-full border-collapse">
+        <thead>
+          <tr>
+            <th class="w-[6%]">Sl no</th>
+            <th class="w-[10%]">Part No.</th>
+            <th class="w-[9%]">Ref. No</th>
+            <th class="w-[19%]">Particulars<br>Part Name / fault details</th>
+            <th class="w-[7%]">Qty</th>
+            <th class="w-[16%]">Reason for Sending</th>
+            <th class="w-[11%]">Return Date<br><span style="font-size:9px; font-weight:600;">Date: dd-mm-yyyy</span></th>
+            
+            <th class="w-[11%]">Status of Return</th>
+            <th class="w-[11%]">Remarks</th>
+          </tr>
+        </thead>
+        <tbody id="dc-rows">
+          {% for row in rows %}
+          <tr data-row>
+            <td><input class="table-input sl-no" type="text" name="sl_no[]" value="{{ row.sl_no or '' }}" readonly></td>
+            <td><textarea class="table-input auto-resize" name="part_no[]" {% if view_only %}readonly{% endif %} oninput="autoResize(this)">{{ row.part_no or '' }}</textarea></td>
+            <td><textarea class="table-input auto-resize" name="ref_no[]" {% if view_only %}readonly{% endif %} oninput="autoResize(this)">{{ row.ref_no or '' }}</textarea></td>
+            <td><textarea class="table-input auto-resize" name="particulars[]" {% if view_only %}readonly{% endif %} oninput="autoResize(this)">{{ row.particulars or '' }}</textarea></td>
+            <td><input class="table-input" type="text" name="qty[]" value="{{ row.qty or '' }}" {% if view_only %}readonly{% endif %}></td>
+            <td><textarea class="table-input auto-resize" name="reason[]" {% if view_only %}readonly{% endif %} oninput="autoResize(this)">{{ row.reason or '' }}</textarea></td>
+            <td><input class="table-input" type="date" name="return_date[]" value="{{ row.return_date or '' }}" {% if view_only %}readonly{% endif %}></td>
+            
+            <td><input class="table-input" type="text" name="return_status[]" value="{{ row.return_status or '' }}" {% if view_only %}readonly{% endif %}></td>
+            <td>
+              <div class="flex items-center gap-2">
+                <input class="table-input flex-1" type="text" name="remarks[]" value="{{ row.remarks }}" {% if view_only %}readonly{% endif %}>
+                {% if not view_only %}
+                <button type="button" class="no-print text-red-600 hover:text-red-800 ml-1 px-2 py-1 rounded" onclick="removeRow(this)" title="Remove row">✕</button>
+                {% endif %}
+              </div>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="no-print mt-6 flex flex-wrap gap-3">
+      {% if not view_only %}
+      <button type="button" onclick="addRow()" class="bg-sky-600 hover:bg-sky-700 text-white px-4 py-2 rounded-lg font-semibold transition-colors">Add Row</button>
+      <button type="submit" class="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2 rounded-lg font-semibold transition-colors">Submit</button>
+      {% if submitted %}
+      <a href="{{ url_for('dc_gate_pass') }}" class="bg-slate-200 hover:bg-slate-300 text-slate-800 px-5 py-2 rounded-lg font-semibold transition-colors">New Form</a>
+      {% endif %}
+      {% endif %}
+    </div>
+    </form>
+
+    {% if submitted or view_only %}
+    <div class="print-only declaration-signatures">
+      <p style="font-weight: 700; text-align: center; text-decoration: underline; margin-bottom: 2px; font-size: 9pt;">Declaration</p>
+      <p style="font-size: 7.5pt; line-height: 1.35; margin: 2px 0;">
+        I hereby declare that the above mentioned material is/are delivered for further process only/process and return only. The above material is/are not sold to the mentioned consignee.
+      </p>
+      
+      <div class="signatures">
+        <div class="sig-left">
+          <div class="sign-line"></div>
+          <p class="sign-label">Consignee Signature</p>
+        </div>
+        <div class="sig-right">
+          <div class="sign-line"></div>
+          <p class="sign-label">Consigner Signature</p>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+
+  <script src="{{ url_for('static', filename='js/uppercase.js') }}"></script>
+  <script>
+    function autoResize(el){
+      try{
+        el.style.height = 'auto';
+        el.style.height = (el.scrollHeight) + 'px';
+      }catch(e){/* ignore */}
+    }
+    document.addEventListener('DOMContentLoaded', function(){
+      document.querySelectorAll('.auto-resize').forEach(function(el){
+        autoResize(el);
+        el.addEventListener('input', function(){ autoResize(el); });
+      });
+      try{ renumberRows(); }catch(e){}
+      // Normalize existing return_date values in dd-mm-yyyy to yyyy-mm-dd for date inputs
+      try{
+        document.querySelectorAll('input[name="return_date[]"]').forEach(function(inp){
+          var v = (inp.value || '').trim();
+          var m = v.match(/^(\d{2})-(\d{2})-(\d{4})$/);
+          if(m){
+            inp.value = m[3] + '-' + m[2] + '-' + m[1];
+          }
+        });
+      }catch(e){}
+    });
+
+    function createCellInput(name, value){
+      // Auto-number Sl no as a readonly input
+      if(name === 'sl_no[]'){
+        return '<input class="table-input sl-no" type="text" name="' + name + '" value="' + (value || '') + '" readonly>';
+      }
+      // Use textarea for fields that can be multiline so content wraps to next line
+      if(name === 'part_no[]' || name === 'ref_no[]' || name === 'particulars[]' || name === 'reason[]'){
+        return '<textarea class="table-input auto-resize" name="' + name + '" oninput="autoResize(this)">' + (value || '') + '</textarea>';
+      }
+      // Return date should have a dd-mm-yyyy placeholder
+      if(name === 'return_date[]'){
+        return '<input class="table-input" type="date" name="' + name + '" value="' + (value || '') + '">';
+      }
+
+      return '<input class="table-input" type="text" name="' + name + '" value="' + (value || '') + '">';
+    }
+
+    function addRow(){
+      const tbody = document.getElementById('dc-rows');
+      const tr = document.createElement('tr');
+      tr.setAttribute('data-row', '');
+      tr.innerHTML = '' +
+        '<td>' + createCellInput('sl_no[]','') + '</td>' +
+        '<td>' + createCellInput('part_no[]','') + '</td>' +
+        '<td>' + createCellInput('ref_no[]','') + '</td>' +
+        '<td>' + createCellInput('particulars[]','') + '</td>' +
+        '<td>' + createCellInput('qty[]','') + '</td>' +
+        '<td>' + createCellInput('reason[]','') + '</td>' +
+        '<td>' + createCellInput('return_date[]','') + '</td>' +
+        
+        '<td>' + createCellInput('return_status[]','') + '</td>' +
+        '<td>' +
+          '<div class="flex items-center gap-2">' +
+            createCellInput('remarks[]','') +
+            '<button type="button" class="no-print text-red-600 hover:text-red-800 ml-1 px-2 py-1 rounded" onclick="removeRow(this)" title="Remove row">✕</button>' +
+          '</div>' +
+        '</td>';
+      tbody.appendChild(tr);
+      // Initialize auto-resize for any newly added textarea rows
+      tr.querySelectorAll('.auto-resize').forEach(function(el){
+        try{ autoResize(el); }catch(e){}
+        el.addEventListener('input', function(){ autoResize(el); });
+      });
+      // Renumber Sl no values after adding
+      try{ renumberRows(); }catch(e){}
+    }
+
+    function removeRow(btn){
+      const tr = btn.closest('tr');
+      if(!tr) return;
+      const tbody = tr.parentElement;
+      // If only one row left, clear inputs instead of removing to keep table structure
+      if(tbody.querySelectorAll('tr').length <= 1){
+        tr.querySelectorAll('input,textarea').forEach(i => i.value = '');
+        try{ renumberRows(); }catch(e){}
+        return;
+      }
+      tr.remove();
+      try{ renumberRows(); }catch(e){}
+    }
+
+    function renumberRows(){
+      const rows = document.querySelectorAll('#dc-rows tr[data-row]');
+      rows.forEach(function(r, idx){
+        const inp = r.querySelector('input.sl-no');
+        if(inp) inp.value = (idx + 1);
+      });
+    }
+  </script>
+
+  <!-- Submission modal (shown after successful submit) -->
+  <div id="submitModal" class="fixed inset-0 z-60 hidden items-center justify-center overflow-auto">
+    <div id="submitOverlay" class="absolute inset-0 bg-black/50"></div>
+    <div class="relative bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 p-6 z-70">
+      <div class="flex items-start justify-between mb-3">
+        <div>
+          <h3 class="text-lg font-bold text-slate-800">DC saved to history</h3>
+          <p class="text-sm text-slate-600 mt-1">Your dispatch challan has been stored.</p>
+        </div>
+        <button id="submitClose" aria-label="Close" class="text-gray-400 hover:text-gray-700 rounded-full p-1.5">×</button>
+      </div>
+
+      <div class="mt-4 flex flex-col sm:flex-row gap-3">
+        <button id="modalAddNew" type="button" class="w-full sm:w-auto bg-sky-600 hover:bg-sky-700 text-white px-4 py-2 rounded-lg font-semibold">Add New</button>
+        <button id="modalPrint" type="button" class="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg font-semibold">Download & Print</button>
+        <a href="{{ url_for('dc_history') }}" class="w-full sm:w-auto inline-flex items-center justify-center bg-white border border-slate-200 hover:shadow-md px-4 py-2 rounded-lg">View History</a>
+      </div>
+
+      <div class="mt-4 text-xs text-slate-400">Tip: Use your browser's Save as PDF in the print dialog to download.</div>
+    </div>
+  </div>
+
+  <script>
+    (function(){
+      const modal = document.getElementById('submitModal');
+      const overlay = document.getElementById('submitOverlay');
+      const close = document.getElementById('submitClose');
+      const addNew = document.getElementById('modalAddNew');
+      const printBtn = document.getElementById('modalPrint');
+
+      function openModal(){
+        if(!modal) return;
+        modal.classList.remove('hidden');
+        modal.classList.add('flex');
+        document.body.classList.add('overflow-hidden');
+      }
+      function closeModal(){
+        if(!modal) return;
+        modal.classList.add('hidden');
+        modal.classList.remove('flex');
+        document.body.classList.remove('overflow-hidden');
+      }
+
+      if(overlay) overlay.addEventListener('click', closeModal);
+      if(close) close.addEventListener('click', closeModal);
+
+      if(addNew){
+        addNew.addEventListener('click', function(){
+          // Navigate to a fresh form
+          window.location.href = '{{ url_for("dc_gate_pass") }}';
+        });
+      }
+
+      if(printBtn){
+        printBtn.addEventListener('click', function(){
+          // Trigger print dialog (user can save as PDF)
+          window.print();
+          // keep modal open briefly then close
+          setTimeout(closeModal, 500);
+        });
+      }
+
+      // Show modal after submit using a server-rendered body flag.
+      document.addEventListener('DOMContentLoaded', function(){
+        const shouldShowModal = document.body && document.body.dataset.showSubmitModal === '1';
+        if (shouldShowModal) {
+          setTimeout(openModal, 300);
+        }
+      });
+    })();
+  </script>
+  {% include 'footer.html' %}
+</body>
+</html>

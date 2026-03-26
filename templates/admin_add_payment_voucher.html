@@ -1380,8 +1380,7 @@
             table th:nth-child(10), table td:nth-child(10) { width: 10%; text-align: right; }
             /* Header section (department/title) adjustments */
             #printableContent h1, #printableContent h2 { text-align: center; margin: 6px 0; }
-            #printableContent > div[style*="DEPARTMENT OF LOGISTICS"],
-            #printableContent div[style*="DEPARTMENT OF LOGISTICS"] { }
+            /* department header handled by content; removed empty rule to satisfy linters */
             @page { size: A4; margin: 0; }
             @media print {
               body { margin: 0; padding: 0; }

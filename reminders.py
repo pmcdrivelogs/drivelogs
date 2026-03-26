@@ -184,7 +184,9 @@ def start_scheduler(app=None):
     try:
         from apscheduler.schedulers.background import BackgroundScheduler
     except Exception:
-        logger.exception('APScheduler not installed; cannot start reminders scheduler')
+        # APScheduler or its dependency `pkg_resources` (setuptools) may be missing.
+        # Log a concise warning (no stacktrace) and skip starting the scheduler.
+        logger.warning('APScheduler unavailable; reminders scheduler disabled')
         return None
 
     hour = os.getenv('REMINDER_HOUR', '7')
