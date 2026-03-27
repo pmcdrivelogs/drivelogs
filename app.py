@@ -3284,6 +3284,8 @@ def admin_analytics_dashboard():
             'total_trips': len(daily_trips),
             'total_fuel': sum(float(r.get('quantity', 0) or 0) for r in daily_fuel),
             'total_distance': sum(float(r.get('trip_distance', 0) or 0) for r in daily_trips),
+            'total_students': sum(int(r.get('student_total', 0) or r.get('student_total', 0) or 0) for r in daily_trips),
+            'total_faculty': sum(int(r.get('faculty_total', 0) or r.get('faculty_total', 0) or 0) for r in daily_trips),
             'total_expenditure': sum(float(r.get('amount', 0) or 0) for r in daily_fuel),
             'total_purchases': len(daily_purchases),
             'total_purchase_value': sum(float(r.get('net_payable', 0) or r.get('total_payment', 0) or 0) for r in daily_purchases),
@@ -3340,6 +3342,8 @@ def admin_analytics_dashboard():
             'total_trips': len(weekly_trips),
             'total_fuel': sum(float(r.get('quantity', 0) or 0) for r in weekly_fuel),
             'total_distance': sum(float(r.get('trip_distance', 0) or 0) for r in weekly_trips),
+            'total_students': sum(int(r.get('student_total', 0) or r.get('student_total', 0) or 0) for r in weekly_trips),
+            'total_faculty': sum(int(r.get('faculty_total', 0) or r.get('faculty_total', 0) or 0) for r in weekly_trips),
             'total_expenditure': sum(float(r.get('amount', 0) or 0) for r in weekly_fuel),
             'total_purchases': len(weekly_purchases),
             'total_purchase_value': sum(float(r.get('net_payable', 0) or r.get('total_payment', 0) or 0) for r in weekly_purchases),
@@ -3393,6 +3397,8 @@ def admin_analytics_dashboard():
             'total_trips': len(monthly_trips),
             'total_fuel': sum(float(r.get('quantity', 0) or 0) for r in monthly_fuel),
             'total_distance': sum(float(r.get('trip_distance', 0) or 0) for r in monthly_trips),
+            'total_students': sum(int(r.get('student_total', 0) or r.get('student_total', 0) or 0) for r in monthly_trips),
+            'total_faculty': sum(int(r.get('faculty_total', 0) or r.get('faculty_total', 0) or 0) for r in monthly_trips),
             'total_expenditure': sum(float(r.get('amount', 0) or 0) for r in monthly_fuel),
             'total_purchases': len(monthly_purchases),
             'total_purchase_value': sum(float(r.get('net_payable', 0) or r.get('total_payment', 0) or 0) for r in monthly_purchases),
@@ -3484,6 +3490,27 @@ def admin_analytics_dashboard():
                 # ignore parse errors for individual records
                 continue
         
+        # Compute active / past drivers from employees table (best-effort)
+        try:
+            emp_res = supabase.table('employees').select('employee_id,status,name').execute()
+            emp_rows = emp_res.data if emp_res.data else []
+            active_drivers_count = sum(1 for e in emp_rows if str(e.get('status', '')).lower() == 'active')
+            past_drivers_count = sum(1 for e in emp_rows if str(e.get('status', '')).lower() in ('inactive', 'terminated', 'resigned'))
+        except Exception:
+            active_drivers_count = 0
+            past_drivers_count = 0
+
+        # Expose driver counts inside the period datasets so frontend JS and PDF builder can read them
+        try:
+            daily_data['active_drivers'] = active_drivers_count
+            weekly_data['active_drivers'] = active_drivers_count
+            monthly_data['active_drivers'] = active_drivers_count
+            daily_data['past_drivers'] = past_drivers_count
+            weekly_data['past_drivers'] = past_drivers_count
+            monthly_data['past_drivers'] = past_drivers_count
+        except Exception:
+            pass
+
         return render_template('admin_analytics_dashboard.html',
                              daily_data=daily_data,
                              weekly_data=weekly_data,
@@ -3499,6 +3526,8 @@ def admin_analytics_dashboard():
                              total_scrap=daily_data['total_scrap'],
                              total_active_vehicles=len(all_vehicles_data),
                              top_vehicles=top_vehicles,
+                             active_drivers=active_drivers_count,
+                             past_drivers=past_drivers_count,
                              compliant_count=compliant_count,
                              due_soon_count=due_soon_count,
                              overdue_count=overdue_count)
@@ -3686,6 +3715,15 @@ def api_analytics_custom():
         'stock_labels': ['Purchases', 'Issues', 'Utilization', 'Scrap'],
         'stock_values': [len(p), len(si), len(u), len(sc)]
     }
+    # include active/past drivers counts from employees table
+    try:
+        emp_res = supabase.table('employees').select('status').execute()
+        emp_rows = emp_res.data if emp_res.data else []
+        data['active_drivers'] = sum(1 for e in emp_rows if str(e.get('status','')).lower() == 'active')
+        data['past_drivers'] = sum(1 for e in emp_rows if str(e.get('status','')).lower() in ('inactive','terminated','resigned'))
+    except Exception:
+        data['active_drivers'] = 0
+        data['past_drivers'] = 0
     return jsonify(data)
 
 
