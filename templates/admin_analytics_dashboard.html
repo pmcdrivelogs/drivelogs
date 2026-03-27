@@ -14,7 +14,7 @@
     * { font-family: 'Inter', sans-serif; }
     
     body {
-      background: #fffbeb;
+      background: #f5fafc;
     }
     
     .dashboard-card {
@@ -166,7 +166,7 @@
       <!-- Header -->
       <div class="mb-8">
         <h1 class="text-3xl font-bold text-gray-800 mb-2">📊 Analytics Dashboard</h1>
-        <p class="text-gray-600">Comprehensive insights and reports for fuel, trips, and statutory compliance</p>
+        <p class="text-gray-600">Comprehensive insights and reports for fuel, trips and statutory compliance etc..</p>
       </div>
 
       <!-- Period Filter & Export -->
@@ -201,188 +201,182 @@
         </div>
       </div>
 
-      <!-- Key Metrics -->
-      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        <div class="stat-box">
-          <h3>Total Trips</h3>
-          <div class="value" id="totalTrips">{{ total_trips|default(0) }}</div>
-          <div class="change">📈 <span id="tripChange">+0%</span> from previous period</div>
+      <!-- Reworked: Boxes-only dashboard per request -->
+      <div class="mb-6">
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="text-2xl font-bold text-gray-800">📈 Operations — Key Metrics</h2>
+          <div class="flex gap-3 items-center">
+            <div class="bg-white px-3 py-2 rounded-lg border shadow-sm text-sm">
+              <div class="text-xs text-gray-500">Active Drivers</div>
+              <div class="font-bold text-gray-800" id="activeDrivers">{{ active_drivers|default(0) }}</div>
+            </div>
+            <div class="bg-red-50 px-3 py-2 rounded-lg border border-red-200 shadow-sm text-sm">
+              <div class="text-xs text-red-600">Past Drivers</div>
+              <div class="font-bold text-red-800" id="pastDrivers">{{ past_drivers|default(0) }}</div>
+            </div>
+          </div>
         </div>
-        
-        <div class="stat-box" style="background: #f59e0b;">
-          <h3>Fuel Consumed</h3>
-          <div class="value" id="totalFuel">{{ total_fuel|default(0) }}L</div>
-          <div class="change">⛽ <span id="fuelChange">+0%</span> from previous period</div>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-4">
+          <div class="stat-box">
+            <h3>Total Trips</h3>
+            <div class="value" id="totalTrips">{{ total_trips|default(0) }}</div>
+            <div class="change">Avg/day: <span id="avgTripsPerDay">-</span></div>
+          </div>
+
+          <div class="stat-box" style="background:#3b82f6;">
+            <h3>Active Bus</h3>
+            <div class="value" id="activeVehicles">{{ total_active_vehicles|default(0) }}</div>
+            <div class="change">Currently active</div>
+          </div>
+
+          <div class="stat-box" style="background:#f59e0b;">
+            <h3>Fuel Consumed</h3>
+            <div class="value" id="totalFuel">{{ total_fuel|default(0) }}L</div>
+            <div class="change">Avg/day: <span id="avgFuelPerDay">-</span></div>
+          </div>
+
+          <div class="stat-box" style="background:#10b981;">
+            <h3>Total Distance</h3>
+            <div class="value" id="totalDistance">{{ total_distance|default(0) }} KM</div>
+            <div class="change">Avg/day: <span id="avgDistancePerDay">-</span></div>
+          </div>
         </div>
-        
-        <div class="stat-box" style="background: #10b981;">
-          <h3>Total Distance</h3>
-          <div class="value" id="totalDistance">{{ total_distance|default(0) }} KM</div>
-          <div class="change">🚗 <span id="distanceChange">+0%</span> from previous period</div>
-        </div>
-        
-        <div class="stat-box" style="background: #3b82f6;">
-          <h3>Fuel Expenditure</h3>
-          <div class="value" id="totalExpenditure">₹{{ total_expenditure|default(0) }}</div>
-          <div class="change">💰 <span id="expChange">+0%</span> from previous period</div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div class="stat-box" style="background:#06b6d4;">
+            <h3>Fuel Expenditure</h3>
+            <div class="value" id="totalExpenditure">₹{{ total_expenditure|default(0) }}</div>
+            <div class="change">Avg/day: <span id="avgExpPerDay">-</span></div>
+          </div>
+
+          <div class="stat-box" style="background:#8b5cf6;">
+            <h3>Students</h3>
+            <div class="value" id="totalStudents">{{ total_students|default(0) }}</div>
+            <div class="change">Avg/day: <span id="avgStudentsPerDay">-</span></div>
+          </div>
+
+          <div class="stat-box" style="background:#ec4899;">
+            <h3>Faculty</h3>
+            <div class="value" id="totalFaculty">{{ total_faculty|default(0) }}</div>
+            <div class="change">Avg/day: <span id="avgFacultyPerDay">-</span></div>
+          </div>
+
+          <div class="stat-box" style="background:#64748b;">
+            <h3>Average Mileage</h3>
+            <div class="value" id="avgMileage">- km/L</div>
+            <div class="change">Fleet avg</div>
+          </div>
         </div>
       </div>
 
-      <!-- Stock Management Metrics -->
-      <div class="mb-8">
+      <div class="mb-6">
         <h2 class="text-2xl font-bold text-gray-800 mb-4">📦 Stock Management</h2>
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <div class="stat-box" style="background: #8b5cf6;">
-            <h3>Purchases</h3>
-            <div class="value" id="totalPurchases">{{ total_purchases|default(0) }}</div>
-            <div class="change">💼 Value: ₹<span id="purchaseValue">{{ total_purchase_value|default(0) }}</span></div>
+          <div class="stat-box" style="background:#a8e8f5;color:#111;">
+            <h3 style="color:#374151;">Opening Stock</h3>
+            <div class="value" id="openingStock">0</div>
           </div>
-          
-          <div class="stat-box" style="background: #ec4899;">
-            <h3>Issues</h3>
-            <div class="value" id="totalIssues">{{ total_issues|default(0) }}</div>
-            <div class="change">📤 Stock issued to vehicles</div>
+          <div class="stat-box" style="background:#8b5cf6;">
+            <h3>Purchase</h3>
+            <div class="value" id="purchasesCount">0</div>
           </div>
-          
-          <div class="stat-box" style="background: #14b8a6;">
+          <div class="stat-box" style="background:#14b8a6;">
             <h3>Utilization</h3>
-            <div class="value" id="totalUtilization">{{ total_utilization|default(0) }}</div>
-            <div class="change">🔧 Material utilized</div>
+            <div class="value" id="utilizationCount">0</div>
           </div>
-          
-          <div class="stat-box" style="background: #64748b;">
+          <div class="stat-box" style="background:#64748b;">
             <h3>Scrap</h3>
-            <div class="value" id="totalScrap">{{ total_scrap|default(0) }}</div>
-            <div class="change">♻️ Scraped materials</div>
+            <div class="value" id="scrapCount">0</div>
+          </div>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-4">
+          <div class="stat-box" style="background:#ec4899;">
+            <h3>Purchase Return</h3>
+            <div class="value" id="purchaseReturnCount">0</div>
+          </div>
+          <div class="stat-box" style="background:#f59e0b;">
+            <h3>Closing Stock</h3>
+            <div class="value" id="closingStock">0</div>
+          </div>
+          <div class="stat-box" style="background:#10b981;">
+            <h3>Total Purchase Value</h3>
+            <div class="value" id="totalPurchaseValue">₹0.00</div>
           </div>
         </div>
       </div>
 
-      <!-- Charts Row 1 -->
-      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-        <!-- Fuel Consumption Trend -->
-        <div class="dashboard-card">
-          <div class="section-header">
-            <h2 class="section-title">Fuel Consumption Trend</h2>
-          </div>
-          <div class="chart-container">
-            <canvas id="fuelChart"></canvas>
-          </div>
-        </div>
-
-        <!-- Trip Statistics -->
-        <div class="dashboard-card">
-          <div class="section-header">
-            <h2 class="section-title">Trip Statistics</h2>
-          </div>
-          <div class="chart-container">
-            <canvas id="tripChart"></canvas>
-          </div>
-        </div>
-      </div>
-
-      <!-- Charts Row 2 -->
-      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-        <!-- Vehicle Utilization -->
-        <div class="dashboard-card">
-          <div class="section-header">
-            <h2 class="section-title">Vehicle Utilization</h2>
-          </div>
-          <div class="chart-container">
-            <canvas id="vehicleChart"></canvas>
-          </div>
-        </div>
-
-        <!-- Stock Management Flow -->
-        <div class="dashboard-card">
-          <div class="section-header">
-            <h2 class="section-title">Stock Management Flow</h2>
-          </div>
-          <div class="chart-container">
-            <canvas id="stockChart"></canvas>
-          </div>
-        </div>
-      </div>
-
-      <!-- Charts Row 3 -->
-      <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-        <!-- Expenditure Breakdown -->
-        <div class="dashboard-card">
-          <div class="section-header">
-            <h2 class="section-title">Expenditure Breakdown</h2>
-          </div>
-          <div class="chart-container">
-            <canvas id="expenditureChart"></canvas>
-          </div>
-        </div>
-
-        <!-- Top Performers Placeholder -->
-        <div class="dashboard-card">
-          <div class="section-header">
-            <h2 class="section-title">Quick Stats</h2>
-          </div>
-          <div class="grid grid-cols-2 gap-4 mt-4">
-            <div class="bg-purple-50 p-4 rounded-lg border border-purple-200">
-              <p class="text-sm text-purple-600 font-semibold">Active Vehicles</p>
-              <p class="text-2xl font-bold text-purple-800" id="activeVehicles">{{ total_active_vehicles|default(0) }}</p>
+      <!-- Additional Analytics Charts -->
+      <div class="mb-6">
+        <h2 class="text-2xl font-bold text-gray-800 mb-4">📊 Additional Analytics</h2>
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div class="dashboard-card">
+            <div class="section-header">
+              <h3 class="section-title">Fuel Trend</h3>
             </div>
-            <div class="bg-pink-50 p-4 rounded-lg border border-pink-200">
-              <p class="text-sm text-pink-600 font-semibold">Avg Fuel/Trip</p>
-              <p class="text-2xl font-bold text-pink-800" id="avgFuelPerTrip">-</p>
+            <div class="chart-container" style="height:220px;">
+              <canvas id="fuelChart"></canvas>
             </div>
-            <div class="bg-teal-50 p-4 rounded-lg border border-teal-200">
-              <p class="text-sm text-teal-600 font-semibold">Stock Turnover</p>
-              <p class="text-2xl font-bold text-teal-800" id="stockTurnover">-</p>
+          </div>
+          <div class="dashboard-card">
+            <div class="section-header">
+              <h3 class="section-title">Trip Statistics</h3>
             </div>
-            <div class="bg-slate-50 p-4 rounded-lg border border-slate-200">
-              <p class="text-sm text-slate-600 font-semibold">Scrap Rate</p>
-              <p class="text-2xl font-bold text-slate-800" id="scrapRate">-</p>
+            <div class="chart-container" style="height:220px;">
+              <canvas id="tripChart"></canvas>
+            </div>
+          </div>
+        </div>
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-4">
+            <div class="dashboard-card">
+              <div class="section-header">
+                <h3 class="section-title">Top Vehicles</h3>
+              </div>
+              <div class="p-3">
+                <ul id="topVehiclesSummary" class="text-sm list-disc pl-5">
+                  <!-- populated by JS -->
+                </ul>
+              </div>
+            </div>
+          <div class="dashboard-card">
+            <div class="section-header">
+              <h3 class="section-title">Expenditure Breakdown</h3>
+            </div>
+            <div class="chart-container" style="height:220px;">
+              <canvas id="expBreakdownChart"></canvas>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- Top Performers Table -->
-      <div class="dashboard-card mb-6">
-        <div class="section-header">
-          <h2 class="section-title">Top Performing Vehicles</h2>
-        </div>
-        <div style="overflow-x: auto;">
-          <table class="w-full">
-            <thead class="bg-gray-50">
-              <tr>
-                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Vehicle ID</th>
-                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Total Trips</th>
-                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Distance (KM)</th>
-                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Fuel Used (L)</th>
-                <th class="px-4 py-3 text-left text-xs font-semibold text-gray-700 uppercase">Efficiency</th>
-              </tr>
-            </thead>
-            <tbody id="topVehiclesTable">
-              {% for vehicle in top_vehicles %}
-              <tr class="border-t hover:bg-gray-50">
-                <td class="px-4 py-3 font-medium">{{ vehicle.vehicle_id }}</td>
-                <td class="px-4 py-3">{{ vehicle.trips }}</td>
-                <td class="px-4 py-3">{{ vehicle.distance }}</td>
-                <td class="px-4 py-3">{{ vehicle.fuel }}</td>
-                <td class="px-4 py-3">{{ vehicle.efficiency }} km/L</td>
-              </tr>
-              {% endfor %}
-            </tbody>
-          </table>
+      <div class="mb-6">
+        <h2 class="text-2xl font-bold text-gray-800 mb-4">💰 Total Expenditure</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div class="stat-box" style="background:#fde68a;color:#111;">
+            <h3 style="color:#92400e;">Purchase (expenditure)</h3>
+            <div class="value" id="purchaseExpenditure">₹0.00</div>
+          </div>
+          <div class="stat-box" style="background:#f59e0b;">
+            <h3>Fuel</h3>
+            <div class="value" id="fuelExpenditure">₹{{ total_expenditure|default(0) }}</div>
+          </div>
+          <div class="stat-box" style="background:#c7d2fe;color:#111;">
+            <h3 style="color:#3730a3;">Driver Salary</h3>
+            <div class="value" id="driverSalary">₹0.00</div>
+          </div>
+          <div class="stat-box" style="background:#d1fae5;color:#111;">
+            <h3 style="color:#065f46;">Rate & Taxes</h3>
+            <div class="value" id="rateAndTaxes">₹0.00</div>
+          </div>
         </div>
       </div>
 
-      <!-- Statutory Compliance -->
-      <div class="dashboard-card">
-        <div class="section-header">
-          <h2 class="section-title">Statutory Compliance Status</h2>
-        </div>
+      <div class="mb-6">
+        <h2 class="text-2xl font-bold text-gray-800 mb-4">📋 Statutory Compliance Status</h2>
         <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
           <div onclick="showStatutoryList('compliant')" role="button" tabindex="0" class="p-4 bg-green-50 border border-green-200 rounded-lg cursor-pointer">
-            <div class="text-green-600 font-semibold text-sm mb-1">Up to Date</div>
+            <div class="text-green-600 font-semibold text-sm mb-1">LIVE</div>
             <div class="text-2xl font-bold text-green-700" id="compliantCount">{{ compliant_count|default(0) }}</div>
-            <div class="text-xs text-green-600 mt-1">Vehicles</div>
+            <div class="text-xs text-green-600 mt-1">UP TO DATE</div>
           </div>
           <div onclick="showStatutoryList('due_soon')" role="button" tabindex="0" class="p-4 bg-yellow-50 border border-yellow-200 rounded-lg cursor-pointer">
             <div class="text-yellow-600 font-semibold text-sm mb-1">Due Soon</div>
@@ -392,7 +386,84 @@
           <div onclick="showStatutoryList('overdue')" role="button" tabindex="0" class="p-4 bg-red-50 border border-red-200 rounded-lg cursor-pointer">
             <div class="text-red-600 font-semibold text-sm mb-1">Overdue</div>
             <div class="text-2xl font-bold text-red-700" id="overdueCount">{{ overdue_count|default(0) }}</div>
-            <div class="text-xs text-red-600 mt-1">Requires attention</div>
+            <div class="text-xs text-red-600 mt-1">Needs attention</div>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-5 gap-4 mt-4">
+          <div class="p-3 bg-blue-50 border border-blue-200 rounded-lg text-center">
+            <div class="text-sm text-blue-600 font-semibold">FC</div>
+            <div class="text-xl font-bold text-blue-800" id="fcCount">{{ fc_count|default(0) }}</div>
+          </div>
+          <div class="p-3 bg-indigo-50 border border-indigo-200 rounded-lg text-center">
+            <div class="text-sm text-indigo-600 font-semibold">Insurance</div>
+            <div class="text-xl font-bold text-indigo-800" id="insuranceCount">{{ insurance_count|default(0) }}</div>
+          </div>
+          <div class="p-3 bg-amber-50 border border-amber-200 rounded-lg text-center">
+            <div class="text-sm text-amber-600 font-semibold">Tax</div>
+            <div class="text-xl font-bold text-amber-800" id="taxCount">{{ tax_count|default(0) }}</div>
+          </div>
+          <div class="p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-center">
+            <div class="text-sm text-emerald-600 font-semibold">Permit</div>
+            <div class="text-xl font-bold text-emerald-800" id="permitCount">{{ permit_count|default(0) }}</div>
+          </div>
+          <div class="p-3 bg-slate-50 border border-slate-200 rounded-lg text-center">
+            <div class="text-sm text-slate-600 font-semibold">PUCC</div>
+            <div class="text-xl font-bold text-slate-800" id="puccCount">{{ pucc_count|default(0) }}</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="mb-6">
+        <h2 class="text-2xl font-bold text-gray-800 mb-4">💸 Payments Made</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div class="stat-box" style="background:#fef3c7;color:#111;">
+            <h3 style="color:#b45309;">Rate & Taxes</h3>
+            <div class="value" id="paymentRateTaxes">₹0.00</div>
+          </div>
+          <div class="stat-box" style="background:#e0f2fe;color:#111;">
+            <h3 style="color:#0369a1;">Driver Salary</h3>
+            <div class="value" id="paymentDriverSalary">₹0.00</div>
+          </div>
+          <div class="stat-box" style="background:#fef2f2;color:#111;">
+            <h3 style="color:#b91c1c;">Total Fuel</h3>
+            <div class="value" id="paymentFuel">₹0.00</div>
+          </div>
+          <div class="stat-box" style="background:#eef2ff;color:#111;">
+            <h3 style="color:#7c3aed;">Maintenance</h3>
+            <div class="value" id="paymentMaintenance">₹0.00</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Accidents and Incidents -->
+      <div class="mb-6">
+        <h2 class="text-2xl font-bold text-gray-800 mb-4">⚠️ Accidents & Incidents</h2>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div class="stat-box" style="background:#fee2e2;color:#7f1d1d;">
+            <h3 style="color:#7f1d1d;">No. of Accidents</h3>
+            <div class="value" id="accidentsCount">0</div>
+          </div>
+          <div class="stat-box" style="background:#fef3c7;color:#92400e;">
+            <h3 style="color:#92400e;">No. of Incidents</h3>
+            <div class="value" id="incidentsCount">0</div>
+          </div>
+          <div class="stat-box" style="background:#eef2ff;color:#1e3a8a;">
+            <h3 style="color:#1e3a8a;">Total Payments (Incidents)</h3>
+            <div class="value" id="incidentsPayments">₹0.00</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Overall Expenditure Summary -->
+      <div class="mb-6">
+        <div class="dashboard-card">
+          <div class="flex items-center justify-between">
+            <h3 class="text-lg font-bold">Overall Expenditure</h3>
+            <div class="text-sm text-gray-500">Aggregated total of all expense categories</div>
+          </div>
+          <div class="mt-4">
+            <div class="text-3xl font-bold" id="overallExpenditure">₹0.00</div>
           </div>
         </div>
       </div>
@@ -401,6 +472,46 @@
       </div>
 
       <!-- Statutory records modal -->
+      <!-- All Performing Vehicles Details -->
+      <div class="mb-6">
+        <h2 class="text-2xl font-bold text-gray-800 mb-4">🚍 All Performing Vehicles Details</h2>
+        <div class="dashboard-card overflow-auto">
+          <table class="w-full text-sm" id="topVehiclesTable">
+            <thead class="bg-gray-50">
+              <tr>
+                <th class="px-4 py-2 text-left">Vehicle ID</th>
+                <th class="px-4 py-2 text-right">Trips</th>
+                <th class="px-4 py-2 text-right">Distance (KM)</th>
+                <th class="px-4 py-2 text-right">Fuel Used (L)</th>
+                <th class="px-4 py-2 text-right">Efficiency (Km/L)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for v in top_vehicles %}
+              <tr>
+                <td class="px-4 py-2">{{ v.vehicle_id or v.vehicle_no or v.id }}</td>
+                <td class="px-4 py-2 text-right">{{ v.trips|default(0) }}</td>
+                <td class="px-4 py-2 text-right">{{ v.distance|default(0) }}</td>
+                <td class="px-4 py-2 text-right">{{ v.fuel|default(0) }}</td>
+                <td class="px-4 py-2 text-right">
+                  {% if v.efficiency is not none %}
+                    {{ '%.2f'|format(v.efficiency) }}
+                  {% elif (v.fuel|float) > 0 %}
+                    {{ '%.2f'|format((v.distance|float) / (v.fuel|float)) }}
+                  {% else %}
+                    -
+                  {% endif %}
+                </td>
+              </tr>
+              {% else %}
+              <tr>
+                <td class="px-4 py-2" colspan="5">No vehicle performance data available.</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
       <div id="statModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 flex items-start justify-center p-6">
         <div class="bg-white rounded-lg w-full max-w-5xl overflow-hidden">
           <div class="flex items-center justify-between p-4 border-b">
@@ -431,7 +542,7 @@
 
       <script>
     let currentPeriod = 'daily';
-    let fuelChart, tripChart, vehicleChart, expenditureChart, stockChart;
+    let fuelChart, tripChart, vehicleChart, expenditureChart, stockChart, expBreakdownChart;
     
     // Sample data - will be replaced with actual data from backend
     const dashboardData = {
@@ -530,33 +641,111 @@
       document.getElementById('totalFuel').textContent = (data.total_fuel || 0) + 'L';
       document.getElementById('totalDistance').textContent = (data.total_distance || 0) + ' KM';
       document.getElementById('totalExpenditure').textContent = '₹' + (data.total_expenditure || 0);
-      
-      // Update stock management metrics
-      document.getElementById('totalPurchases').textContent = data.total_purchases || 0;
-      document.getElementById('purchaseValue').textContent = (data.total_purchase_value || 0).toFixed(2);
-      document.getElementById('totalIssues').textContent = data.total_issues || 0;
-      document.getElementById('totalUtilization').textContent = data.total_utilization || 0;
-      document.getElementById('totalScrap').textContent = data.total_scrap || 0;
-      
-      // Update quick stats
-      const totalStock = (data.total_purchases || 0) + (data.total_issues || 0) + (data.total_utilization || 0);
-      document.getElementById('activeVehicles').textContent = data.total_active_vehicles !== undefined ? data.total_active_vehicles : (data.vehicle_labels ? data.vehicle_labels.length : 0);
-      document.getElementById('avgFuelPerTrip').textContent = data.total_trips > 0 ? 
-        ((data.total_fuel || 0) / data.total_trips).toFixed(2) + 'L' : '0L';
-      document.getElementById('stockTurnover').textContent = totalStock > 0 ? 
-        Math.round(((data.total_issues || 0) / totalStock) * 100) + '%' : '0%';
-      document.getElementById('scrapRate').textContent = totalStock > 0 ? 
-        Math.round(((data.total_scrap || 0) / totalStock) * 100) + '%' : '0%';
-      
-      // Update charts
+
+      // Averages: determine days for current period
+      let days = 30;
+      if (period === 'daily') days = 1;
+      else if (period === 'weekly') days = 7;
+      else if (period === 'monthly') days = 30;
+      if (data.days) days = data.days;
+
+      // Populate operation averages
+      const trips = data.total_trips || 0;
+      const fuel = data.total_fuel || 0;
+      const dist = data.total_distance || 0;
+      document.getElementById('avgTripsPerDay').textContent = days > 0 ? (trips / days).toFixed(2) : '0';
+      document.getElementById('avgFuelPerDay').textContent = days > 0 ? (fuel / days).toFixed(2) + 'L' : '0L';
+      document.getElementById('avgDistancePerDay').textContent = days > 0 ? (dist / days).toFixed(2) + ' KM' : '0 KM';
+      document.getElementById('avgExpPerDay').textContent = days > 0 ? ('₹' + ((data.total_expenditure || 0) / days).toFixed(2)) : '₹0.00';
+
+      // Students/Faculty (try to derive from trip_records if present)
+      let studentsTotal = data.total_students || 0;
+      let facultyTotal = data.total_faculty || 0;
+      if (Array.isArray(data.trip_records) && data.trip_records.length > 0) {
+        studentsTotal = 0; facultyTotal = 0;
+        data.trip_records.forEach(r => {
+          // try common field names
+          studentsTotal += Number(r.student_count || r.students || r.passengers_students || 0) || 0;
+          facultyTotal += Number(r.faculty_count || r.faculty || r.passengers_faculty || 0) || 0;
+        });
+      }
+      document.getElementById('totalStudents').textContent = studentsTotal || 0;
+      document.getElementById('avgStudentsPerDay').textContent = days > 0 ? (studentsTotal / days).toFixed(2) : '0';
+      document.getElementById('totalFaculty').textContent = facultyTotal || 0;
+      document.getElementById('avgFacultyPerDay').textContent = days > 0 ? (facultyTotal / days).toFixed(2) : '0';
+
+      // Average mileage: compute from total distance / total fuel when possible
+      let avgM = '-';
+      if ((data.avg_mileage || data.avgMileage)) {
+        avgM = Number(data.avg_mileage || data.avgMileage).toFixed(2) + ' km/L';
+      } else if (fuel > 0) {
+        avgM = (dist / fuel).toFixed(2) + ' km/L';
+      }
+      document.getElementById('avgMileage').textContent = avgM;
+
+      // Stock management fields (best-effort from data)
+      if (document.getElementById('openingStock')) document.getElementById('openingStock').textContent = data.opening_stock || 0;
+      if (document.getElementById('purchasesCount')) document.getElementById('purchasesCount').textContent = data.total_purchases || 0;
+      if (document.getElementById('utilizationCount')) document.getElementById('utilizationCount').textContent = data.total_utilization || 0;
+      if (document.getElementById('scrapCount')) document.getElementById('scrapCount').textContent = data.total_scrap || 0;
+      if (document.getElementById('purchaseReturnCount')) document.getElementById('purchaseReturnCount').textContent = data.total_purchase_returns || 0;
+      if (document.getElementById('closingStock')) document.getElementById('closingStock').textContent = data.closing_stock || 0;
+      if (document.getElementById('totalPurchaseValue')) document.getElementById('totalPurchaseValue').textContent = '₹' + ((data.total_purchase_value || 0).toFixed ? data.total_purchase_value.toFixed(2) : (data.total_purchase_value || 0));
+
+      // Expenditure breakdown (populate totals)
+      if (document.getElementById('purchaseExpenditure')) document.getElementById('purchaseExpenditure').textContent = '₹' + ((data.purchase_expenditure || data.total_purchase_value) || 0).toFixed(2);
+      if (document.getElementById('fuelExpenditure')) document.getElementById('fuelExpenditure').textContent = '₹' + ((data.total_expenditure || 0)).toFixed(2);
+      if (document.getElementById('driverSalary')) document.getElementById('driverSalary').textContent = '₹' + ((data.driver_salary || 0)).toFixed(2);
+      if (document.getElementById('rateAndTaxes')) document.getElementById('rateAndTaxes').textContent = '₹' + ((data.rate_and_taxes || 0)).toFixed(2);
+
+      // Payments made
+      if (document.getElementById('paymentRateTaxes')) document.getElementById('paymentRateTaxes').textContent = '₹' + ((data.payments && data.payments.rate_and_taxes) || (data.rate_and_taxes || 0)).toFixed(2);
+      if (document.getElementById('paymentDriverSalary')) document.getElementById('paymentDriverSalary').textContent = '₹' + ((data.payments && data.payments.driver_salary) || (data.driver_salary || 0)).toFixed(2);
+      if (document.getElementById('paymentFuel')) document.getElementById('paymentFuel').textContent = '₹' + ((data.payments && data.payments.fuel) || (data.total_expenditure || 0)).toFixed(2);
+      if (document.getElementById('paymentMaintenance')) document.getElementById('paymentMaintenance').textContent = '₹' + ((data.payments && data.payments.maintenance) || (data.maintenance_expenditure || 0)).toFixed(2);
+
+      // Statutory counts
+      if (document.getElementById('compliantCount')) document.getElementById('compliantCount').textContent = data.compliant_count || 0;
+      if (document.getElementById('dueSoonCount')) document.getElementById('dueSoonCount').textContent = data.due_soon_count || 0;
+      if (document.getElementById('overdueCount')) document.getElementById('overdueCount').textContent = data.overdue_count || 0;
+      if (document.getElementById('fcCount')) document.getElementById('fcCount').textContent = data.fc_count || 0;
+      if (document.getElementById('insuranceCount')) document.getElementById('insuranceCount').textContent = data.insurance_count || 0;
+      if (document.getElementById('taxCount')) document.getElementById('taxCount').textContent = data.tax_count || 0;
+      if (document.getElementById('permitCount')) document.getElementById('permitCount').textContent = data.permit_count || 0;
+      if (document.getElementById('puccCount')) document.getElementById('puccCount').textContent = data.pucc_count || 0;
+
+      // Active / Past drivers
+      if (document.getElementById('activeDrivers')) document.getElementById('activeDrivers').textContent = data.active_drivers || data.total_active_drivers || 0;
+      if (document.getElementById('pastDrivers')) document.getElementById('pastDrivers').textContent = data.past_drivers || 0;
+
+      // Accidents & Incidents
+      if (document.getElementById('accidentsCount')) document.getElementById('accidentsCount').textContent = data.accidents_count || 0;
+      if (document.getElementById('incidentsCount')) document.getElementById('incidentsCount').textContent = data.incidents_count || 0;
+      if (document.getElementById('incidentsPayments')) document.getElementById('incidentsPayments').textContent = '₹' + ((data.incidents_payments_total || 0)).toFixed(2);
+
+      // Overall expenditure: sum of known components
+      const num = (v) => { const n = Number(v); return isFinite(n) ? n : 0; };
+      const purchaseExp = num(data.purchase_expenditure || data.total_purchase_value || 0);
+      const fuelExp = num(data.total_expenditure || 0);
+      const driverExp = num(data.driver_salary || 0);
+      const taxesExp = num(data.rate_and_taxes || 0);
+      const maintExp = num(data.maintenance_expenditure || (data.payments && data.payments.maintenance) || 0);
+      const incidentsExp = num(data.incidents_payments_total || (data.payments && data.payments.incidents) || 0);
+      const otherExp = num(data.other_expenditure || (data.payments && data.payments.other) || 0);
+      const overall = purchaseExp + fuelExp + driverExp + taxesExp + maintExp + incidentsExp + otherExp;
+      if (document.getElementById('overallExpenditure')) document.getElementById('overallExpenditure').textContent = '₹' + overall.toFixed(2);
+
+      // Update charts (guard if canvases exist)
       updateCharts(data);
     }
 
     function updateCharts(data) {
-      // Fuel Consumption Chart
-      if (fuelChart) fuelChart.destroy();
-      const fuelCtx = document.getElementById('fuelChart').getContext('2d');
-      fuelChart = new Chart(fuelCtx, {
+      // Fuel Consumption Chart (only if canvas exists)
+      if (fuelChart) { try { fuelChart.destroy(); } catch(e){} }
+      const fuelEl = document.getElementById('fuelChart');
+      if (fuelEl) {
+        const fuelCtx = fuelEl.getContext('2d');
+        fuelChart = new Chart(fuelCtx, {
         type: 'line',
         data: {
           labels: data.fuel_labels || [],
@@ -579,12 +768,15 @@
             y: { beginAtZero: true }
           }
         }
-      });
+        });
+      }
 
-      // Trip Statistics Chart
-      if (tripChart) tripChart.destroy();
-      const tripCtx = document.getElementById('tripChart').getContext('2d');
-      tripChart = new Chart(tripCtx, {
+      // Trip Statistics Chart (guarded)
+      if (tripChart) { try { tripChart.destroy(); } catch(e){} }
+      const tripEl = document.getElementById('tripChart');
+      if (tripEl) {
+        const tripCtx = tripEl.getContext('2d');
+        tripChart = new Chart(tripCtx, {
         type: 'bar',
         data: {
           labels: data.trip_labels || [],
@@ -604,12 +796,15 @@
             y: { beginAtZero: true }
           }
         }
-      });
+        });
+      }
 
-      // Vehicle Utilization Chart
-      if (vehicleChart) vehicleChart.destroy();
-      const vehicleCtx = document.getElementById('vehicleChart').getContext('2d');
-      vehicleChart = new Chart(vehicleCtx, {
+      // Vehicle Utilization Chart (guarded)
+      if (vehicleChart) { try { vehicleChart.destroy(); } catch(e){} }
+      const vehicleEl = document.getElementById('vehicleChart');
+      if (vehicleEl) {
+        const vehicleCtx = vehicleEl.getContext('2d');
+        vehicleChart = new Chart(vehicleCtx, {
         type: 'doughnut',
         data: {
           labels: data.vehicle_labels || [],
@@ -622,12 +817,15 @@
           responsive: true,
           maintainAspectRatio: false
         }
-      });
+        });
+      }
 
-      // Expenditure Chart
-      if (expenditureChart) expenditureChart.destroy();
-      const expCtx = document.getElementById('expenditureChart').getContext('2d');
-      expenditureChart = new Chart(expCtx, {
+      // Expenditure Chart (guarded)
+      if (expenditureChart) { try { expenditureChart.destroy(); } catch(e){} }
+      const expEl = document.getElementById('expenditureChart');
+      if (expEl) {
+        const expCtx = expEl.getContext('2d');
+        expenditureChart = new Chart(expCtx, {
         type: 'pie',
         data: {
           labels: ['Fuel', 'Maintenance', 'Statutory', 'Others'],
@@ -640,12 +838,15 @@
           responsive: true,
           maintainAspectRatio: false
         }
-      });
+        });
+      }
 
-      // Stock Management Chart
-      if (stockChart) stockChart.destroy();
-      const stockCtx = document.getElementById('stockChart').getContext('2d');
-      stockChart = new Chart(stockCtx, {
+      // Stock Management Chart (guarded)
+      if (stockChart) { try { stockChart.destroy(); } catch(e){} }
+      const stockEl = document.getElementById('stockChart');
+      if (stockEl) {
+        const stockCtx = stockEl.getContext('2d');
+        stockChart = new Chart(stockCtx, {
         type: 'bar',
         data: {
           labels: data.stock_labels || ['Purchases', 'Issues', 'Utilization', 'Scrap'],
@@ -668,10 +869,79 @@
             }
           }
         }
-      });
+        });
+      }
+
+      // Vehicle Efficiency Chart (guarded)
+      // Populate Top Vehicles summary list
+      const topSummaryEl = document.getElementById('topVehiclesSummary');
+      if (topSummaryEl) {
+        topSummaryEl.innerHTML = '';
+        const labels = data.vehicle_labels || (data.top_vehicles ? data.top_vehicles.map(v=>v.vehicle_id||v.vehicle_no||v.id) : []);
+        const values = data.vehicle_values || (data.top_vehicles ? data.top_vehicles.map(v=>Number(v.trips||v.count||0)) : []);
+        for (let i = 0; i < labels.length; i++) {
+          const li = document.createElement('li');
+          li.textContent = labels[i] + ' — ' + (values[i] || 0) + ' trips';
+          topSummaryEl.appendChild(li);
+        }
+        if (labels.length === 0) {
+          const li = document.createElement('li'); li.textContent = 'No data'; topSummaryEl.appendChild(li);
+        }
+      }
+
+      // Expenditure Breakdown Chart (guarded)
+      try { if (expBreakdownChart) { expBreakdownChart.destroy(); } } catch(e){}
+      const ebdEl = document.getElementById('expBreakdownChart');
+      if (ebdEl) {
+        const purchase = Number(data.purchase_expenditure || data.total_purchase_value || 0);
+        const fuelv = Number(data.total_expenditure || 0);
+        const driver = Number(data.driver_salary || 0);
+        const taxes = Number(data.rate_and_taxes || 0);
+        const maint = Number(data.maintenance_expenditure || (data.payments && data.payments.maintenance) || 0);
+        const incidents = Number(data.incidents_payments_total || 0);
+        const labels = ['Purchase','Fuel','Driver','Taxes','Maintenance','Incidents'];
+        const vals = [purchase,fuelv,driver,taxes,maint,incidents];
+        const ebdCtx = ebdEl.getContext('2d');
+        expBreakdownChart = new Chart(ebdCtx, {
+          type: 'pie', data: { labels, datasets:[{ data: vals, backgroundColor:['#fde68a','#f59e0b','#c7d2fe','#d1fae5','#fbcfe8','#fee2e2'] }] },
+          options: { responsive:true, maintainAspectRatio:false }
+        });
+      }
     }
 
     async function generatePDFReport() {
+      // refresh latest data from server (best-effort) to avoid stale values in PDF
+      try {
+        let fetchUrl = '/api/analytics-custom?period=' + encodeURIComponent(currentPeriod || 'daily');
+        if (currentPeriod === 'custom') {
+          const s = document.getElementById('startDate') ? document.getElementById('startDate').value : '';
+          const e = document.getElementById('endDate') ? document.getElementById('endDate').value : '';
+          if (s && e) fetchUrl = '/api/analytics-custom?start=' + encodeURIComponent(s) + '&end=' + encodeURIComponent(e);
+        }
+        const resp = await fetch(fetchUrl);
+        if (resp && resp.ok) {
+          const json = await resp.json();
+          // update dashboard DOM with freshest server data
+          updateDashboard(currentPeriod, json);
+        } else {
+          // fallback to existing in-page data
+          updateDashboard(currentPeriod);
+        }
+      } catch (err) {
+        // network failed — still use current DOM
+        updateDashboard(currentPeriod);
+      }
+
+      // give the UI a short moment to repaint and charts to update
+      await new Promise(r => setTimeout(r, 700));
+
+      // attempt to force chart updates so canvases contain latest rendering
+      try { if (fuelChart && typeof fuelChart.update === 'function') fuelChart.update(); } catch (e) {}
+      try { if (tripChart && typeof tripChart.update === 'function') tripChart.update(); } catch (e) {}
+      try { if (expBreakdownChart && typeof expBreakdownChart.update === 'function') expBreakdownChart.update(); } catch (e) {}
+      try { if (vehicleChart && typeof vehicleChart.update === 'function') vehicleChart.update(); } catch (e) {}
+      try { if (stockChart && typeof stockChart.update === 'function') stockChart.update(); } catch (e) {}
+
       const { jsPDF } = window.jspdf;
       const doc = new jsPDF('p', 'mm', 'a4');
       const pageWidth  = 210;
@@ -724,8 +994,8 @@
         if (img) {
           doc.addImage(img, 'PNG', M, 5, CW, HDR_H - 5);
         } else {
-          fill(0, 0, pageWidth, HDR_H, 0, C.darkBlue);
-          txt('DRIVE LOGS  —  Analytics Report', pageWidth/2, 19, 14, C.white, true, 'center');
+          // fallback simple header text
+          txt('PMC LOGISTICS REPORTS', pageWidth/2, 19, 14, C.blue, true, 'center');
         }
       };
 
@@ -734,10 +1004,10 @@
         hLine(pageHeight - 14, C.lgray, 0.4);
         fill(M, pageHeight-12, CW, 9, 2, C.offWhite);
         const period = sanitize(document.getElementById('currentPeriodDisplay').textContent);
-        txt('Drive Logs Analytics  |  Period: ' + period, M+3, pageHeight-6.5, 7, C.gray);
+        txt('Drive Logs Analytics  |  Period: ' + period, M+3, pageHeight-6.5, 7, C.darkBlue);
         txt('Page ' + pageNum + ' of ' + total, pageWidth-M-3, pageHeight-6.5, 7, C.gray, false, 'right');
         txt(new Date().toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})+
-            '  '+new Date().toLocaleTimeString(), pageWidth/2, pageHeight-6.5, 7, C.gray, false, 'center');
+          '  '+new Date().toLocaleTimeString(), pageWidth/2, pageHeight-6.5, 7, C.gray, false, 'center');
       };
 
       // ── Section heading pill ──────────────────────────────────────────────────
@@ -754,7 +1024,7 @@
         stroke(x, y, w, h, 3, C.lgray);
         fill(x, y+2, 3, h-4, 2, color);
         txt(label.toUpperCase(), x+7, y+6.5, 6.5, C.gray);
-        txt(value, x+7, y+15, 13, C.dark, true);
+        txt(value, x+7, y+15, 13, color, true);
         if (sub) txt(sub, x+7, y+h-3, 6, C.gray);
       };
 
@@ -770,186 +1040,275 @@
         txt(desc, x+w/2, y+25, 6.5, C.gray, false, 'center');
       };
 
+      // smaller compliance badge for compact PDF layout
+      const compBadgeSmall = (x, y, w, label, value, desc, color) => {
+        const H = 18;
+        fill(x, y, w, H, 3, C.white);
+        stroke(x, y, w, H, 3, color, 0.45);
+        fill(x, y, w, 6, 2, color);
+        txt(label.toUpperCase(), x + w/2, y + 4.5, 6, C.white, true, 'center');
+        txt(value, x + w/2, y + 11, 11, color, true, 'center');
+        if (desc) txt(desc, x + w/2, y + H - 2, 5, C.gray, false, 'center');
+      };
+
       // ─────────────────────────────────────────────────────────────────────────
-      // Build PDF once header image resolves
+      // Build PDF — single page, reproduces the front-page boxes exactly
       // ─────────────────────────────────────────────────────────────────────────
       const buildPDF = (img) => {
-        const TOTAL_PAGES = 4;
-        let y = 0;
+        let y = 5;
 
-        // ████ PAGE 1 — Summary ████████████████████████████████████████████████
-        drawHeader(img);
-        y = HDR_H + 4;
+        // ── Header ─────────────────────────────────────────────────────────────
+        if (img) {
+          doc.addImage(img, 'PNG', M, y, CW, 18);
+          y += 21;
+          // small centered report title below the image
+          txt('PMC LOGISTICS REPORT', pageWidth/2, y+5, 10, C.darkBlue, true, 'center');
+          y += 8;
+        } else {
+          fill(M, y, CW, 18, 3, C.darkBlue);
+          txt('PMC LOGISTICS REPORT', pageWidth/2, y+8, 12, C.white, true, 'center');
+          txt('Fleet Analytics & Operations Report', pageWidth/2, y+14.5, 7.5, [180,205,255], false, 'center');
+          y += 21;
+        }
 
-        // Title banner
-        fill(M, y, CW, 18, 3, C.darkBlue);
-        txt('Analytics Dashboard Report', pageWidth/2, y+8, 16, C.white, true, 'center');
+        // ── Period bar + Active/Past drivers badges ─────────────────────────────
         const period = sanitize(document.getElementById('currentPeriodDisplay').textContent);
-        txt('Period: ' + period + '   •   ' +
-            new Date().toLocaleDateString('en-IN',{day:'2-digit',month:'long',year:'numeric'}),
-            pageWidth/2, y+15, 8, C.lgray, false, 'center');
-        y += 23;
+        fill(M, y, CW, 10, 2, [235,240,255]);
+        txt('Report Period: ' + period + '   |   ' +
+            new Date().toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}),
+            M+5, y+7, 7.5, C.darkBlue, true);
+        const bdW = 36;
+        // tighten spacing between the two small badges on the right
+        const gapBR = 6;
+        const rightX = pageWidth - M - bdW;
+        const leftX = rightX - bdW - gapBR;
+        fill(leftX, y+1, bdW, 8, 2, C.white);
+        stroke(leftX, y+1, bdW, 8, 2, C.lgray);
+        txt('Active Drivers', leftX+3, y+5.5, 5.5, C.gray);
+        txt(el('activeDrivers'), leftX+bdW-3, y+5.5, 7, C.dark, true, 'right');
+        fill(rightX, y+1, bdW, 8, 2, [254,226,226]);
+        stroke(rightX, y+1, bdW, 8, 2, [252,165,165]);
+        txt('Past Drivers', rightX+3, y+5.5, 5.5, C.red);
+        txt(el('pastDrivers'), rightX+bdW-3, y+5.5, 7, C.red, true, 'right');
+        y += 13;
 
-        // ── Operations KPIs ───────────────────────────────────────────────────
-        y = sectionHead('Operations Key Performance Indicators', y, C.darkBlue);
-        const cW4 = (CW-9)/4;
+        // ── Coloured box card (matches the front-end stat-box style) ───────────
+        const sCard = (xx, yy, w, h, label, value, sub, bgRGB, fgRGB) => {
+          fill(xx, yy, w, h, 3, bgRGB);
+          doc.setFontSize(6); doc.setTextColor(...fgRGB); doc.setFont('helvetica','normal');
+          doc.text(label, xx+4, yy+5.5);
+          doc.setFontSize(9); doc.setFont('helvetica','bold');
+          doc.text(sanitize(String(value)), xx+4, yy+(sub ? 12.5 : h/2+4));
+          if (sub) {
+            doc.setFontSize(5.5); doc.setFont('helvetica','normal');
+            doc.text(sanitize(String(sub)), xx+4, yy+h-2.5);
+          }
+        };
+
+        // ── Section heading bar ───────────────────────────────────────────────
+        const secBar = (title, yy, bgRGB, accentRGB) => {
+          fill(M, yy, CW, 7.5, 2, bgRGB);
+          fill(M, yy, 3.5, 7.5, 0, accentRGB);
+          doc.setFontSize(8.5); doc.setTextColor(...C.white); doc.setFont('helvetica','bold');
+          doc.text(title, M+7, yy+5.5);
+          return yy + 10.5;
+        };
+
+        const G   = 3;    // gap between cards
+        const CH  = 18;   // tall card height (shows avg/day sub-line)
+        const SH  = 13;   // short card height
+        const cW4 = (CW - G*3) / 4;
+        const cW3 = (CW - G*2) / 3;
+        const cW5 = (CW - G*4) / 5;
+
+        // ══════════════════════════════════════════════════════════════════════
+        // 1. OPERATIONS — KEY METRICS
+        // ══════════════════════════════════════════════════════════════════════
+        y = secBar('Operations - Key Metrics', y, C.darkBlue, [255,210,0]);
+
         [
-          { label:'Total Trips',      value:el('totalTrips'),      sub:'Trip sheets logged',  color:C.yellow  },
-          { label:'Fuel Consumed',    value:el('totalFuel'),        sub:'Litres dispensed',    color:C.amber   },
-          { label:'Total Distance',   value:el('totalDistance'),    sub:'Kilometres covered',  color:C.green   },
-          { label:'Fuel Expenditure', value:el('totalExpenditure'), sub:'Total fuel cost',     color:C.blue    },
-        ].forEach((c,i) => metricCard(M+i*(cW4+3), y, cW4, 23, c.label, c.value, c.sub, c.color));
-        y += 28;
+          { label:'Total Trips',    value:el('totalTrips'),    sub:'Avg/day: '+el('avgTripsPerDay'),    bg:[239,175,43],  fg:[60,30,0] },
+          { label:'Active Bus',     value:el('activeVehicles'),sub:'Currently active',                  bg:[59,130,246],  fg:[255,255,255] },
+          { label:'Fuel Consumed',  value:el('totalFuel'),     sub:'Avg/day: '+el('avgFuelPerDay'),     bg:[245,158,11],  fg:[255,255,255] },
+          { label:'Total Distance', value:el('totalDistance'), sub:'Avg/day: '+el('avgDistancePerDay'), bg:[16,185,129],  fg:[255,255,255] },
+        ].forEach((c,i) => sCard(M+i*(cW4+G), y, cW4, CH, c.label, c.value, c.sub, c.bg, c.fg));
+        y += CH + 2;
 
-        // ── Stock KPIs ────────────────────────────────────────────────────────
-        y = sectionHead('Stock Management Key Performance Indicators', y, C.purple);
         [
-          { label:'Purchases',   value:el('totalPurchases'),   sub:'Purchase entries',   color:C.purple },
-          { label:'Issues',      value:el('totalIssues'),      sub:'Stock issued',        color:C.pink   },
-          { label:'Utilization', value:el('totalUtilization'), sub:'Materials utilized',  color:C.teal   },
-          { label:'Scrap',       value:el('totalScrap'),       sub:'Scrapped items',      color:C.slate  },
-        ].forEach((c,i) => metricCard(M+i*(cW4+3), y, cW4, 23, c.label, c.value, c.sub, c.color));
-        y += 28;
+          { label:'Fuel Expenditure', value:el('totalExpenditure'), sub:'Avg/day: '+el('avgExpPerDay'),      bg:[6,182,212],   fg:[255,255,255] },
+          { label:'Students',         value:el('totalStudents'),    sub:'Avg/day: '+el('avgStudentsPerDay'), bg:[139,92,246],  fg:[255,255,255] },
+          { label:'Faculty',          value:el('totalFaculty'),     sub:'Avg/day: '+el('avgFacultyPerDay'),  bg:[236,72,153],  fg:[255,255,255] },
+          { label:'Average Mileage',  value:el('avgMileage'),       sub:'Fleet avg',                         bg:[100,116,139], fg:[255,255,255] },
+        ].forEach((c,i) => sCard(M+i*(cW4+G), y, cW4, CH, c.label, c.value, c.sub, c.bg, c.fg));
+        y += CH + 4;
 
-        // Purchase value highlight
-        fill(M, y, CW, 13, 3, [237, 233, 254]);
-        stroke(M, y, CW, 13, 3, C.purple, 0.4);
-        fill(M, y+2, 3, 9, 2, C.purple);
-        txt('Total Purchase Value (Net Payable):', M+8, y+5.5, 8, C.purple);
-        txt('Rs. ' + el('purchaseValue'), M+8, y+11, 11, C.purple, true);
+        // ══════════════════════════════════════════════════════════════════════
+        // 2. STOCK MANAGEMENT
+        // ══════════════════════════════════════════════════════════════════════
+        y = secBar('Stock Management', y, [67,20,120], [200,150,255]);
+
+        [
+          { label:'Opening Stock',  value:el('openingStock'),    bg:[168,232,245], fg:[17,94,89] },
+          { label:'Purchase',       value:el('purchasesCount'),  bg:[139,92,246],  fg:[255,255,255] },
+          { label:'Utilization',    value:el('utilizationCount'),bg:[20,184,166],  fg:[255,255,255] },
+          { label:'Scrap',          value:el('scrapCount'),      bg:[100,116,139], fg:[255,255,255] },
+        ].forEach((c,i) => sCard(M+i*(cW4+G), y, cW4, SH, c.label, c.value, null, c.bg, c.fg));
+        y += SH + 2;
+
+        [
+          { label:'Purchase Return',      value:el('purchaseReturnCount'), bg:[236,72,153], fg:[255,255,255] },
+          { label:'Closing Stock',        value:el('closingStock'),        bg:[245,158,11], fg:[255,255,255] },
+          { label:'Total Purchase Value', value:el('totalPurchaseValue'),  bg:[16,185,129], fg:[255,255,255] },
+        ].forEach((c,i) => sCard(M+i*(cW3+G), y, cW3, SH, c.label, c.value, null, c.bg, c.fg));
+        y += SH + 4;
+
+        // ══════════════════════════════════════════════════════════════════════
+        // 3. TOTAL EXPENDITURE
+        // ══════════════════════════════════════════════════════════════════════
+        y = secBar('Total Expenditure', y, [185,28,28], [255,180,0]);
+
+        [
+          { label:'Purchase (expenditure)', value:el('purchaseExpenditure'), bg:[254,214,170], fg:[92,45,0] },
+          { label:'Fuel',                   value:el('fuelExpenditure'),     bg:[245,158,11],  fg:[255,255,255] },
+          { label:'Driver Salary',          value:el('driverSalary'),        bg:[199,210,254], fg:[55,48,163] },
+          { label:'Rate & Taxes',           value:el('rateAndTaxes'),        bg:[209,250,229], fg:[6,95,70] },
+        ].forEach((c,i) => sCard(M+i*(cW4+G), y, cW4, SH, c.label, c.value, null, c.bg, c.fg));
+        y += SH + 4;
+
+        // ══════════════════════════════════════════════════════════════════════
+        // 4. STATUTORY COMPLIANCE STATUS
+        // ══════════════════════════════════════════════════════════════════════
+        y = secBar('Statutory Compliance Status', y, [20,100,60], [100,235,140]);
+
+        const statItems = [
+          { label:'LIVE',     value:el('compliantCount'), desc:'UP TO DATE', color:C.green },
+          { label:'Due Soon', value:el('dueSoonCount'),   desc:'Within 30 days', color:C.amber },
+          { label:'Overdue',  value:el('overdueCount'),   desc:'Needs attention', color:C.red },
+        ];
+        statItems.forEach((c,i) => compBadgeSmall(M+i*(cW3+G), y, cW3, c.label, c.value, c.desc, c.color));
+        y += 20;
+
+        [
+          { label:'FC',        value:el('fcCount'),        bg:[239,246,255], fg:[29,78,216] },
+          { label:'Insurance', value:el('insuranceCount'), bg:[238,242,255], fg:[79,70,229] },
+          { label:'Tax',       value:el('taxCount'),       bg:[255,251,235], fg:[161,98,7] },
+          { label:'Permit',    value:el('permitCount'),    bg:[236,253,245], fg:[4,120,87] },
+          { label:'PUCC',      value:el('puccCount'),      bg:[248,250,252], fg:[51,65,85] },
+        ].forEach((c,i) => sCard(M+i*(cW5+G), y, cW5, SH-2, c.label, c.value, null, c.bg, c.fg));
+        y += (SH-2) + 4;
+
+        // ══════════════════════════════════════════════════════════════════════
+        // 5. PAYMENTS MADE
+        // ══════════════════════════════════════════════════════════════════════
+        y = secBar('Payments Made', y, [30,58,138], [147,210,255]);
+
+        [
+          { label:'Rate & Taxes',  value:el('paymentRateTaxes'),    bg:[254,252,232], fg:[180,83,9] },
+          { label:'Driver Salary', value:el('paymentDriverSalary'), bg:[224,242,254], fg:[3,105,161] },
+          { label:'Total Fuel',    value:el('paymentFuel'),         bg:[254,242,242], fg:[185,28,28] },
+          { label:'Maintenance',   value:el('paymentMaintenance'),  bg:[238,242,255], fg:[124,58,237] },
+        ].forEach((c,i) => sCard(M+i*(cW4+G), y, cW4, SH, c.label, c.value, null, c.bg, c.fg));
+        y += SH + 4;
+
+        // ══════════════════════════════════════════════════════════════════════
+        // 6. ACCIDENTS & INCIDENTS
+        // ══════════════════════════════════════════════════════════════════════
+        y = secBar('Accidents & Incidents', y, [185,28,28], [255,180,0]);
+
+        [
+          { label:'No. of Accidents',           value:el('accidentsCount'),   bg:[254,226,226], fg:[127,29,29] },
+          { label:'No. of Incidents',           value:el('incidentsCount'),   bg:[254,243,199], fg:[146,64,14] },
+          { label:'Total Payments (Incidents)', value:el('incidentsPayments'),bg:[238,242,255], fg:[30,58,138] },
+        ].forEach((c,i) => sCard(M+i*(cW3+G), y, cW3, SH, c.label, c.value, null, c.bg, c.fg));
+        y += SH + 4;
+
+        // ══════════════════════════════════════════════════════════════════════
+        // 7. OVERALL EXPENDITURE BANNER
+        // ══════════════════════════════════════════════════════════════════════
+        fill(M, y, CW, 14, 3, C.white);
+        stroke(M, y, CW, 14, 3, C.lgray, 0.5);
+        fill(M, y, 4, 14, 2, C.darkBlue);
+        txt('Overall Expenditure', M+9, y+5.5, 8, C.dark, true);
+        txt('Aggregated total of all expense categories', M+9, y+11, 5.5, C.gray);
+        txt(sanitize(document.getElementById('overallExpenditure').textContent),
+            pageWidth-M-4, y+10, 13, C.darkBlue, true, 'right');
         y += 18;
 
-        // ── Quick Stats ───────────────────────────────────────────────────────
-        y = sectionHead('Quick Statistics', y, C.teal);
-        [
-          { label:'Active Vehicles', value:el('activeVehicles'), color:C.purple },
-          { label:'Avg Fuel / Trip', value:el('avgFuelPerTrip'), color:C.pink   },
-          { label:'Stock Turnover',  value:el('stockTurnover'),  color:C.teal   },
-          { label:'Scrap Rate',      value:el('scrapRate'),      color:C.slate  },
-        ].forEach((c,i) => metricCard(M+i*(cW4+3), y, cW4, 21, c.label, c.value, '', c.color));
-        y += 26;
+        // ── Footer (no horizontal divider) ─────────────────────────────────────
+        fill(M, pageHeight-12, CW, 9, 2, C.offWhite);
+        const footerLeft = 'PMC Logistics  |  Drive Logs Analytics  |  Period: ' + period + '  Page 1 of 2';
+        txt(footerLeft, M+3, pageHeight-6.5, 6.5, C.darkBlue);
+        txt(new Date().toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}) +
+          '  ' + new Date().toLocaleTimeString(), pageWidth-M-3, pageHeight-6.5, 6.5, C.gray, false, 'right');
 
-        // ── Statutory Compliance ──────────────────────────────────────────────
-        y = sectionHead('Statutory Compliance Status', y, C.green);
-        const cW3 = (CW-6)/3;
-        [
-          { label:'Compliant', value:el('compliantCount'), desc:'Up to date',     color:C.green },
-          { label:'Due Soon',  value:el('dueSoonCount'),   desc:'Within 30 days', color:C.amber },
-          { label:'Overdue',   value:el('overdueCount'),   desc:'Needs attention',color:C.red   },
-        ].forEach((c,i) => compBadge(M+i*(cW3+3), y, cW3, c.label, c.value, c.desc, c.color));
-        y += 32;
-
-        // Summary box
-        fill(M, y, CW, 28, 3, C.bgYellow);
-        stroke(M, y, CW, 28, 3, C.yellow, 0.4);
-        fill(M, y+2, 3, 24, 2, C.yellow);
-        txt('Report Summary', M+8, y+7, 9, C.yellow, true);
-        const lines = [
-          'Total operational trips: ' + el('totalTrips') + '  |  Distance: ' + el('totalDistance') + '  |  Fuel: ' + el('totalFuel'),
-          'Stock — Purchases: ' + el('totalPurchases') + '  |  Issues: ' + el('totalIssues') + '  |  Utilization: ' + el('totalUtilization') + '  |  Scrap: ' + el('totalScrap'),
-          'Statutory — Compliant: ' + el('compliantCount') + '  |  Due Soon: ' + el('dueSoonCount') + '  |  Overdue: ' + el('overdueCount'),
-        ];
-        lines.forEach((l,i) => txt(l, M+8, y+13+(i*5), 7.5, C.dark));
-
-        drawFooter(1, TOTAL_PAGES);
-
-        // ████ PAGE 2 — Charts: Fuel + Trip ████████████████████████████████████
+        // ── PAGE 2 — Additional Analytics + Vehicles Table ──────────────────────
         doc.addPage();
         drawHeader(img);
-        y = HDR_H + 6;
+        let y2 = HDR_H + 6;
 
-        y = sectionHead('Fuel Consumption Trend', y, C.amber);
-        fill(M, y, CW, 72, 3, C.white);
-        stroke(M, y, CW, 72, 3, C.lgray);
-        doc.addImage(document.getElementById('fuelChart').toDataURL('image/png',1.0), 'PNG', M+2, y+2, CW-4, 68);
-        y += 78;
+        // Charts area (stacked)
+        y2 = sectionHead('Additional Analytics — Charts', y2, C.amber);
+        const chartH = 68;
+        fill(M, y2, CW, chartH, 3, C.white); stroke(M, y2, CW, chartH, 3, C.lgray);
+        const fuelCanvasEl = document.getElementById('fuelChart');
+        if (fuelCanvasEl) {
+          try { doc.addImage(fuelCanvasEl.toDataURL('image/png',1.0), 'PNG', M+2, y2+2, CW-4, chartH-4); } catch(e){}
+        }
+        y2 += chartH + 6;
 
-        y = sectionHead('Trip Statistics', y, C.yellow);
-        fill(M, y, CW, 72, 3, C.white);
-        stroke(M, y, CW, 72, 3, C.lgray);
-        doc.addImage(document.getElementById('tripChart').toDataURL('image/png',1.0), 'PNG', M+2, y+2, CW-4, 68);
+        fill(M, y2, CW, chartH, 3, C.white); stroke(M, y2, CW, chartH, 3, C.lgray);
+        const tripCanvasEl = document.getElementById('tripChart');
+        if (tripCanvasEl) {
+          try { doc.addImage(tripCanvasEl.toDataURL('image/png',1.0), 'PNG', M+2, y2+2, CW-4, chartH-4); } catch(e){}
+        }
+        y2 += chartH + 6;
 
-        drawFooter(2, TOTAL_PAGES);
+        // Expenditure breakdown
+        y2 = sectionHead('Expenditure Breakdown', y2, C.red);
+        fill(M, y2, CW, chartH, 3, C.white); stroke(M, y2, CW, chartH, 3, C.lgray);
+        const ebdCanvasEl = document.getElementById('expBreakdownChart') || document.getElementById('expenditureChart');
+        if (ebdCanvasEl) {
+          try { doc.addImage(ebdCanvasEl.toDataURL('image/png',1.0), 'PNG', M+2, y2+2, CW-4, chartH-4); } catch(e){}
+        }
+        y2 += chartH + 8;
 
-        // ████ PAGE 3 — Charts: Vehicle + Stock + Expenditure ██████████████████
-        doc.addPage();
-        drawHeader(img);
-        y = HDR_H + 6;
-
-        y = sectionHead('Vehicle Utilization  &  Stock Management Flow', y, C.blue);
-        const hW = (CW-5)/2;
-        fill(M,     y, hW, 72, 3, C.white); stroke(M,     y, hW, 72, 3, C.lgray);
-        fill(M+hW+5,y, hW, 72, 3, C.white); stroke(M+hW+5,y, hW, 72, 3, C.lgray);
-        doc.addImage(document.getElementById('vehicleChart').toDataURL('image/png',1.0), 'PNG', M+2,       y+2, hW-4, 68);
-        doc.addImage(document.getElementById('stockChart').toDataURL('image/png',1.0),  'PNG', M+hW+7,    y+2, hW-4, 68);
-        y += 78;
-
-        y = sectionHead('Expenditure Breakdown', y, C.red);
-        fill(M, y, CW, 82, 3, C.white); stroke(M, y, CW, 82, 3, C.lgray);
-        doc.addImage(document.getElementById('expenditureChart').toDataURL('image/png',1.0), 'PNG', M+CW/4, y+2, CW/2, 78);
-
-        drawFooter(3, TOTAL_PAGES);
-
-        // ████ PAGE 4 — All Vehicles Table █████████████████████████████████████
-        doc.addPage();
-        drawHeader(img);
-        y = HDR_H + 6;
-
-        y = sectionHead('All Performing Vehicles — Detailed Report', y, C.darkBlue);
-
-        // Table column config
-        const colW  = [32, 24, 38, 38, 38];
+        // Vehicles table (detailed)
+        y2 = sectionHead('All Performing Vehicles — Detailed Report', y2, C.darkBlue);
+        const colW  = [40, 28, 40, 40, 40];
         const colX  = [M];
         colW.forEach((w,i) => { if(i>0) colX.push(colX[i-1]+colW[i-1]); });
         const hdrs  = ['Vehicle ID','Trips','Distance (KM)','Fuel Used (L)','Efficiency'];
         const ROW_H = 7;
-
-        const drawTableHeader = (y) => {
-          fill(M, y, CW, ROW_H+1, 2, C.darkBlue);
-          hdrs.forEach((h,i) => {
-            txt(h, colX[i]+2, y+ROW_H-1, 7, C.white, true);
-          });
-          return y + ROW_H + 2;
-        };
-
-        y = drawTableHeader(y);
-
-        const tableRows = document.querySelectorAll('#topVehiclesTable tr');
+        const drawTableHeader = (yy) => { fill(M, yy, CW, ROW_H+1, 2, C.darkBlue); hdrs.forEach((h,i)=> txt(h, colX[i]+2, yy+ROW_H-1, 7, C.white, true)); return yy + ROW_H + 2; };
+        y2 = drawTableHeader(y2);
+        const tableRows = document.querySelectorAll('#topVehiclesTable tbody tr');
         let rowIdx = 0;
         tableRows.forEach(row => {
-          const cells = row.querySelectorAll('td');
-          if (cells.length === 0) return;
-
-          if (y + ROW_H > pageHeight - 18) {
-            drawFooter(4, TOTAL_PAGES);
-            doc.addPage();
-            drawHeader(img);
-            y = HDR_H + 8;
-            y = drawTableHeader(y);
+          const cells = row.querySelectorAll('td'); if (cells.length === 0) return;
+          if (y2 + ROW_H > pageHeight - 18) {
+            // footer for this page (minimal)
+            fill(M, pageHeight-12, CW, 9, 2, C.offWhite);
+            const footerLeftPart = 'PMC Logistics  |  Drive Logs Analytics  |  Period: ' + period + '  Page 2 of 2';
+            txt(footerLeftPart, M+3, pageHeight-6.5, 6.5, C.darkBlue);
+            txt(new Date().toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}) +
+              '  ' + new Date().toLocaleTimeString(), pageWidth-M-3, pageHeight-6.5, 6.5, C.gray, false, 'right');
+            doc.addPage(); drawHeader(img); y2 = HDR_H + 8; y2 = drawTableHeader(y2);
           }
-
-          fill(M, y, CW, ROW_H, 0, rowIdx % 2 === 0 ? C.white : C.offWhite);
-          doc.setDrawColor(...C.lgray); doc.setLineWidth(0.2);
-          doc.line(M, y+ROW_H, M+CW, y+ROW_H);
-
-          cells.forEach((td, i) => {
-            const isNum = i > 0;
-            const color = i === 4 ? C.green : C.dark;
-            txt(sanitize(td.textContent), colX[i]+2, y+ROW_H-2, 8, color, i===0);
-          });
-          y += ROW_H;
-          rowIdx++;
+          fill(M, y2, CW, ROW_H, 0, rowIdx % 2 === 0 ? C.white : C.offWhite);
+          doc.setDrawColor(...C.lgray); doc.setLineWidth(0.2); doc.line(M, y2+ROW_H, M+CW, y2+ROW_H);
+          cells.forEach((td, i) => { const color = i === 4 ? C.green : C.dark; txt(sanitize(td.textContent), colX[i]+2, y2+ROW_H-2, 8, color, i===0); });
+          y2 += ROW_H; rowIdx++;
         });
 
-        // Bottom border of table
-        doc.setDrawColor(...C.lgray); doc.setLineWidth(0.3);
-        doc.line(M, y, M+CW, y);
+        // final footer on page 2 (minimal)
+        fill(M, pageHeight-12, CW, 9, 2, C.offWhite);
+        txt('PMC Logistics  |  Drive Logs Analytics  |  Period: ' + period + '  Page 2 of 2', M+3, pageHeight-6.5, 6.5, C.darkBlue);
+        txt(new Date().toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}) +
+          '  ' + new Date().toLocaleTimeString(), pageWidth-M-3, pageHeight-6.5, 6.5, C.gray, false, 'right');
 
-        drawFooter(4, TOTAL_PAGES);
-
-        // ── Save ──────────────────────────────────────────────────────────────
+        // ── Save ───────────────────────────────────────────────────────────────
         const pLabel = sanitize(document.getElementById('currentPeriodDisplay').textContent).replace(/\s+/g,'_');
-        doc.save('DriveLogsReport_' + pLabel + '_' + new Date().toISOString().split('T')[0] + '.pdf');
+        doc.save('PMC_LogisticsReport_' + pLabel + '_' + new Date().toISOString().split('T')[0] + '.pdf');
       };
 
       // Load header image
@@ -976,7 +1335,7 @@
   }
 
   async function showStatutoryList(status) {
-    const titleMap = { 'compliant': 'Up to Date', 'due_soon': 'Due Soon', 'overdue': 'Overdue' };
+    const titleMap = { 'compliant': 'LIVE', 'due_soon': 'Due Soon', 'overdue': 'Overdue' };
     const title = titleMap[status] || status;
     document.getElementById('statModalTitle').textContent = title + ' Records';
     const tbody = document.getElementById('statModalTableBody');
