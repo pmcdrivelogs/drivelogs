@@ -3882,6 +3882,44 @@ def admin_vehicles():
 
     return render_template('admin_vehicles.html', vehicles=vehicles, rows_per_page=per_page, js_rows_per_page=js_rows_per_page, id_from=id_from, id_to=id_to)
 
+
+@app.route('/admin/vehicles/inline-update', methods=['POST'])
+@admin_required
+def admin_vehicles_inline_update():
+    try:
+        data = request.get_json(force=True)
+        if not data:
+            return jsonify({'success': False, 'error': 'missing payload'}), 400
+
+        vehicle_id = data.get('vehicle_id')
+        if not vehicle_id:
+            return jsonify({'success': False, 'error': 'missing vehicle_id'}), 400
+
+        # Prepare patch only for allowed fields (dates and editable text fields)
+        allowed = ('make', 'model', 'date_of_registration', 'fitness_validity', 'insurance_validity', 'permit_validity', 'pucc_validity', 'tax_validity')
+        patch = {}
+        for k in allowed:
+            if k in data:
+                # Normalize empty strings to None
+                v = data.get(k) or None
+                patch[k] = v
+
+        if not patch:
+            return jsonify({'success': False, 'error': 'no updatable fields provided'}), 400
+
+        # Call DB helper
+        result = admin_update_vehicle(vehicle_id, patch)
+        if result:
+            return jsonify({'success': True, 'vehicle': result}), 200
+        else:
+            return jsonify({'success': False, 'error': 'update failed'}), 500
+    except Exception as e:
+        try:
+            app.logger.exception('Error in inline-update')
+        except Exception:
+            pass
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 @app.route('/admin/vehicles/view/<int:vehicle_id>', methods=['GET'])
 @admin_required
 def admin_view_vehicle(vehicle_id):
