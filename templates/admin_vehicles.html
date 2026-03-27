@@ -50,6 +50,8 @@
         <a href="{{ url_for('admin_add_vehicle_page') }}" class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg font-semibold transition-colors">
           + Add New Vehicle
         </a>
+        <button id="toggleEditBtn" class="bg-yellow-500 hover:bg-yellow-600 text-gray-900 px-4 py-2 rounded-lg font-semibold transition-colors">Enable Edit</button>
+        <button id="exportCsvBtn" class="bg-gray-200 hover:bg-gray-300 text-gray-800 px-3 py-2 rounded-lg text-sm">Export Dates CSV</button>
       </div>
 
       <form method="GET" class="flex items-center gap-2">
@@ -80,7 +82,9 @@
               <th class="px-4 py-3 text-left">S.No</th>
               <th class="px-4 py-3 text-left">Vehicle ID</th>
               <th class="px-4 py-3 text-left">Registration No</th>
-              <th class="px-4 py-3 text-left">Make/Model</th>
+              <th class="px-4 py-3 text-left">Make</th>
+              <th class="px-4 py-3 text-left">Model</th>
+              <th class="px-4 py-3 text-left">Date of Registration</th>
               <th class="px-4 py-3 text-left">Fitness</th>
               <th class="px-4 py-3 text-left">Insurance</th>
               <th class="px-4 py-3 text-left">Permit</th>
@@ -96,12 +100,14 @@
                 <td class="px-4 py-3 font-semibold">{{ loop.index }}</td>
                 <td class="px-4 py-3 font-bold text-blue-600">{{ vehicle.vehicle_id }}</td>
                 <td class="px-4 py-3 font-medium">{{ vehicle.registration_no or '-' }}</td>
-                <td class="px-4 py-3 text-sm">{{ vehicle.make or '-' }} / {{ vehicle.model or '-' }}</td>
-                <td class="px-4 py-3 text-sm">{{ vehicle.fitness_validity[:10] if vehicle.fitness_validity else '-' }}</td>
-                <td class="px-4 py-3 text-sm">{{ vehicle.insurance_validity[:10] if vehicle.insurance_validity else '-' }}</td>
-                <td class="px-4 py-3 text-sm">{{ vehicle.permit_validity[:10] if vehicle.permit_validity else '-' }}</td>
-                <td class="px-4 py-3 text-sm">{{ vehicle.pucc_validity[:10] if vehicle.pucc_validity else '-' }}</td>
-                <td class="px-4 py-3 text-sm">{{ vehicle.tax_validity[:10] if vehicle.tax_validity else '-' }}</td>
+                  <td class="px-4 py-3 font-medium editable-cell" data-field="make">{{ vehicle.make or '' }}</td>
+                  <td class="px-4 py-3 font-medium editable-cell" data-field="model">{{ vehicle.model or '' }}</td>
+                  <td class="px-4 py-3 text-sm date-cell" data-field="date_of_registration">{{ vehicle.date_of_registration[:10] if vehicle.date_of_registration else '' }}</td>
+                <td class="px-4 py-3 text-sm date-cell" data-field="fitness_validity">{{ vehicle.fitness_validity[:10] if vehicle.fitness_validity else '' }}</td>
+                <td class="px-4 py-3 text-sm date-cell" data-field="insurance_validity">{{ vehicle.insurance_validity[:10] if vehicle.insurance_validity else '' }}</td>
+                <td class="px-4 py-3 text-sm date-cell" data-field="permit_validity">{{ vehicle.permit_validity[:10] if vehicle.permit_validity else '' }}</td>
+                <td class="px-4 py-3 text-sm date-cell" data-field="pucc_validity">{{ vehicle.pucc_validity[:10] if vehicle.pucc_validity else '' }}</td>
+                <td class="px-4 py-3 text-sm date-cell" data-field="tax_validity">{{ vehicle.tax_validity[:10] if vehicle.tax_validity else '' }}</td>
                 <td class="px-4 py-3 text-center">
                   <div class="flex justify-center gap-2">
                     <a href="{{ url_for('admin_view_vehicle', vehicle_id=vehicle.id) }}" class="bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded text-sm font-medium transition-colors">
@@ -110,6 +116,9 @@
                     <a href="{{ url_for('admin_edit_vehicle', vehicle_id=vehicle.id) }}" class="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-sm font-medium transition-colors">
                       Edit
                     </a>
+                    <button type="button" class="inline-save-btn bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1 rounded text-sm font-medium transition-colors" style="display:none" data-vehicle-id="{{ vehicle.id }}">
+                      Save
+                    </button>
                     <form method="POST" action="{{ url_for('admin_delete_vehicle_route', vehicle_id=vehicle.id) }}" class="inline" onsubmit="return confirm('Are you sure you want to DELETE this vehicle? This action cannot be undone!');">
                       <button type="submit" class="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded text-sm font-medium transition-colors">
                         Delete
@@ -121,11 +130,11 @@
               {% endfor %}
             {% else %}
               <tr>
-                <td colspan="10" class="px-4 py-8 text-center text-gray-500">No vehicles found</td>
+                <td colspan="12" class="px-4 py-8 text-center text-gray-500">No vehicles found</td>
               </tr>
             {% endif %}
             <tr id="noResultsRow" style="display:none">
-              <td colspan="10" class="px-4 py-8 text-center text-gray-500">No matching vehicles</td>
+              <td colspan="12" class="px-4 py-8 text-center text-gray-500">No matching vehicles</td>
             </tr>
           </tbody>
         </table>
@@ -255,8 +264,144 @@
       if (searchInput) {
         searchInput.addEventListener('input', debounce(applySearchFilter, 250));
       }
+
+      // Inline edit toggle and per-row save handlers
+      const toggleEditBtn = document.getElementById('toggleEditBtn');
+      const exportCsvBtn = document.getElementById('exportCsvBtn');
+      let editMode = false;
+
+      function enableEditMode(on) {
+        editMode = !!on;
+        const saveButtons = Array.from(document.querySelectorAll('.inline-save-btn'));
+
+        saveButtons.forEach(b => b.style.display = editMode ? '' : 'none');
+
+        // For each row, convert editable cells into inputs when editMode
+        const rows = Array.from(document.querySelectorAll('#vehiclesTable tbody tr')).filter(r => r.id !== 'noResultsRow');
+        rows.forEach(row => {
+          const editable = Array.from(row.querySelectorAll('[data-field]'));
+          editable.forEach(cell => {
+            const field = cell.getAttribute('data-field');
+            const cur = cell.innerText && cell.innerText.trim() !== '' ? cell.innerText.trim() : '';
+            if (editMode) {
+              // choose input type by field name
+              let inp;
+              if (field && field.toLowerCase().indexOf('date') !== -1 || field.indexOf('validity') !== -1) {
+                inp = document.createElement('input');
+                inp.type = 'date';
+              } else {
+                inp = document.createElement('input');
+                inp.type = 'text';
+              }
+              inp.value = cur;
+              inp.className = 'border px-2 py-1 rounded text-sm w-full';
+              inp.setAttribute('data-field', field);
+              cell.innerHTML = '';
+              cell.appendChild(inp);
+            } else {
+              // revert inputs back to text
+              const inp = cell.querySelector('input');
+              if (inp) {
+                const v = inp.value || '';
+                cell.innerHTML = v;
+              }
+            }
+          });
+        });
+      }
+
+      if (toggleEditBtn) {
+        toggleEditBtn.addEventListener('click', () => {
+          enableEditMode(!editMode);
+          toggleEditBtn.textContent = editMode ? 'Disable Edit' : 'Enable Edit';
+        });
+      }
+
+      // Save handler per row
+      document.addEventListener('click', (e) => {
+        const btn = e.target.closest && e.target.closest('.inline-save-btn');
+        if (!btn) return;
+        const vehicleId = btn.getAttribute('data-vehicle-id');
+        if (!vehicleId) return;
+        const row = btn.closest('tr');
+        if (!row) return;
+
+        const payload = { vehicle_id: vehicleId };
+        const inputs = Array.from(row.querySelectorAll('[data-field] input'));
+        inputs.forEach(i => {
+          const k = i.getAttribute('data-field');
+          payload[k] = i.value || null;
+        });
+
+        btn.disabled = true;
+        btn.textContent = 'Saving...';
+
+        fetch('{{ url_for("admin_vehicles_inline_update") }}', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        }).then(r => r.json()).then(js => {
+          if (js && js.success) {
+            // reflect saved values back to table
+            inputs.forEach(i => {
+              const v = i.value || '';
+              const td = i.closest('td');
+              if (td) td.innerHTML = v;
+            });
+            btn.textContent = 'Saved';
+            setTimeout(() => { btn.textContent = 'Save'; }, 1200);
+          } else {
+            alert('Save failed: ' + (js && js.error ? js.error : 'Unknown'));
+            btn.textContent = 'Save';
+          }
+        }).catch(err => {
+          console.error(err);
+          alert('Save failed: ' + err);
+          btn.textContent = 'Save';
+        }).finally(()=>{ btn.disabled = false; });
+      });
+
+      // Export CSV for only these date fields
+      if (exportCsvBtn) {
+        exportCsvBtn.addEventListener('click', () => {
+          const header = ['vehicle_id','registration_no','make','model','date_of_registration','fitness_validity','insurance_validity','permit_validity','pucc_validity','tax_validity'];
+          const rows = [];
+          const trs = Array.from(document.querySelectorAll('#vehiclesTable tbody tr')).filter(r => r.id !== 'noResultsRow');
+          trs.forEach(tr => {
+            const tds = tr.querySelectorAll('td');
+            const vehicleId = (tds[1] && tds[1].innerText.trim()) || '';
+            const reg = (tds[2] && tds[2].innerText.trim()) || '';
+            const make = (tds[3] && tds[3].innerText.trim()) || '';
+            const model = (tds[4] && tds[4].innerText.trim()) || '';
+            const dateReg = (tds[5] && tds[5].innerText.trim()) || '';
+            // after these, date columns
+            const fitness = (tds[6] && tds[6].innerText.trim()) || '';
+            const insurance = (tds[7] && tds[7].innerText.trim()) || '';
+            const permit = (tds[8] && tds[8].innerText.trim()) || '';
+            const pucc = (tds[9] && tds[9].innerText.trim()) || '';
+            const tax = (tds[10] && tds[10].innerText.trim()) || '';
+            rows.push([vehicleId, reg, make, model, dateReg, fitness, insurance, permit, pucc, tax]);
+          });
+
+          let csv = header.join(',') + '\n';
+          rows.forEach(r => {
+            csv += r.map(v => '"' + String(v || '').replace(/"/g,'""') + '"').join(',') + '\n';
+          });
+
+          const blob = new Blob([csv], { type: 'text/csv' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = 'vehicles_dates.csv';
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          URL.revokeObjectURL(url);
+        });
+      }
     });
   </script>
 {% include 'footer.html' %}
 </body>
 </html>
+
