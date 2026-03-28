@@ -345,15 +345,8 @@
           {% for alert in due_soon_alerts %}
             <div class="alert-item {{ alert.alert_type }}">
               <div class="flex justify-between items-start mb-2">
-                <span class="font-semibold text-gray-800 text-sm">{{ alert.registration_no or alert.type_of_transaction or 'Record' }}</span>
                 <span class="px-3 py-1 rounded-full text-xs font-bold {% if alert.alert_type == 'overdue' %}bg-red-100 text-red-600{% else %}bg-yellow-100 text-yellow-800{% endif %}">
-                  {% if alert.days_remaining < 0 %}
-                    OVERDUE
-                  {% elif alert.days_remaining == 0 %}
-                    DUE TODAY
-                  {% else %}
-                    {{ alert.days_remaining }} days
-                  {% endif %}
+                  {% if alert.days_remaining < 0 %}OVERDUE{% elif alert.days_remaining == 0 %}DUE TODAY{% else %}{{ alert.days_remaining }} days{% endif %}
                 </span>
               </div>
               <div class="flex items-center gap-2 text-sm">
@@ -539,65 +532,28 @@
               </svg>
             </div>
             <span class="title">Log Book</span>
-            <span class="subtitle">Daily records & entries</span>
+            <span class="subtitle">Daily records &amp; entries</span>
           </a>
           {% endif %}
 
-          <!-- Accidents / Incidents Card -->
+          <!-- Accidents / Incidents -->
           {% if 'Accidents/Incidents' in modules %}
-          <a href="{{ url_for('incidents_log') }}" class="menu-card" style="--accent-start: #f97316; --accent-end: #ea580c; --shadow-color: rgba(249, 115, 22, 0.35);">
+          <a href="{{ url_for('accidents_incidents_list') }}" class="menu-card" style="--accent-start: #dc2626; --accent-end: #991b1b; --shadow-color: rgba(220,38,38,0.35);">
             <div class="icon-wrapper">
               <svg fill="currentColor" viewBox="0 0 24 24">
                 <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
               </svg>
             </div>
             <span class="title">Accidents</span>
-            <span class="subtitle">Incidents log</span>
+            <span class="subtitle">Incidents &amp; Reports</span>
           </a>
           {% endif %}
         
         </div>
       </div>
-
-    <!--  Accidents / Incidents Section
-      {% if 'Accidents/Incidents' in modules %}
-      <div id="incidentsSection" class="glass-card rounded-3xl p-6 md:p-8 shadow-xl mt-8">
-        <div class="flex items-center justify-between mb-6">
-          <div class="flex items-center gap-3">
-            <div class="w-1 h-8 bg-gradient-to-b from-orange-500 to-red-600 rounded-full"></div>
-            <h2 class="text-xl font-bold text-gray-800">⚠️ Accidents / Incidents</h2>
-          </div>
-          <button id="openIncidentModal" class="bg-orange-500 hover:bg-orange-600 text-white px-5 py-2 rounded-full text-sm font-semibold">+ Add Row</button>
-        </div>
-        <div class="overflow-x-auto">
-          <table class="min-w-full divide-y divide-gray-200 text-sm" id="incidentTable">
-            <thead class="bg-orange-50">
-              <tr>
-                <th class="px-3 py-2 text-left font-semibold text-gray-700 whitespace-nowrap">DATE</th>
-                <th class="px-3 py-2 text-left font-semibold text-gray-700 whitespace-nowrap">TYPE</th>
-                <th class="px-3 py-2 text-left font-semibold text-gray-700 whitespace-nowrap">DRIVER ID</th>
-                <th class="px-3 py-2 text-left font-semibold text-gray-700 whitespace-nowrap">DRIVER NAME</th>
-                <th class="px-3 py-2 text-left font-semibold text-gray-700 whitespace-nowrap">VEHICLE ID</th>
-                <th class="px-3 py-2 text-left font-semibold text-gray-700 whitespace-nowrap">VEHICLE REG NO</th>
-                <th class="px-3 py-2 text-left font-semibold text-gray-700">CASE DESCRIPTION</th>
-                <th class="px-3 py-2 text-left font-semibold text-gray-700 whitespace-nowrap">TYPE OF CASE</th>
-                <th class="px-3 py-2 text-left font-semibold text-gray-700 whitespace-nowrap">TYPE OF CASE NO.</th>
-                <th class="px-3 py-2 text-left font-semibold text-gray-700 whitespace-nowrap">STATUS</th>
-                <th class="px-3 py-2 text-right font-semibold text-gray-700 whitespace-nowrap">TOTAL PAYMENTS</th>
-              </tr>
-            </thead>
-            <tbody class="bg-white divide-y divide-gray-100" id="incidentTableBody">
-              <tr id="incidentEmptyRow">
-                <td colspan="11" class="px-3 py-8 text-center text-gray-400 text-sm">No records yet. Click <strong>+ Add Row</strong> to add an entry.</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-      {% endif %}
       
     </div>
-  </div>-->
+  </div>
 
 <!-- Maintenance selection modal -->
 <div id="maintenanceModal" class="fixed inset-0 z-60 hidden items-center justify-center overflow-auto">
@@ -689,209 +645,83 @@
   </div>
 </div>
 
-  <!-- Incident modal -->
-  <div id="incidentModal" class="fixed inset-0 z-60 hidden items-center justify-center overflow-auto">
-    <div id="incidentOverlay" class="absolute inset-0 bg-black/50 backdrop-blur-sm"></div>
-    <div class="relative bg-white rounded-2xl shadow-2xl max-w-2xl w-full mx-4 p-6 z-70 max-h-[90vh] overflow-auto">
-      <div class="flex items-start justify-between mb-2">
-        <h3 class="text-lg font-bold text-slate-800">Add Accident / Incident</h3>
-        <button id="incidentClose" aria-label="Close" class="text-gray-400 hover:text-gray-700 rounded-full p-1.5 border border-transparent hover:bg-gray-100">×</button>
-      </div>
+<script>
+  function showNotifications() {
+    const overlay = document.getElementById('notificationOverlay');
+    if (overlay) overlay.classList.add('active');
+  }
 
-      <form id="incidentForm" class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <div>
-          <label class="block text-xs text-gray-600">Date</label>
-          <input id="incident_date" type="date" class="mt-1 block w-full border rounded px-2 py-1" />
-        </div>
-        <div>
-          <label class="block text-xs text-gray-600">Type</label>
-          <select id="incident_type" class="mt-1 block w-full border rounded px-2 py-1">
-            <option>ACCIDENT</option>
-            <option>INCIDENT</option>
-          </select>
-        </div>
+  function closeNotifications() {
+    const overlay = document.getElementById('notificationOverlay');
+    if (overlay) overlay.classList.remove('active');
+  }
 
-        <div>
-          <label class="block text-xs text-gray-600">Driver ID</label>
-          <input id="incident_driver_id" type="text" class="mt-1 block w-full border rounded px-2 py-1" />
-        </div>
-        <div>
-          <label class="block text-xs text-gray-600">Driver Name</label>
-          <input id="incident_driver_name" type="text" class="mt-1 block w-full border rounded px-2 py-1" />
-        </div>
+  const notificationOverlayEl = document.getElementById('notificationOverlay');
+  if (notificationOverlayEl) {
+    notificationOverlayEl.addEventListener('click', function(e) {
+      if (e.target === this) {
+        closeNotifications();
+      }
+    });
+  }
 
-        <div>
-          <label class="block text-xs text-gray-600">Vehicle ID</label>
-          <input id="incident_vehicle_id" type="text" class="mt-1 block w-full border rounded px-2 py-1" />
-        </div>
-        <div>
-          <label class="block text-xs text-gray-600">Vehicle Reg No</label>
-          <input id="incident_vehicle_reg" type="text" class="mt-1 block w-full border rounded px-2 py-1" />
-        </div>
+  (function(){
+    const topAlertBtn = document.getElementById('topAlertBtn');
+    const hasDue = topAlertBtn && topAlertBtn.dataset.hasDueSoon === '1';
+    if (hasDue) {
+      window.addEventListener('load', function() { setTimeout(showNotifications, 800); });
+    }
+  })();
 
-        <div class="sm:col-span-2">
-          <label class="block text-xs text-gray-600">Case Description</label>
-          <textarea id="incident_case_description" rows="3" class="mt-1 block w-full border rounded px-2 py-1"></textarea>
-        </div>
+  (function(){
+    const btn = document.getElementById('maintenanceBtn');
+    const modal = document.getElementById('maintenanceModal');
+    const overlay = document.getElementById('maintenanceOverlay');
+    const close = document.getElementById('maintenanceClose');
 
-        <div>
-          <label class="block text-xs text-gray-600">Type of Case</label>
-          <input id="incident_type_of_case" type="text" class="mt-1 block w-full border rounded px-2 py-1" />
-        </div>
-        <div>
-          <label class="block text-xs text-gray-600">Type of Case No.</label>
-          <input id="incident_type_of_case_no" type="text" class="mt-1 block w-full border rounded px-2 py-1" />
-        </div>
-
-        <div>
-          <label class="block text-xs text-gray-600">Status</label>
-          <input id="incident_status" type="text" class="mt-1 block w-full border rounded px-2 py-1" />
-        </div>
-        <div>
-          <label class="block text-xs text-gray-600">Total Payments</label>
-          <input id="incident_total_payments" type="number" step="0.01" class="mt-1 block w-full border rounded px-2 py-1" />
-        </div>
-
-      </form>
-
-      <div class="mt-4 flex justify-end gap-2">
-        <button id="incidentCancel" class="px-4 py-2 rounded border">Cancel</button>
-        <button id="incidentSave" type="button" class="px-4 py-2 rounded bg-blue-600 text-white">Save</button>
-      </div>
-    </div>
-  </div>
-
-  <script>
-    function showNotifications() {
-      const overlay = document.getElementById('notificationOverlay');
-      if (overlay) overlay.classList.add('active');
+    function openModal(){
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+      document.body.classList.add('overflow-hidden');
+    }
+    function closeModal(){
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+      document.body.classList.remove('overflow-hidden');
     }
 
-    function closeNotifications() {
-      const overlay = document.getElementById('notificationOverlay');
-      if (overlay) overlay.classList.remove('active');
+    if(btn){ btn.addEventListener('click', openModal); }
+    if(overlay){ overlay.addEventListener('click', closeModal); }
+    if(close){ close.addEventListener('click', closeModal); }
+    document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeModal(); });
+  })();
+
+  (function(){
+    const btn = document.getElementById('dcBtn');
+    const modal = document.getElementById('dcModal');
+    const overlay = document.getElementById('dcOverlay');
+    const close = document.getElementById('dcClose');
+
+    function openModal(){
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+      
+      document.body.classList.add('overflow-hidden');
+    }
+    function closeModal(){
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+      document.body.classList.remove('overflow-hidden');
     }
 
-    const notificationOverlayEl = document.getElementById('notificationOverlay');
-    if (notificationOverlayEl) {
-      notificationOverlayEl.addEventListener('click', function(e) {
-        if (e.target === this) {
-          closeNotifications();
-        }
-      });
-    }
+    if(btn){ btn.addEventListener('click', openModal); }
+    if(overlay){ overlay.addEventListener('click', closeModal); }
+    if(close){ close.addEventListener('click', closeModal); }
+    document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeModal(); });
+  })();
+</script>
 
-    (function(){
-      const topAlertBtn = document.getElementById('topAlertBtn');
-      const hasDue = topAlertBtn && topAlertBtn.dataset.hasDueSoon === '1';
-      if (hasDue) {
-        window.addEventListener('load', function() { setTimeout(showNotifications, 800); });
-      }
-    })();
-
-    (function(){
-      const btn = document.getElementById('maintenanceBtn');
-      const modal = document.getElementById('maintenanceModal');
-      const overlay = document.getElementById('maintenanceOverlay');
-      const close = document.getElementById('maintenanceClose');
-
-      function openModal(){
-        modal.classList.remove('hidden');
-        modal.classList.add('flex');
-        document.body.classList.add('overflow-hidden');
-      }
-      function closeModal(){
-        modal.classList.add('hidden');
-        modal.classList.remove('flex');
-        document.body.classList.remove('overflow-hidden');
-      }
-
-      if(btn){ btn.addEventListener('click', openModal); }
-      if(overlay){ overlay.addEventListener('click', closeModal); }
-      if(close){ close.addEventListener('click', closeModal); }
-      document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeModal(); });
-    })();
-
-    (function(){
-      const btn = document.getElementById('dcBtn');
-      const modal = document.getElementById('dcModal');
-      const overlay = document.getElementById('dcOverlay');
-      const close = document.getElementById('dcClose');
-
-      function openModal(){
-        modal.classList.remove('hidden');
-        modal.classList.add('flex');
-        document.body.classList.add('overflow-hidden');
-      }
-      function closeModal(){
-        modal.classList.add('hidden');
-        modal.classList.remove('flex');
-        document.body.classList.remove('overflow-hidden');
-      }
-
-      if(btn){ btn.addEventListener('click', openModal); }
-      if(overlay){ overlay.addEventListener('click', closeModal); }
-      if(close){ close.addEventListener('click', closeModal); }
-      document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeModal(); });
-    })();
-
-    // Incident modal + add-row logic
-    (function(){
-      const openBtn = document.getElementById('openIncidentModal');
-      const modal = document.getElementById('incidentModal');
-      const overlay = document.getElementById('incidentOverlay');
-      const close = document.getElementById('incidentClose');
-      const cancel = document.getElementById('incidentCancel');
-      const save = document.getElementById('incidentSave');
-      const form = document.getElementById('incidentForm');
-      const tbody = document.getElementById('incidentTableBody');
-
-      function openModal(){ modal.classList.remove('hidden'); modal.classList.add('flex'); document.body.classList.add('overflow-hidden'); }
-      function closeModal(){ modal.classList.add('hidden'); modal.classList.remove('flex'); document.body.classList.remove('overflow-hidden'); if(form) form.reset(); }
-
-      if(openBtn) openBtn.addEventListener('click', openModal);
-      if(overlay) overlay.addEventListener('click', closeModal);
-      if(close) close.addEventListener('click', closeModal);
-      if(cancel) cancel.addEventListener('click', closeModal);
-      document.addEventListener('keydown', function(e){ if(e.key === 'Escape') closeModal(); });
-
-      if(save){
-        save.addEventListener('click', function(){
-          const val = id => (document.getElementById(id) && document.getElementById(id).value) ? document.getElementById(id).value.trim() : '';
-          const date = val('incident_date') || '-';
-          const type = val('incident_type') || '-';
-          const driverId = val('incident_driver_id') || '-';
-          const driverName = val('incident_driver_name') || '-';
-          const vehicleId = val('incident_vehicle_id') || '-';
-          const vehicleReg = val('incident_vehicle_reg') || '-';
-          const caseDesc = val('incident_case_description') || '-';
-          const typeCase = val('incident_type_of_case') || '-';
-          const typeCaseNo = val('incident_type_of_case_no') || '-';
-          const status = val('incident_status') || '-';
-          const payments = val('incident_total_payments') || '0.00';
-
-          const tr = document.createElement('tr');
-          tr.innerHTML = `
-            <td class="px-3 py-2">${date}</td>
-            <td class="px-3 py-2">${type}</td>
-            <td class="px-3 py-2">${driverId}</td>
-            <td class="px-3 py-2">${driverName}</td>
-            <td class="px-3 py-2">${vehicleId}</td>
-            <td class="px-3 py-2">${vehicleReg}</td>
-            <td class="px-3 py-2">${caseDesc}</td>
-            <td class="px-3 py-2">${typeCase}</td>
-            <td class="px-3 py-2">${typeCaseNo}</td>
-            <td class="px-3 py-2">${status}</td>
-            <td class="px-3 py-2 text-right">${payments}</td>
-          `;
-          if(tbody) tbody.prepend(tr);
-          closeModal();
-        });
-      }
-    })();
-  </script>
-
-  <script src="{{ url_for('static', filename='js/uppercase.js') }}"></script>
+<script src="{{ url_for('static', filename='js/uppercase.js') }}"></script>
 
 {% include 'footer.html' %}
 </body>

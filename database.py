@@ -868,6 +868,97 @@ def save_incidents_reports_claims(claim_entries):
         traceback.print_exc()
         return 0
 
+
+# ─────────────────────────────────────────────
+# Accidents / Incidents helpers
+# ─────────────────────────────────────────────
+
+def get_next_accident_entry_no():
+    """Return the next entry number in the format PMC/LOGI/INCIDENT/001.
+
+    Falls back to parsing older formats (e.g. AI-0001) if present.
+    """
+    prefix = 'PMC/LOGI/INCIDENT/'
+    try:
+        result = supabase.table('accidents_incidents').select('entry_no').execute()
+        rows = result.data or []
+        max_n = 0
+        for row in rows:
+            en = (row.get('entry_no') or '').strip()
+            if not en:
+                continue
+            # New format: PMC/LOGI/INCIDENT/###
+            if en.startswith(prefix):
+                try:
+                    num = int(en.split('/')[-1])
+                    max_n = max(max_n, num)
+                except Exception:
+                    continue
+            # Legacy format support: AI-0001 or AI-001
+            elif en.startswith('AI-'):
+                try:
+                    num = int(en.split('-')[-1])
+                    max_n = max(max_n, num)
+                except Exception:
+                    continue
+        next_n = max_n + 1
+        return f"{prefix}{next_n:03d}"
+    except Exception as e:
+        print(f"Error getting next accident entry no: {e}")
+        return f"{prefix}001"
+
+
+def save_accident_incident(data, settlement_persons=None):
+    """Save one accident/incident record and its settlement persons."""
+    try:
+        now = datetime.now().isoformat()
+        data.setdefault('created_at', now)
+        data['updated_at'] = now
+        result = supabase.table('accidents_incidents').insert(data).execute()
+        if not result.data:
+            return None
+        incident_id = result.data[0]['id']
+        # Save settlement persons
+        if settlement_persons:
+            for name in settlement_persons:
+                name = name.strip()
+                if name:
+                    supabase.table('accidents_incidents_settlement_persons').insert({
+                        'incident_id': incident_id,
+                        'person_name': name
+                    }).execute()
+        return result.data[0]
+    except Exception as e:
+        print(f"Error saving accident/incident: {e}")
+        import traceback; traceback.print_exc()
+        return None
+
+
+def get_all_accidents_incidents():
+    """Return all accident/incident records, newest first."""
+    try:
+        result = supabase.table('accidents_incidents').select('*').order('created_at', desc=True).execute()
+        return result.data or []
+    except Exception as e:
+        print(f"Error getting accidents: {e}")
+        return []
+
+
+def get_accident_incident_by_id(incident_id):
+    """Return a single accident/incident with its settlement persons."""
+    try:
+        result = supabase.table('accidents_incidents').select('*').eq('id', incident_id).execute()
+        if not result.data:
+            return None
+        record = result.data[0]
+        sp = supabase.table('accidents_incidents_settlement_persons').select('*').eq('incident_id', incident_id).execute()
+        record['settlement_persons'] = [r['person_name'] for r in (sp.data or [])]
+        return record
+    except Exception as e:
+        print(f"Error getting accident by id: {e}")
+        return None
+
+
 def save_feedback(feedback_data):
     """Save feedback submission"""
     try:

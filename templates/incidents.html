@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Accidents / Incidents – Drive Logs</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    * { font-family: 'Inter', sans-serif; }
+    body { background: linear-gradient(135deg,#eef2ff 0%,#e0e7ff 40%,#f0f9ff 100%); min-height:100vh; }
+
+    /* ── Cards ── */
+    .section-card {
+      background:#fff;
+      border-radius:14px;
+      padding:20px 24px;
+      box-shadow:0 2px 10px rgba(30,64,175,.07);
+      margin-bottom:18px;
+      border-left:4px solid #3b82f6;
+    }
+    .section-card.green  { border-left-color:#10b981; }
+    .section-card.red    { border-left-color:#ef4444; }
+    .section-card.yellow { border-left-color:#f59e0b; }
+    .section-card.purple { border-left-color:#8b5cf6; }
+    .section-card.total  { border-left-color:#1e40af; background:linear-gradient(135deg,#eff6ff,#dbeafe); }
+
+    /* ── Section title ── */
+    .section-title {
+      font-size:0.8rem; font-weight:800; text-transform:uppercase;
+      letter-spacing:.06em; color:#1e40af;
+      margin-bottom:14px; padding-bottom:8px;
+      border-bottom:2px solid #dbeafe;
+      display:flex; align-items:center; gap:8px;
+    }
+    .section-title .badge {
+      background:#dbeafe; color:#1e40af;
+      border-radius:999px; padding:1px 8px;
+      font-size:0.7rem; font-weight:700;
+    }
+
+    /* ── Labels & inputs ── */
+    label { font-size:0.78rem; font-weight:600; color:#374151; display:block; margin-bottom:3px; }
+    input[type=text],input[type=number],input[type=date],input[type=datetime-local],select,textarea {
+      width:100%; border:1.5px solid #e5e7eb; border-radius:9px; padding:8px 12px;
+      font-size:0.875rem; outline:none; transition:border .18s,box-shadow .18s; background:#fafafa;
+    }
+    input:focus,select:focus,textarea:focus {
+      border-color:#3b82f6; box-shadow:0 0 0 3px rgba(59,130,246,.13); background:#fff;
+    }
+    input[readonly] { background:#f3f4f6; color:#6b7280; cursor:default; }
+    .input-prefix {
+      display:flex; align-items:center;
+    }
+    .input-prefix span {
+      background:#f3f4f6; border:1.5px solid #e5e7eb; border-right:none;
+      border-radius:9px 0 0 9px; padding:8px 10px; font-size:0.85rem; color:#6b7280; font-weight:600;
+    }
+    .input-prefix input { border-radius:0 9px 9px 0; }
+
+    /* ── Conditional blocks ── */
+    .cond-block { display:none; }
+    .cond-block.visible { display:grid; }
+
+    /* ── Field rows (label | control) ── */
+    .field-row { display:grid; grid-template-columns:170px 1fr; align-items:center; gap:10px; margin-bottom:10px; }
+    .field-row label { margin-bottom:0; }
+    @media(max-width:640px){ .field-row { grid-template-columns:1fr; } }
+
+    /* ── Two-column sub-grid ── */
+    .two-col { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+    .three-col { display:grid; grid-template-columns:1fr 1fr 1fr; gap:14px; }
+    @media(max-width:640px){ .two-col,.three-col { grid-template-columns:1fr; } }
+
+    /* ── Radio toggle row ── */
+    .radio-row { display:flex; align-items:center; gap:20px; margin-bottom:12px; }
+    .radio-row label { display:flex; align-items:center; gap:6px; cursor:pointer; margin-bottom:0; font-size:0.85rem; }
+
+    /* ── Total loss box ── */
+    .total-box {
+      display:flex; align-items:center; justify-content:space-between;
+      background:#1e40af; color:#fff;
+      border-radius:12px; padding:14px 20px;
+      margin-top:4px;
+    }
+    .total-box .lbl { font-size:0.85rem; font-weight:600; opacity:.85; }
+    .total-box .amt { font-size:1.5rem; font-weight:800; letter-spacing:.02em; }
+
+    /* ── Submit bar ── */
+    .submit-bar {
+      display:flex; align-items:center; justify-content:flex-end; gap:12px;
+      background:#fff; border-radius:14px; padding:16px 24px;
+      box-shadow:0 2px 10px rgba(30,64,175,.07);
+      margin-top:8px;
+    }
+
+    /* ── Print ── */
+    @media print {
+      body { background:#fff !important; }
+      .no-print { display:none !important; }
+      .print-only { display:block !important; }
+      .section-card { box-shadow:none !important; border:1px solid #e5e7eb !important; page-break-inside:avoid; }
+    }
+    .print-only { display:none; }
+  </style>
+</head>
+<body class="min-h-screen pt-20 pb-12">
+
+  <!-- Header bar -->
+  <div class="logo-bar w-full flex items-center justify-between px-4 py-3 fixed top-0 left-0 z-50 no-print">
+    <img src="{{ url_for('static', filename='img/drive-logs.png') }}" alt="Drive Logs" class="h-12 w-auto ml-2">
+    <div class="flex items-center gap-3">
+      <a href="{{ url_for('accidents_incidents_list') }}" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-full text-sm font-semibold">History</a>
+      <a href="{{ url_for('dashboard') }}" class="bg-white hover:bg-gray-100 text-gray-800 px-4 py-2 rounded-full text-sm font-semibold border">Dashboard</a>
+    </div>
+  </div>
+
+  <!-- Flash messages -->
+  <div class="max-w-4xl mx-auto px-4 mt-4 no-print">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}{% for cat,msg in messages %}
+        <div class="mb-3 p-3 rounded-lg text-sm {% if cat=='success' %}bg-green-100 text-green-800 border border-green-200{% else %}bg-red-100 text-red-800 border border-red-200{% endif %}">{{ msg }}</div>
+      {% endfor %}{% endif %}
+    {% endwith %}
+  </div>
+
+  <div class="max-w-4xl mx-auto px-4">
+
+    <!-- Page heading -->
+    <div class="flex items-center justify-between mb-6 no-print">
+      <div>
+        <h1 class="text-3xl font-extrabold text-gray-800 flex items-center gap-2">🚨 <span>Accidents / Incidents</span></h1>
+        <p class="text-sm text-gray-500 mt-1">New entry — fields marked <span class="text-red-500 font-bold">*</span> are mandatory</p>
+      </div>
+      <span class="bg-red-100 text-red-700 text-xs font-bold px-3 py-1 rounded-full border border-red-200">NEW ENTRY</span>
+    </div>
+
+    <form id="incidentForm" method="POST" action="{{ url_for('accidents_incidents_save') }}">
+
+      <!-- ① Auto fields -->
+      <div class="section-card">
+        <div class="section-title"><span class="badge">1</span> Entry Details</div>
+        <div class="two-col">
+          <div>
+            <label>Entry No. *</label>
+            <input type="text" name="entry_no" id="entry_no" value="{{ entry_no }}" readonly
+                   style="background:#eff6ff;font-weight:700;color:#1d4ed8;">
+          </div>
+          <div>
+            <label>Date &amp; Time *</label>
+            <input type="datetime-local" name="date_time" id="date_time" value="{{ now_str }}" required>
+          </div>
+        </div>
+      </div>
+
+      <!-- ② Vehicle / Driver -->
+      <div class="section-card">
+        <div class="section-title"><span class="badge">2</span> Vehicle &amp; Driver</div>
+        <div class="two-col">
+          <div>
+            <label>Vehicle ID *</label>
+            <select name="vehicle_id" id="vehicle_id" required onchange="fetchVehicleReg(this.value)">
+              <option value="">-- Select Vehicle --</option>
+              {% for v in vehicles %}
+              <option value="{{ v.vehicle_id }}">{{ v.vehicle_id }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div>
+            <label>Registration No.</label>
+            <input type="text" name="registration_no" id="registration_no" readonly placeholder="Auto-filled">
+          </div>
+          <div>
+            <label>Driver ID</label>
+            <select name="driver_id" id="driver_id" onchange="onDriverSelect(this.value)">
+              <option value="">-- Select Driver --</option>
+              {% for e in employees %}
+              <option value="{{ e.employee_id }}">{{ e.employee_id }}</option>
+              {% endfor %}
+            </select>
+          </div>
+          <div>
+            <label>Driver Name</label>
+            <input type="text" name="driver_name" id="driver_name" readonly placeholder="Auto-filled">
+          </div>
+        </div>
+      </div>
+
+      <!-- ③④⑤ Incident details -->
+      <div class="section-card yellow">
+        <div class="section-title"><span class="badge">3</span> Incident Details</div>
+        <div class="two-col">
+
+          <!-- Place -->
+          <div>
+            <label>4. Place of Incident *</label>
+            <select name="place_of_incident" id="place_of_incident" required onchange="toggleOthers(this,'place_desc_block')">
+              <option value="">-- Select --</option>
+              <option>ONROAD</option>
+              <option>IN CAMPUS</option>
+              <option>PARKING</option>
+              <option>OTHERS</option>
+            </select>
+          </div>
+          <div id="place_desc_block" class="cond-block">
+            <label>Place – Description</label>
+            <input type="text" name="place_description" placeholder="Describe location…">
+          </div>
+
+          <!-- Type of incident -->
+          <div>
+            <label>5. Type of Incident *</label>
+            <select name="type_of_incident" id="type_of_incident" required onchange="toggleOthers(this,'type_inc_desc_block')">
+              <option value="">-- Select --</option>
+              <option>ON ROAD ACCIDENT</option>
+              <option>DRIVER NEGLIGENCE</option>
+              <option>ANONYMOUS BRAKE THROUGH</option>
+              <option>OTHERS</option>
+            </select>
+          </div>
+          <div id="type_inc_desc_block" class="cond-block">
+            <label>Type of Incident – Description</label>
+            <input type="text" name="type_of_incident_desc" placeholder="Describe type…">
+          </div>
+
+          <!-- Type of loss -->
+          <div>
+            <label>6. Type of Loss *</label>
+            <select name="type_of_loss" id="type_of_loss" required onchange="toggleOthers(this,'type_loss_desc_block')">
+              <option value="">-- Select --</option>
+              <option>FATAL</option>
+              <option>FRACTURES</option>
+              <option>MINOR WOUNDS</option>
+              <option>MAJOR VEHICLE DAMAGE</option>
+              <option>MINOR VEHICLE DAMAGE</option>
+              <option>OTHERS</option>
+            </select>
+          </div>
+          <div id="type_loss_desc_block" class="cond-block">
+            <label>Type of Loss – Description</label>
+            <input type="text" name="type_of_loss_desc" placeholder="Describe loss…">
+          </div>
+
+        </div>
+
+        <!-- Case description -->
+        <div class="mt-3">
+          <label>7. Case Description *</label>
+          <textarea name="case_description" rows="4" required placeholder="Describe the accident / incident in detail…"></textarea>
+        </div>
+      </div>
+
+      <!-- ⑧ Hospitalisation -->
+      <div class="section-card green">
+        <div class="section-title"><span class="badge">4</span> Hospitalised</div>
+        <div class="radio-row">
+          <label><input type="radio" name="hospitalized" value="YES" onchange="toggleBlock('hospital_block','YES',this.value); calcTotal()"> YES</label>
+          <label><input type="radio" name="hospitalized" value="NO" checked onchange="toggleBlock('hospital_block','YES',this.value); calcTotal()"> NO</label>
+        </div>
+        <div id="hospital_block" class="cond-block three-col">
+          <div>
+            <label>Name of Hospital</label>
+            <input type="text" name="hospital_name">
+          </div>
+          <div>
+            <label>Type of Treatment</label>
+            <input type="text" name="type_of_treatment">
+          </div>
+          <div>
+            <label>Treatment Expenditure (₹)</label>
+            <div class="input-prefix">
+              <span>₹</span>
+              <input type="number" step="0.01" id="treatment_expenditure" name="treatment_expenditure"
+                     placeholder="0.00" oninput="calcTotal()">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ⑨ Police case -->
+      <div class="section-card red">
+        <div class="section-title"><span class="badge">5</span> Case Filed in Police Station</div>
+        <div class="radio-row">
+          <label><input type="radio" name="case_filed_police" value="YES" onchange="toggleBlock('police_block','YES',this.value); calcTotal()"> YES</label>
+          <label><input type="radio" name="case_filed_police" value="NO" checked onchange="toggleBlock('police_block','YES',this.value); calcTotal()"> NO</label>
+        </div>
+        <div id="police_block" class="cond-block three-col">
+          <div>
+            <label>FIR No / CSR No.</label>
+            <input type="text" name="fir_csr_no">
+          </div>
+          <div>
+            <label>Date</label>
+            <input type="date" name="police_date">
+          </div>
+          <div>
+            <label>Status</label>
+            <input type="text" name="police_status" placeholder="OPEN / CLOSED">
+          </div>
+          <div>
+            <label>Closed Date</label>
+            <input type="date" name="police_closed_date">
+          </div>
+          <div>
+            <label>Total Paid (₹)</label>
+            <div class="input-prefix">
+              <span>₹</span>
+              <input type="number" step="0.01" id="police_total_paid" name="police_total_paid"
+                     placeholder="0.00" oninput="calcTotal()">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ⑩ Settled in person -->
+      <div class="section-card purple">
+        <div class="section-title"><span class="badge">6</span> Settled in Person</div>
+        <div class="radio-row">
+          <label><input type="radio" name="settled_in_person" value="YES" onchange="toggleBlock('settle_block','YES',this.value); calcTotal()"> YES</label>
+          <label><input type="radio" name="settled_in_person" value="NO" checked onchange="toggleBlock('settle_block','YES',this.value); calcTotal()"> NO</label>
+        </div>
+        <div id="settle_block" class="cond-block" style="grid-template-columns:1fr; gap:14px;">
+          <div class="two-col">
+            <div>
+              <label>Person(s) Responsible</label>
+              <div id="settlement_person_list">
+                <div class="flex gap-2 mb-2">
+                  <input type="text" name="settlement_person[]" class="flex-1" placeholder="Person name">
+                  <button type="button" onclick="addPersonRow()"
+                    class="px-3 py-1.5 bg-blue-600 text-white rounded-lg text-xs font-semibold whitespace-nowrap">+ Add</button>
+                </div>
+              </div>
+            </div>
+            <div>
+              <label>Amount Settled (₹)</label>
+              <div class="input-prefix">
+                <span>₹</span>
+                <input type="number" step="0.01" id="settlement_amount" name="settlement_amount"
+                       placeholder="0.00" oninput="calcTotal()">
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ⑪ Minutes of settlement -->
+      <div class="section-card">
+        <div class="section-title"><span class="badge">7</span> Minutes of Settlement</div>
+        <textarea name="minutes_of_settlement" rows="3" placeholder="Enter minutes of settlement…"></textarea>
+      </div>
+
+      <!-- ⑫ Settlement status -->
+      <div class="section-card">
+        <div class="section-title"><span class="badge">8</span> Status of Settlement</div>
+        <div class="two-col">
+          <div>
+            <label>Status *</label>
+            <select name="settlement_status" onchange="toggleBlock('settle_closed_block','CLOSED',this.value)">
+              <option value="PENDING">PENDING</option>
+              <option value="CLOSED">CLOSED</option>
+            </select>
+          </div>
+          <div id="settle_closed_block" class="cond-block">
+            <label>Closed Date</label>
+            <input type="date" name="settlement_closed_date">
+          </div>
+        </div>
+      </div>
+
+      <!-- ⑬ Total Loss summary -->
+      <div class="section-card total">
+        <div class="section-title" style="color:#1e40af;"><span class="badge">9</span> Total Loss Summary</div>
+        <!-- Hidden field submitted with form -->
+        <input type="hidden" name="total_loss" id="total_loss_input" value="0">
+        <div class="three-col mb-4">
+          <div>
+            <label>Treatment Expenditure</label>
+            <div class="input-prefix">
+              <span>₹</span>
+              <input type="text" id="disp_treatment" readonly placeholder="0.00"
+                     style="background:#f8fafc;font-weight:600;">
+            </div>
+          </div>
+          <div>
+            <label>Police Total Paid</label>
+            <div class="input-prefix">
+              <span>₹</span>
+              <input type="text" id="disp_police" readonly placeholder="0.00"
+                     style="background:#f8fafc;font-weight:600;">
+            </div>
+          </div>
+          <div>
+            <label>Amount Settled</label>
+            <div class="input-prefix">
+              <span>₹</span>
+              <input type="text" id="disp_settled" readonly placeholder="0.00"
+                     style="background:#f8fafc;font-weight:600;">
+            </div>
+          </div>
+        </div>
+        <div class="total-box">
+          <span class="lbl">TOTAL LOSS (Treatment + Police Paid + Settlement)</span>
+          <span class="amt" id="total_loss_display">₹ 0.00</span>
+        </div>
+      </div>
+
+      <!-- Submit bar -->
+      <div class="submit-bar no-print">
+        <a href="{{ url_for('dashboard') }}"
+           class="px-6 py-2 rounded-full border border-gray-300 text-gray-600 text-sm font-semibold hover:bg-gray-50">Cancel</a>
+        <button type="submit"
+           class="px-8 py-2.5 rounded-full bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold shadow-lg">💾 Save Record</button>
+      </div>
+
+    </form>
+  </div>
+
+  <script src="{{ url_for('static', filename='js/uppercase.js') }}"></script>
+  <script>
+    // Enhanced helper: show/hide a conditional block and enable/disable contained fields
+    function setBlockVisibility(blockId, shouldShow) {
+      const block = document.getElementById(blockId);
+      if (!block) return;
+      if (shouldShow) {
+        block.classList.add('visible');
+        // enable contained inputs
+        block.querySelectorAll('input,select,textarea,button').forEach(el => el.disabled = false);
+      } else {
+        block.classList.remove('visible');
+        // disable and clear contained inputs to avoid accidental submits
+        block.querySelectorAll('input,select,textarea').forEach(el => {
+          try {
+            if (el.type === 'radio' || el.type === 'checkbox') {
+              el.checked = false;
+            } else {
+              el.value = '';
+            }
+          } catch(e) {}
+          el.disabled = true;
+        });
+        // keep buttons (e.g., add person) disabled when hidden
+        block.querySelectorAll('button').forEach(b => b.disabled = true);
+      }
+    }
+
+    // Toggle an "OTHERS" description textbox when SELECT value === 'OTHERS'
+    function toggleOthers(sel, blockId) {
+      setBlockVisibility(blockId, sel && sel.value === 'OTHERS');
+    }
+
+    // Generic toggle: show block when select/radio has triggerValue
+    function toggleBlock(blockId, triggerValue, currentValue) {
+      setBlockVisibility(blockId, currentValue === triggerValue);
+    }
+
+    // Initialize conditional blocks on page load based on current form values
+    function initConditionalBlocks() {
+      // hospitalised
+      try {
+        const hosp = document.querySelector('input[name="hospitalized"]:checked');
+        setBlockVisibility('hospital_block', hosp && hosp.value === 'YES');
+      } catch(e) {}
+      // police
+      try {
+        const police = document.querySelector('input[name="case_filed_police"]:checked');
+        setBlockVisibility('police_block', police && police.value === 'YES');
+      } catch(e) {}
+      // settle
+      try {
+        const settle = document.querySelector('input[name="settled_in_person"]:checked');
+        setBlockVisibility('settle_block', settle && settle.value === 'YES');
+      } catch(e) {}
+      // Others selects
+      try {
+        const othersSelects = ['place_of_incident','type_of_incident','type_of_loss','settlement_status'];
+        othersSelects.forEach(id => {
+          const el = document.getElementById(id);
+          if (!el) return;
+          const blk = id === 'place_of_incident' ? 'place_desc_block' : (id === 'type_of_incident' ? 'type_inc_desc_block' : (id === 'type_of_loss' ? 'type_loss_desc_block' : 'settle_closed_block'));
+          if (blk) setBlockVisibility(blk, el.value === 'OTHERS' || (id === 'settlement_status' && el.value === 'CLOSED'));
+        });
+      } catch(e) {}
+    }
+
+    // Run initialization when DOM is ready
+    document.addEventListener('DOMContentLoaded', function() { initConditionalBlocks(); calcTotal(); });
+
+    // Add a row to settlement persons list
+    function addPersonRow() {
+      const container = document.getElementById('settlement_person_list');
+      const div = document.createElement('div');
+      div.className = 'flex gap-2 mb-2';
+      div.innerHTML = `
+        <input type="text" name="settlement_person[]" class="flex-1 border rounded-lg px-3 py-2 text-sm" placeholder="Person name">
+        <button type="button" onclick="this.parentElement.remove()" class="px-3 py-1.5 bg-red-500 text-white rounded text-xs font-semibold">✕</button>
+      `;
+      container.appendChild(div);
+    }
+
+    // ── Total Loss calculator ──────────────────────────────────
+    function getAmt(id) {
+      const el = document.getElementById(id);
+      if (!el) return 0;
+      const v = parseFloat(el.value);
+      return isNaN(v) ? 0 : v;
+    }
+    function fmt(n) { return n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ','); }
+
+    function calcTotal() {
+      const treat  = getAmt('treatment_expenditure');
+      const police = getAmt('police_total_paid');
+      const settle = getAmt('settlement_amount');
+      const total  = treat + police + settle;
+
+      const dT = document.getElementById('disp_treatment');
+      const dP = document.getElementById('disp_police');
+      const dS = document.getElementById('disp_settled');
+      const dD = document.getElementById('total_loss_display');
+      const hI = document.getElementById('total_loss_input');
+
+      if (dT) dT.value = treat  > 0 ? fmt(treat)  : '';
+      if (dP) dP.value = police > 0 ? fmt(police) : '';
+      if (dS) dS.value = settle > 0 ? fmt(settle) : '';
+      if (dD) dD.textContent = '₹ ' + fmt(total);
+      if (hI) hI.value = total.toFixed(2);
+    }
+
+    // Auto-fetch vehicle registration
+    async function fetchVehicleReg(vehicleId) {
+      if (!vehicleId) { document.getElementById('registration_no').value = ''; return; }
+      try {
+        const res = await fetch('/api/vehicle-reg/' + encodeURIComponent(vehicleId));
+        const data = await res.json();
+        document.getElementById('registration_no').value = data.registration_no || '';
+      } catch(e) { console.error(e); }
+    }
+
+    // Auto-fill driver name when a driver is selected
+    async function onDriverSelect(driverId) {
+      const input = document.getElementById('driver_name');
+      if (!driverId) { if(input) input.value = ''; return; }
+      try {
+        // Use the more generic employee endpoint which returns full row (supports slashes)
+        const res = await fetch('/api/employee/' + encodeURIComponent(driverId));
+        const data = await res.json();
+        console.debug('onDriverSelect response', data);
+        if (data && data.success && data.employee) {
+          const emp = data.employee;
+          const name = emp.name || emp.full_name || emp.employee_name || '';
+          if (input) input.value = name || '';
+        } else {
+          // fallback: attempt older driver-name endpoint
+          try {
+            const r2 = await fetch('/api/driver-name/' + encodeURIComponent(driverId));
+            const d2 = await r2.json();
+            if (input) input.value = d2.driver_name || '';
+          } catch (e2) {
+            console.error('fallback driver-name call failed', e2);
+            if (input) input.value = '';
+          }
+        }
+      } catch(e) { console.error('onDriverSelect error', e); if(input) input.value = ''; }
+    }
+  </script>
+{% include 'footer.html' %}
+</body>
+</html>

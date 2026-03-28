@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Accident / Incident Report – {{ record.entry_no }}</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    * { font-family: 'Inter', sans-serif; }
+    body { background: #f3f4f6; }
+
+    /* ── Print styles ── */
+    @media print {
+      body { background: #fff !important; margin: 0 !important; padding: 0 !important; }
+      .no-print { display: none !important; }
+      .print-container { margin: 0; padding: 0; max-width: 100%; box-shadow: none !important; border: none !important; }
+      .report-wrapper { box-shadow: none !important; }
+      .page-break { page-break-before: always; }
+    }
+
+    .report-wrapper {
+      background: #fff;
+      max-width: 900px;
+      margin: 0 auto;
+      box-shadow: 0 4px 20px rgba(0,0,0,.1);
+    }
+
+    table.detail-table { width: 100%; border-collapse: collapse; }
+    table.detail-table th, table.detail-table td {
+      border: 1px solid #d1d5db;
+      padding: 7px 12px;
+      font-size: 0.82rem;
+      vertical-align: top;
+    }
+    table.detail-table th { background: #eff6ff; font-weight: 700; color: #1d4ed8; width: 32%; }
+    table.detail-table td { color: #111827; }
+
+    .section-heading {
+      background: #1e40af;
+      color: #fff;
+      font-size: 0.8rem;
+      font-weight: 700;
+      letter-spacing: .06em;
+      text-transform: uppercase;
+      padding: 6px 14px;
+    }
+
+    .badge-yes { background: #dcfce7; color: #15803d; border-radius: 9999px; padding: 2px 10px; font-size: 0.75rem; font-weight: 700; }
+    .badge-no  { background: #fee2e2; color: #991b1b; border-radius: 9999px; padding: 2px 10px; font-size: 0.75rem; font-weight: 700; }
+    .badge-pending { background: #fef9c3; color: #854d0e; border-radius: 9999px; padding: 2px 10px; font-size: 0.75rem; font-weight: 700; }
+    .badge-closed  { background: #dcfce7; color: #15803d; border-radius: 9999px; padding: 2px 10px; font-size: 0.75rem; font-weight: 700; }
+  </style>
+</head>
+<body class="min-h-screen py-8 px-4">
+
+  <!-- Action bar (hidden in print) -->
+  <div class="no-print max-w-4xl mx-auto flex items-center justify-between mb-4">
+    <div class="flex items-center gap-3">
+      <a href="{{ url_for('accidents_incidents_list') }}" class="px-4 py-2 rounded-full border text-sm font-semibold text-gray-600 hover:bg-gray-50">← Back</a>
+      <h1 class="text-lg font-bold text-gray-800">Accident / Incident Report</h1>
+    </div>
+    <div class="flex gap-2">
+      <button onclick="window.print()" class="px-5 py-2 rounded-full bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold shadow">🖨 Print / Download</button>
+    </div>
+  </div>
+
+  <!-- ─────────────────── PRINTABLE REPORT ─────────────────── -->
+  <div class="report-wrapper print-container" id="reportBody">
+
+    <!-- Letterhead -->
+    <div style="text-align:center; padding: 24px 24px 8px 24px; border-bottom: 3px solid #1e40af;">
+      <p style="font-size:1.4rem; font-weight:800; color:#1e3a8a; margin:0;">PMC TECH</p>
+      <p style="font-size:0.85rem; color:#374151; margin:4px 0 0 0;">Transport Department – Accident / Incident Report</p>
+    </div>
+
+    <!-- Entry strip -->
+    <div style="display:flex; justify-content:space-between; align-items:center; padding:10px 24px; background:#eff6ff; border-bottom:1px solid #bfdbfe;">
+      <span style="font-size:0.85rem; font-weight:700; color:#1d4ed8;">Entry No: {{ record.entry_no }}</span>
+      <span style="font-size:0.85rem; color:#4b5563;">Date &amp; Time: {{ record.date_time[:16] if record.date_time else '' }}</span>
+    </div>
+
+    <div style="padding: 20px 24px; display:flex; flex-direction:column; gap:16px;">
+
+      <!-- 1. Vehicle & Driver -->
+      <div>
+        <div class="section-heading">Vehicle &amp; Driver Details</div>
+        <table class="detail-table">
+          <tr><th>Vehicle ID</th><td>{{ record.vehicle_id or '-' }}</td><th>Registration No.</th><td>{{ record.registration_no or '-' }}</td></tr>
+          <tr><th>Driver ID</th><td>{{ record.driver_id or '-' }}</td><th>Driver Name</th><td>{{ record.driver_name or '-' }}</td></tr>
+        </table>
+      </div>
+
+      <!-- 2. Incident details -->
+      <div>
+        <div class="section-heading">Incident Details</div>
+        <table class="detail-table">
+          <tr><th>Place of Incident</th><td>{{ record.place_of_incident or '-' }}{% if record.place_description %} – {{ record.place_description }}{% endif %}</td></tr>
+          <tr><th>Type of Incident</th><td>{{ record.type_of_incident or '-' }}{% if record.type_of_incident_desc %} – {{ record.type_of_incident_desc }}{% endif %}</td></tr>
+          <tr><th>Type of Loss</th><td>{{ record.type_of_loss or '-' }}{% if record.type_of_loss_desc %} – {{ record.type_of_loss_desc }}{% endif %}</td></tr>
+          <tr><th>Case Description</th><td style="white-space:pre-wrap;">{{ record.case_description or '-' }}</td></tr>
+        </table>
+      </div>
+
+      <!-- 3. Hospitalisation -->
+      <div>
+        <div class="section-heading">Hospitalisation</div>
+        <table class="detail-table">
+          <tr>
+            <th>Hospitalised</th>
+            <td>
+              {% if record.hospitalized == 'YES' %}<span class="badge-yes">YES</span>{% else %}<span class="badge-no">NO</span>{% endif %}
+            </td>
+          </tr>
+          {% if record.hospitalized == 'YES' %}
+          <tr><th>Name of Hospital</th><td>{{ record.hospital_name or '-' }}</td><th>Type of Treatment</th><td>{{ record.type_of_treatment or '-' }}</td></tr>
+          <tr><th>Treatment Expenditure</th><td colspan="3">₹ {{ record.treatment_expenditure or '0.00' }}</td></tr>
+          {% endif %}
+        </table>
+      </div>
+
+      <!-- 4. Police case -->
+      <div>
+        <div class="section-heading">Police Case</div>
+        <table class="detail-table">
+          <tr>
+            <th>Case filed in Police Station</th>
+            <td>
+              {% if record.case_filed_police == 'YES' %}<span class="badge-yes">YES</span>{% else %}<span class="badge-no">NO</span>{% endif %}
+            </td>
+          </tr>
+          {% if record.case_filed_police == 'YES' %}
+          <tr><th>FIR No / CSR No.</th><td>{{ record.fir_csr_no or '-' }}</td><th>Date</th><td>{{ record.police_date or '-' }}</td></tr>
+          <tr><th>Status</th><td>{{ record.police_status or '-' }}</td><th>Closed Date</th><td>{{ record.police_closed_date or '-' }}</td></tr>
+          <tr><th>Total Paid</th><td colspan="3">₹ {{ '%.2f' % (record.police_total_paid or 0) }}</td></tr>
+          {% endif %}
+        </table>
+      </div>
+
+      <!-- 5. Settlement -->
+      <div>
+        <div class="section-heading">Settlement</div>
+        <table class="detail-table">
+          <tr>
+            <th>Settled in Person</th>
+            <td colspan="3">
+              {% if record.settled_in_person == 'YES' %}<span class="badge-yes">YES</span>{% else %}<span class="badge-no">NO</span>{% endif %}
+            </td>
+          </tr>
+          {% if record.settled_in_person == 'YES' and record.settlement_persons %}
+          <tr>
+            <th>Person(s) Responsible</th>
+            <td colspan="3">{{ record.settlement_persons|join(', ') }}</td>
+          </tr>
+          {% endif %}
+          <tr><th>Amount Settled</th><td colspan="3">₹ {{ '%.2f' % (record.settlement_amount or 0) }}</td></tr>
+          <tr><th>Minutes of Settlement</th><td colspan="3" style="white-space:pre-wrap;">{{ record.minutes_of_settlement or '-' }}</td></tr>
+          <tr>
+            <th>Status of Settlement</th>
+            <td>
+              {% if record.settlement_status == 'CLOSED' %}<span class="badge-closed">CLOSED</span>{% else %}<span class="badge-pending">PENDING</span>{% endif %}
+            </td>
+            <th>Closed Date</th>
+            <td>{{ record.settlement_closed_date or '-' }}</td>
+          </tr>
+        </table>
+      </div>
+
+    </div><!-- /padding -->
+
+    <!-- Financial summary -->
+    <div style="padding: 0 24px 20px 24px;">
+      <div class="section-heading">Financial Summary</div>
+      <table class="detail-table">
+        <tr>
+          <th>Treatment Expenditure</th>
+          <td>₹ {{ '%.2f' % (record.treatment_expenditure or 0) }}</td>
+          <th>Police Total Paid</th>
+          <td>₹ {{ '%.2f' % (record.police_total_paid or 0) }}</td>
+        </tr>
+        <tr>
+          <th>Amount Settled</th>
+          <td>₹ {{ '%.2f' % (record.settlement_amount or 0) }}</td>
+          <th>Total Loss</th>
+          <td style="font-weight:800;">₹ {{ '%.2f' % (record.total_loss or ((record.treatment_expenditure or 0) + (record.police_total_paid or 0) + (record.settlement_amount or 0))) }}</td>
+        </tr>
+      </table>
+    </div>
+
+    <!-- ─── Signature Section (visible only on print/download) ─── -->
+    <div style="border: none; padding: 24px 16px; margin-top: 8px; border-top: 2px solid #e5e7eb;">
+      <table style="width: 100%; border-collapse: collapse;">
+        <tr>
+          <td style="width: 33.33%; text-align: center; vertical-align: top; padding: 0 12px;">
+            <p style="font-weight: 700; font-size: 0.9rem; margin: 0 0 60px 0; text-decoration: underline;">Signature of the Verified Authority<br>(Technical)</p>
+            <p style="font-weight: 700; font-size: 0.9rem; margin: 0;">Mr.Ramachandran<br>(Coordinator)</p>
+          </td>
+          <td style="width: 33.33%; text-align: center; vertical-align: top; padding: 0 12px; border-left: 2px solid #000; border-right: 2px solid #000;">
+            <p style="font-weight: 700; font-size: 0.9rem; margin: 0 0 60px 0; text-decoration: underline;">Signature of the Forwarding<br>Authority</p>
+            <p style="font-weight: 700; font-size: 0.9rem; margin: 0;">Mr.N.Sudhakaran<br>(Director)</p>
+          </td>
+          <td style="width: 33.33%; text-align: center; vertical-align: top; padding: 0 12px;">
+            <p style="font-weight: 700; font-size: 0.9rem; margin: 0 0 60px 0; text-decoration: underline;">Signature of the Approving<br>Authority</p>
+            <p style="font-weight: 700; font-size: 0.9rem; margin: 0;">The Honourable Chairman<br>PMC TECH</p>
+          </td>
+        </tr>
+      </table>
+    </div>
+
+  </div><!-- /report-wrapper -->
+
+</body>
+</html>

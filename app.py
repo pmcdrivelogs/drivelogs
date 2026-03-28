@@ -36,6 +36,8 @@ from database import (
     save_process_of_works, save_monthly_maintenance, save_halfyearly_maintenance, 
     save_annual_maintenance, save_annual_summary_complaints, save_annual_summary_recommendations, 
     save_incidents_reports_incidents, save_incidents_reports_claims, save_feedback,
+    get_next_accident_entry_no, save_accident_incident,
+    get_all_accidents_incidents, get_accident_incident_by_id,
     save_purchase, get_next_purchase_entry_no,
     save_fuel, get_next_fuel_entry_no,
     save_stock, get_next_stock_entry_no,
@@ -3799,6 +3801,44 @@ def admin_analytics_dashboard():
         except Exception:
             pass
 
+        # Accidents / Incidents summary: count and total loss
+        try:
+            ai_rows = get_all_accidents_incidents() or []
+            accidents_count = len(ai_rows)
+            total_loss_sum = 0.0
+            for r in ai_rows:
+                try:
+                    # prefer stored total_loss, else compute from components
+                    tl = r.get('total_loss')
+                    if tl is None:
+                        treat = float(r.get('treatment_expenditure') or 0)
+                        pol = float(r.get('police_total_paid') or 0)
+                        sett = float(r.get('settlement_amount') or 0)
+                        tl = treat + pol + sett
+                    total_loss_sum += float(tl or 0)
+                except Exception:
+                    continue
+            # attach to period datasets for frontend use
+            # Backwards-compatible keys for frontend: support both "accidents_*" and
+            # "incidents_*" naming used in different places of the JS/template.
+            daily_data['accidents_count'] = accidents_count
+            weekly_data['accidents_count'] = accidents_count
+            monthly_data['accidents_count'] = accidents_count
+            daily_data['accidents_total_loss'] = round(total_loss_sum, 2)
+            weekly_data['accidents_total_loss'] = round(total_loss_sum, 2)
+            monthly_data['accidents_total_loss'] = round(total_loss_sum, 2)
+
+            # Also expose `incidents_*` keys expected by the dashboard JS
+            daily_data['incidents_count'] = accidents_count
+            weekly_data['incidents_count'] = accidents_count
+            monthly_data['incidents_count'] = accidents_count
+            daily_data['incidents_payments_total'] = round(total_loss_sum, 2)
+            weekly_data['incidents_payments_total'] = round(total_loss_sum, 2)
+            monthly_data['incidents_payments_total'] = round(total_loss_sum, 2)
+        except Exception:
+            accidents_count = 0
+            total_loss_sum = 0.0
+
         # compute today's statutory payments (for Rate & Taxes / Payments Made)
         try:
             rate_and_taxes_today = round(sum(float(r.get('total_amount', 0) or r.get('amount', 0) or 0) for r in statutory_records if r.get('created_at') and parse_datetime(r['created_at']) == today), 2)
@@ -3848,6 +3888,7 @@ def admin_analytics_dashboard():
                             registration_count=per_type_counts_all.get('Registration', 0),
                             driver_salary=round(driver_salary_total, 2),
                             rate_and_taxes=rate_and_taxes_today)
+                            
     
     except Exception as e:
         print(f"Error in analytics dashboard: {e}")
@@ -4252,6 +4293,39 @@ def api_analytics_custom():
         data['active_drivers'] = 0
         data['past_drivers'] = 0
 
+    # Accidents / Incidents: count and total loss within the requested range
+    try:
+        ai_rows = get_all_accidents_incidents() or []
+        def ai_in_range(r):
+            d = to_date(r.get('created_at') or r.get('date_time') or r.get('date'))
+            return d and start_date <= d <= end_date
+
+        ai_filtered = [r for r in ai_rows if ai_in_range(r)]
+        incidents_count = len(ai_filtered)
+        incidents_total = 0.0
+        for r in ai_filtered:
+            try:
+                tl = r.get('total_loss')
+                if tl is None:
+                    treat = float(r.get('treatment_expenditure') or 0)
+                    pol = float(r.get('police_total_paid') or 0)
+                    sett = float(r.get('settlement_amount') or 0)
+                    tl = treat + pol + sett
+                incidents_total += float(tl or 0)
+            except Exception:
+                continue
+
+        data['incidents_count'] = incidents_count
+        data['incidents_payments_total'] = round(incidents_total, 2)
+        # Backwards-compatible keys
+        data['accidents_count'] = incidents_count
+        data['accidents_total_loss'] = round(incidents_total, 2)
+    except Exception:
+        data['incidents_count'] = 0
+        data['incidents_payments_total'] = 0
+        data['accidents_count'] = 0
+        data['accidents_total_loss'] = 0
+
     # Statutory counts: compute latest validity per vehicle/statutory type and classify
     try:
         stat_rows = get_all_statutory_records() or []
@@ -4510,7 +4584,7 @@ def admin_save_user_modules(user_id):
     try:
         modules = request.form.getlist('modules[]') or request.form.getlist('modules') or []
         # Whitelist known module names to avoid arbitrary data
-        allowed = ['Purchase', 'Utilization', 'Maintenance', 'Internal Audit', 'Part ID', 'Scrap', 'Fuel', 'Statutory', 'Trip Sheet', 'Log Book', 'DC']
+        allowed = ['Purchase', 'Utilization', 'Maintenance', 'Internal Audit', 'Part ID', 'Scrap', 'Fuel', 'Statutory', 'Trip Sheet', 'Log Book', 'DC', 'Accidents/Incidents']
         selected = [m for m in modules if m in allowed]
         # Try updating via Supabase directly so we can return any underlying error message
         try:
@@ -5781,59 +5855,6 @@ def annual_summary_recommendations():
 def incidents_reports():
     return render_template('incidents_reports.html')
 
-
-@app.route('/incidents-log', methods=['GET', 'POST'])
-@login_required
-@module_required('Accidents/Incidents')
-def incidents_log():
-    """Module page for Accidents / Incidents log. Supports listing and adding a single incident via POST.
-    The POST handler expects form fields matching the template and will insert via save_incidents_reports_incidents.
-    Returns JSON on POST for client-side updates.
-    """
-    if request.method == 'POST':
-        try:
-            entry = {
-                'date': request.form.get('date') or None,
-                'nature_of_incident': request.form.get('nature_of_incident') or request.form.get('type') or '',
-                'driver_id': request.form.get('driver_id') or request.form.get('incident_driver_id') or '',
-                'driver_name': request.form.get('driver_name') or request.form.get('incident_driver_name') or '',
-                'vehicle_id': request.form.get('vehicle_id') or request.form.get('incident_vehicle_id') or '',
-                'registration_no': (request.form.get('registration_no') or request.form.get('incident_vehicle_reg') or '').upper(),
-                'case_description': request.form.get('case_description') or request.form.get('incident_case_description') or '',
-                'type_of_case': request.form.get('type_of_case') or request.form.get('incident_type_of_case') or '',
-                'type_of_case_no': request.form.get('type_of_case_no') or request.form.get('incident_type_of_case_no') or '',
-                'status': request.form.get('status') or request.form.get('incident_status') or '',
-                'total_payments': request.form.get('total_payments') or request.form.get('incident_total_payments') or '',
-                'created_by': session.get('user_id') or session.get('admin_id')
-            }
-            saved = save_incidents_reports_incidents([entry])
-            if saved and saved > 0:
-                return jsonify({'ok': True, 'entry': entry})
-            return jsonify({'ok': False}), 500
-        except Exception as e:
-            app.logger.exception('Error saving incident: %s', e)
-            return jsonify({'ok': False, 'error': str(e)}), 500
-
-    # GET -> list entries
-    entries = []
-    try:
-        res = supabase.table('incidents_reports_incidents').select('*').order('created_at', desc=True).execute()
-        entries = res.data or []
-    except Exception as e:
-        app.logger.exception('Error fetching incidents log: %s', e)
-        entries = []
-
-    # Fetch HR employees to populate driver dropdown
-    employees = []
-    try:
-        emp_res = supabase.table('employees').select('employee_id,name,profile_post,status').order('name').execute()
-        employees = emp_res.data or []
-    except Exception as e:
-        app.logger.exception('Error fetching employees for incidents_log: %s', e)
-        employees = []
-
-    return render_template('incidents_log.html', entries=entries, employees=employees)
-
 @app.route('/incidents-reports-incidents', methods=['POST'])
 @login_required
 def incidents_reports_incidents():
@@ -5872,7 +5893,138 @@ def incidents_reports_incidents():
     
     return redirect(url_for('incidents_reports'))
 
-@app.route('/incidents-reports-claims', methods=['POST'])
+# ──────────────────────────────────────────────────────────────
+# Accidents / Incidents Module
+# ──────────────────────────────────────────────────────────────
+
+@app.route('/accidents-incidents')
+@login_required
+@module_required('Accidents/Incidents')
+def accidents_incidents():
+    """New Accidents / Incidents entry form."""
+    vehicles = get_all_vehicles() or []
+    # fetch employees for driver select
+    try:
+        emp_resp = supabase.table('employees').select('employee_id, name').order('employee_id').execute()
+        employees = emp_resp.data or []
+    except Exception:
+        employees = []
+    entry_no = get_next_accident_entry_no()
+    from datetime import datetime as _dt
+    now_str = _dt.now().strftime('%Y-%m-%dT%H:%M')
+    return render_template('incidents.html',
+                           vehicles=vehicles,
+                           employees=employees,
+                           entry_no=entry_no,
+                           now_str=now_str)
+
+
+@app.route('/accidents-incidents/save', methods=['POST'])
+@login_required
+@module_required('Accidents/Incidents')
+def accidents_incidents_save():
+    """Save a new Accidents / Incidents record."""
+    f = request.form
+    def _get(key, default=''):
+        return (f.get(key) or default).strip()
+
+    data = {
+        'entry_no':                 _get('entry_no'),
+        'date_time':                _get('date_time') or datetime.now().isoformat(),
+        'vehicle_id':               _get('vehicle_id'),
+        'registration_no':          _get('registration_no').upper(),
+        'driver_id':                _get('driver_id'),
+        'driver_name':              _get('driver_name').upper(),
+        'place_of_incident':        _get('place_of_incident'),
+        'place_description':        _get('place_description'),
+        'type_of_incident':         _get('type_of_incident'),
+        'type_of_incident_desc':    _get('type_of_incident_desc'),
+        'type_of_loss':             _get('type_of_loss'),
+        'type_of_loss_desc':        _get('type_of_loss_desc'),
+        'case_description':         _get('case_description'),
+        'hospitalized':             _get('hospitalized', 'NO'),
+        'hospital_name':            _get('hospital_name'),
+        'type_of_treatment':        _get('type_of_treatment'),
+        'treatment_expenditure':    f.get('treatment_expenditure') or None,
+        'case_filed_police':        _get('case_filed_police', 'NO'),
+        'fir_csr_no':               _get('fir_csr_no'),
+        'police_date':              f.get('police_date') or None,
+        'police_status':            _get('police_status'),
+        'police_closed_date':       f.get('police_closed_date') or None,
+        'settled_in_person':        _get('settled_in_person', 'NO'),
+        'minutes_of_settlement':    _get('minutes_of_settlement'),
+        'settlement_status':        _get('settlement_status', 'PENDING'),
+        'settlement_closed_date':   f.get('settlement_closed_date') or None,
+        'police_total_paid':        f.get('police_total_paid') or None,
+        'settlement_amount':        f.get('settlement_amount') or None,
+        'total_loss':               f.get('total_loss') or None,
+    }
+
+    # Settlement persons list
+    settlement_persons = f.getlist('settlement_person[]')
+
+    record = save_accident_incident(data, settlement_persons)
+    if record:
+        flash(f"Accident/Incident saved successfully! Entry No: {data['entry_no']}", 'success')
+        return redirect(url_for('accidents_incidents_view', incident_id=record['id']))
+    else:
+        flash('Error saving record. Please try again.', 'danger')
+        return redirect(url_for('accidents_incidents'))
+
+
+@app.route('/accidents-incidents/list')
+@login_required
+@module_required('Accidents/Incidents')
+def accidents_incidents_list():
+    """History list of all Accidents / Incidents."""
+    records = get_all_accidents_incidents()
+    return render_template('incidents_list.html', records=records)
+
+
+@app.route('/accidents-incidents/<int:incident_id>')
+@login_required
+@module_required('Accidents/Incidents')
+def accidents_incidents_view(incident_id):
+    """View / print a single Accidents / Incidents record."""
+    record = get_accident_incident_by_id(incident_id)
+    if not record:
+        flash('Record not found.', 'danger')
+        return redirect(url_for('accidents_incidents_list'))
+    return render_template('incidents_view.html', record=record)
+
+
+# ──────────────────────────────────────────────────────────────
+# API: fetch vehicle registration by vehicle_id (for auto-fill)
+# ──────────────────────────────────────────────────────────────
+@app.route('/api/vehicle-reg/<path:vehicle_id_val>')
+@login_required
+def api_vehicle_reg(vehicle_id_val):
+    veh = get_vehicle_by_vehicle_id(vehicle_id_val)
+    if veh:
+        return jsonify({'registration_no': veh.get('registration_no', '')})
+    return jsonify({'registration_no': ''})
+
+
+# ──────────────────────────────────────────────────────────────
+# API: fetch driver name by employee_id (for incidents auto-fill)
+# ──────────────────────────────────────────────────────────────
+@app.route('/api/driver-name/<path:driver_id_val>')
+@login_required
+def api_driver_name(driver_id_val):
+    try:
+        app.logger.debug('api_driver_name lookup for: %s', driver_id_val)
+        resp = supabase.table('employees').select('employee_id,name,full_name,employee_name').eq('employee_id', driver_id_val).execute()
+        app.logger.debug('supabase response: %s', getattr(resp, 'data', None))
+        if resp.data:
+            row = resp.data[0]
+            name = row.get('name') or row.get('full_name') or row.get('employee_name') or ''
+            return jsonify({'success': True, 'driver_name': name})
+        return jsonify({'success': False, 'driver_name': ''}), 404
+    except Exception as e:
+        app.logger.exception('api_driver_name error for %s: %s', driver_id_val, e)
+        return jsonify({'success': False, 'driver_name': '', 'error': str(e)}), 500
+
+
 @login_required
 def incidents_reports_claims():
     vehicle_id = request.form.get('claim_vehicle_id', '')

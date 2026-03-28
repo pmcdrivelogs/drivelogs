@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Accidents / Incidents – History</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>* { font-family:'Inter',sans-serif; } body { background:linear-gradient(135deg,#f0f4ff 0%,#e8f0fe 50%,#f5f7ff 100%); }</style>
+</head>
+<body class="min-h-screen pt-20 pb-12">
+
+  <div class="logo-bar w-full flex items-center justify-between px-4 py-3 fixed top-0 left-0 z-50">
+    <img src="{{ url_for('static', filename='img/drive-logs.png') }}" alt="Drive Logs" class="h-12 w-auto ml-2">
+    <div class="flex items-center gap-3">
+      <a href="{{ url_for('accidents_incidents') }}" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-full text-sm font-semibold">+ New Entry</a>
+      <a href="{{ url_for('dashboard') }}" class="bg-white text-gray-800 hover:bg-gray-100 px-4 py-2 rounded-full text-sm font-semibold border">Dashboard</a>
+    </div>
+  </div>
+
+  <div class="max-w-7xl mx-auto px-4">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}{% for cat,msg in messages %}
+        <div class="mb-3 p-3 rounded-lg text-sm {% if cat=='success' %}bg-green-100 text-green-800 border border-green-200{% else %}bg-red-100 text-red-800 border border-red-200{% endif %}">{{ msg }}</div>
+      {% endfor %}{% endif %}
+    {% endwith %}
+
+    <div class="flex items-center justify-between mb-6">
+      <h1 class="text-2xl font-bold text-gray-800">🚨 Accidents / Incidents – History</h1>
+      <span class="text-sm text-gray-500">{{ records|length }} record(s)</span>
+    </div>
+
+    <div class="bg-white rounded-2xl shadow-md overflow-hidden">
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead class="bg-gray-800 text-white">
+            <tr>
+              <th class="px-4 py-3 text-left whitespace-nowrap">Entry No.</th>
+              <th class="px-4 py-3 text-left whitespace-nowrap">Date &amp; Time</th>
+              <th class="px-4 py-3 text-left whitespace-nowrap">Vehicle ID</th>
+              <th class="px-4 py-3 text-left whitespace-nowrap">Reg. No.</th>
+              <th class="px-4 py-3 text-left whitespace-nowrap">Driver</th>
+              <th class="px-4 py-3 text-left whitespace-nowrap">Place</th>
+              <th class="px-4 py-3 text-left whitespace-nowrap">Type</th>
+              <th class="px-4 py-3 text-left whitespace-nowrap">Settlement</th>
+              <th class="px-4 py-3 text-center whitespace-nowrap">Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% if records %}
+              {% for rec in records %}
+              <tr class="border-b border-gray-100 hover:bg-blue-50 transition">
+                <td class="px-4 py-3 font-bold text-blue-700">{{ rec.entry_no }}</td>
+                <td class="px-4 py-3">{{ rec.date_time[:16] if rec.date_time else '-' }}</td>
+                <td class="px-4 py-3">{{ rec.vehicle_id or '-' }}</td>
+                <td class="px-4 py-3">{{ rec.registration_no or '-' }}</td>
+                <td class="px-4 py-3">{{ rec.driver_name or rec.driver_id or '-' }}</td>
+                <td class="px-4 py-3">{{ rec.place_of_incident or '-' }}</td>
+                <td class="px-4 py-3">{{ rec.type_of_incident or '-' }}</td>
+                <td class="px-4 py-3">
+                  {% if rec.settlement_status == 'CLOSED' %}
+                    <span class="px-2 py-0.5 rounded bg-green-100 text-green-700 text-xs font-bold">CLOSED</span>
+                  {% else %}
+                    <span class="px-2 py-0.5 rounded bg-yellow-100 text-yellow-700 text-xs font-bold">PENDING</span>
+                  {% endif %}
+                </td>
+                <td class="px-4 py-3 text-center">
+                  <a href="{{ url_for('accidents_incidents_view', incident_id=rec.id) }}" class="text-blue-600 hover:underline font-semibold text-xs">View / Print</a>
+                </td>
+              </tr>
+              {% endfor %}
+            {% else %}
+              <tr><td colspan="9" class="px-4 py-10 text-center text-gray-400">No records found. <a href="{{ url_for('accidents_incidents') }}" class="text-blue-600 hover:underline">Create the first entry →</a></td></tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+{% include 'footer.html' %}
+</body>
+</html>

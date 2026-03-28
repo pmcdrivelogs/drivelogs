@@ -355,27 +355,7 @@
         </div>
       </div>
 
-      <div class="mb-6">
-        <h2 class="text-2xl font-bold text-gray-800 mb-4">💰 Total Expenditure</h2>
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <div class="stat-box" style="background:#fde68a;color:#111;">
-            <h3 style="color:#92400e;">Purchase (expenditure)</h3>
-            <div class="value" id="purchaseExpenditure">₹0.00</div>
-          </div>
-          <div class="stat-box" style="background:#f59e0b;">
-            <h3>Fuel</h3>
-            <div class="value" id="fuelExpenditure">₹{{ total_expenditure|default(0) }}</div>
-          </div>
-          <div class="stat-box" style="background:#c7d2fe;color:#111;">
-            <h3 style="color:#3730a3;">Driver Salary</h3>
-            <div class="value" id="driverSalary">₹0.00</div>
-          </div>
-          <div class="stat-box" style="background:#d1fae5;color:#111;">
-            <h3 style="color:#065f46;">Rate & Taxes</h3>
-            <div class="value" id="rateAndTaxes">₹0.00</div>
-          </div>
-        </div>
-      </div>
+  
 
       <div class="mb-6">
         <h2 class="text-2xl font-bold text-gray-800 mb-4">📋 Statutory Compliance Status</h2>
@@ -447,21 +427,38 @@
       <div class="mb-6">
         <h2 class="text-2xl font-bold text-gray-800 mb-4">⚠️ Accidents & Incidents</h2>
         <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div class="stat-box" style="background:#fee2e2;color:#7f1d1d;">
-            <h3 style="color:#7f1d1d;">No. of Accidents</h3>
-            <div class="value" id="accidentsCount">0</div>
-          </div>
+         
           <div class="stat-box" style="background:#fef3c7;color:#92400e;">
             <h3 style="color:#92400e;">No. of Incidents</h3>
             <div class="value" id="incidentsCount">0</div>
           </div>
           <div class="stat-box" style="background:#eef2ff;color:#1e3a8a;">
-            <h3 style="color:#1e3a8a;">Total Payments (Incidents)</h3>
+            <h3 style="color:#1e3a8a;">Total Loss</h3>
             <div class="value" id="incidentsPayments">₹0.00</div>
           </div>
         </div>
       </div>
-
+   <div class="mb-6">
+        <h2 class="text-2xl font-bold text-gray-800 mb-4">💰 Total Expenditure</h2>
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div class="stat-box" style="background:#fde68a;color:#111;">
+            <h3 style="color:#92400e;">Purchase (expenditure)</h3>
+            <div class="value" id="purchaseExpenditure">₹0.00</div>
+          </div>
+          <div class="stat-box" style="background:#f59e0b;">
+            <h3>Fuel</h3>
+            <div class="value" id="fuelExpenditure">₹{{ total_expenditure|default(0) }}</div>
+          </div>
+          <div class="stat-box" style="background:#c7d2fe;color:#111;">
+            <h3 style="color:#3730a3;">Driver Salary</h3>
+            <div class="value" id="driverSalary">₹0.00</div>
+          </div>
+          <div class="stat-box" style="background:#d1fae5;color:#111;">
+            <h3 style="color:#065f46;">Rate & Taxes</h3>
+            <div class="value" id="rateAndTaxes">₹0.00</div>
+          </div>
+        </div>
+      </div>
       <!-- Overall Expenditure Summary -->
       <div class="mb-6">
         <div class="dashboard-card">
