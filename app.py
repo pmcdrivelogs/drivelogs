@@ -108,12 +108,13 @@ app.jinja_env.filters['fmt_dt'] = _format_date
 
 # Fields to watch on admin vehicle edits for immediate notifications
 VEHICLE_DATE_FIELDS = {
-    'fitness_validity': 'Fitness Validity',
-    'insurance_validity': 'Insurance Validity',
-    'registration_validity': 'Registration Validity',
-    'permit_validity': 'Permit Validity',
-    'pucc_validity': 'PUCC Validity',
-    'tax_validity': 'Tax Validity'
+    # Map vehicle date fields to the normalized statutory type names
+    'fitness_validity': 'Fitness Certificate',
+    'insurance_validity': 'Insurance',
+    'registration_validity': 'Registration',
+    'permit_validity': 'Permit',
+    'pucc_validity': 'Pollution Certificate',
+    'tax_validity': 'Road Tax'
 }
 
 
@@ -2962,6 +2963,28 @@ def admin_reports():
         # Fetch all records
         fuel_records = get_all_fuel_records()
         statutory_records = get_all_statutory_records()
+        # Also include vehicle-level validity fields (from vehicle page) as synthetic
+        # statutory-like records so compliance status reflects both sources.
+        try:
+            vehicle_rows = get_all_vehicles() or []
+        except Exception:
+            vehicle_rows = []
+        # Build synthetic records from vehicles for known validity fields
+        veh_stat_rows = []
+        for v in vehicle_rows:
+            vid = v.get('vehicle_id') or v.get('id') or v.get('vehicle_id_value') or ''
+            reg = v.get('registration_no') or v.get('registration') or ''
+            for field_key, label in VEHICLE_DATE_FIELDS.items():
+                if v.get(field_key):
+                    veh_stat_rows.append({
+                        'type_of_transaction': label,
+                        'vehicle_id': vid,
+                        'registration_no': reg,
+                        'validity_date': v.get(field_key),
+                        'source': 'vehicle_record'
+                    })
+        # treat statutory_records list as possibly None
+        statutory_records = (statutory_records or []) + veh_stat_rows
         trip_records = list(get_all_trip_sheets())
         
         # Calculate summaries
@@ -3845,6 +3868,27 @@ def api_statutory_records():
         statutory_records = get_all_statutory_records() or []
     except Exception:
         statutory_records = []
+
+    # Also include vehicle-level validity fields (from vehicle page) so the
+    # API reflects compliance coming from both statutory entries and vehicle records.
+    try:
+        vehicle_rows = get_all_vehicles() or []
+    except Exception:
+        vehicle_rows = []
+    veh_stat_rows = []
+    for v in vehicle_rows:
+        vid = v.get('vehicle_id') or v.get('id') or ''
+        reg = v.get('registration_no') or v.get('registration') or ''
+        for field_key, label in VEHICLE_DATE_FIELDS.items():
+            if v.get(field_key):
+                veh_stat_rows.append({
+                    'type_of_transaction': label,
+                    'vehicle_id': vid,
+                    'registration_no': reg,
+                    'validity_date': v.get(field_key),
+                    'source': 'vehicle_record'
+                })
+    statutory_records = (statutory_records or []) + veh_stat_rows
 
     today = datetime.now().date()
     out = []
@@ -5736,6 +5780,59 @@ def annual_summary_recommendations():
 @login_required
 def incidents_reports():
     return render_template('incidents_reports.html')
+
+
+@app.route('/incidents-log', methods=['GET', 'POST'])
+@login_required
+@module_required('Accidents/Incidents')
+def incidents_log():
+    """Module page for Accidents / Incidents log. Supports listing and adding a single incident via POST.
+    The POST handler expects form fields matching the template and will insert via save_incidents_reports_incidents.
+    Returns JSON on POST for client-side updates.
+    """
+    if request.method == 'POST':
+        try:
+            entry = {
+                'date': request.form.get('date') or None,
+                'nature_of_incident': request.form.get('nature_of_incident') or request.form.get('type') or '',
+                'driver_id': request.form.get('driver_id') or request.form.get('incident_driver_id') or '',
+                'driver_name': request.form.get('driver_name') or request.form.get('incident_driver_name') or '',
+                'vehicle_id': request.form.get('vehicle_id') or request.form.get('incident_vehicle_id') or '',
+                'registration_no': (request.form.get('registration_no') or request.form.get('incident_vehicle_reg') or '').upper(),
+                'case_description': request.form.get('case_description') or request.form.get('incident_case_description') or '',
+                'type_of_case': request.form.get('type_of_case') or request.form.get('incident_type_of_case') or '',
+                'type_of_case_no': request.form.get('type_of_case_no') or request.form.get('incident_type_of_case_no') or '',
+                'status': request.form.get('status') or request.form.get('incident_status') or '',
+                'total_payments': request.form.get('total_payments') or request.form.get('incident_total_payments') or '',
+                'created_by': session.get('user_id') or session.get('admin_id')
+            }
+            saved = save_incidents_reports_incidents([entry])
+            if saved and saved > 0:
+                return jsonify({'ok': True, 'entry': entry})
+            return jsonify({'ok': False}), 500
+        except Exception as e:
+            app.logger.exception('Error saving incident: %s', e)
+            return jsonify({'ok': False, 'error': str(e)}), 500
+
+    # GET -> list entries
+    entries = []
+    try:
+        res = supabase.table('incidents_reports_incidents').select('*').order('created_at', desc=True).execute()
+        entries = res.data or []
+    except Exception as e:
+        app.logger.exception('Error fetching incidents log: %s', e)
+        entries = []
+
+    # Fetch HR employees to populate driver dropdown
+    employees = []
+    try:
+        emp_res = supabase.table('employees').select('employee_id,name,profile_post,status').order('name').execute()
+        employees = emp_res.data or []
+    except Exception as e:
+        app.logger.exception('Error fetching employees for incidents_log: %s', e)
+        employees = []
+
+    return render_template('incidents_log.html', entries=entries, employees=employees)
 
 @app.route('/incidents-reports-incidents', methods=['POST'])
 @login_required

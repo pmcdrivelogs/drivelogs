@@ -398,23 +398,23 @@
         </div>
 
         <div class="grid grid-cols-1 md:grid-cols-5 gap-4 mt-4">
-          <div class="p-3 bg-blue-50 border border-blue-200 rounded-lg text-center">
+          <div onclick="showStatutoryByType('Fitness Certificate')" class="p-3 bg-blue-50 border border-blue-200 rounded-lg text-center cursor-pointer">
             <div class="text-sm text-blue-600 font-semibold">FC</div>
             <div class="text-xl font-bold text-blue-800" id="fcCount">{{ fc_count|default(0) }}</div>
           </div>
-          <div class="p-3 bg-indigo-50 border border-indigo-200 rounded-lg text-center">
+          <div onclick="showStatutoryByType('Insurance')" class="p-3 bg-indigo-50 border border-indigo-200 rounded-lg text-center cursor-pointer">
             <div class="text-sm text-indigo-600 font-semibold">Insurance</div>
             <div class="text-xl font-bold text-indigo-800" id="insuranceCount">{{ insurance_count|default(0) }}</div>
           </div>
-          <div class="p-3 bg-amber-50 border border-amber-200 rounded-lg text-center">
+          <div onclick="showStatutoryByType('Road Tax')" class="p-3 bg-amber-50 border border-amber-200 rounded-lg text-center cursor-pointer">
             <div class="text-sm text-amber-600 font-semibold">Tax</div>
             <div class="text-xl font-bold text-amber-800" id="taxCount">{{ tax_count|default(0) }}</div>
           </div>
-          <div class="p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-center">
+          <div onclick="showStatutoryByType('Permit')" class="p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-center cursor-pointer">
             <div class="text-sm text-emerald-600 font-semibold">Permit</div>
             <div class="text-xl font-bold text-emerald-800" id="permitCount">{{ permit_count|default(0) }}</div>
           </div>
-          <div class="p-3 bg-slate-50 border border-slate-200 rounded-lg text-center">
+          <div onclick="showStatutoryByType('Pollution Certificate')" class="p-3 bg-slate-50 border border-slate-200 rounded-lg text-center cursor-pointer">
             <div class="text-sm text-slate-600 font-semibold">PUCC</div>
             <div class="text-xl font-bold text-slate-800" id="puccCount">{{ pucc_count|default(0) }}</div>
           </div>
@@ -1463,9 +1463,170 @@
       tbody.innerHTML = '<tr><td colspan="7" class="p-4 text-center text-red-600">Error: ' + (err && err.message ? err.message : String(err)) + '</td></tr>';
     }
   }
+
+  // Show records filtered by statutory type (e.g., 'Fitness Certificate', 'Insurance')
+  async function showStatutoryByType(typeLabel) {
+    const title = typeLabel || 'Records';
+    document.getElementById('statModalTitle').textContent = title + ' Records';
+    const tbody = document.getElementById('statModalTableBody');
+    if (!tbody) return;
+    tbody.innerHTML = '<tr><td colspan="7" class="p-4 text-center">Loading...</td></tr>';
+    const modal = document.getElementById('statModal');
+    if (modal) modal.classList.remove('hidden');
+
+    try {
+      const res = await fetch('/api/statutory-records?status=all');
+      if (!res.ok) {
+        tbody.innerHTML = '<tr><td colspan="7" class="p-4 text-center text-red-600">Failed to fetch records</td></tr>';
+        return;
+      }
+      const data = await res.json();
+      const rows = (data.records || []).filter(r => {
+        const raw = (r.type_of_transaction || r.type || r.description || '').toLowerCase();
+        return raw.includes(String(typeLabel).toLowerCase());
+      });
+      if (rows.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" class="p-4 text-center">No records found</td></tr>';
+        return;
+      }
+
+      // Reuse the same rendering as showStatutoryList by delegating to a small helper
+      tbody.innerHTML = '';
+      rows.forEach(r => {
+        const tr = document.createElement('tr');
+        tr.className = 'border-t hover:bg-gray-50';
+
+        const addTd = (txt) => {
+          const td = document.createElement('td');
+          td.className = 'px-4 py-3';
+          td.textContent = txt == null ? '' : txt;
+          return td;
+        };
+
+        tr.appendChild(addTd(r.entry_no || r.entry_no || ''));
+        tr.appendChild(addTd(r.invoice_no || ''));
+        tr.appendChild(addTd(r.statutory_body_id || r.vehicle_id || ''));
+        tr.appendChild(addTd(r.type_of_transaction || r.record_type || ''));
+        tr.appendChild(addTd(r.due_date || r.validity_date || r.invoice_date || ''));
+        tr.appendChild(addTd(r.total_amount || r.total_amount || ''));
+
+        const detailsTd = document.createElement('td');
+        detailsTd.className = 'px-4 py-3';
+        const details = document.createElement('details');
+        const summary = document.createElement('summary');
+        summary.textContent = 'Show details';
+        summary.className = 'cursor-pointer text-sm text-blue-600';
+        const detailDiv = document.createElement('div');
+        detailDiv.className = 'p-3 bg-white rounded-md border border-gray-100 shadow-sm text-sm space-y-2';
+
+        function addRow(label, value) {
+          const row = document.createElement('div');
+          row.className = 'flex flex-wrap gap-2 items-start';
+          const lbl = document.createElement('div');
+          lbl.className = 'w-44 font-semibold text-gray-700';
+          lbl.textContent = label;
+          const val = document.createElement('div');
+          val.className = 'text-gray-900 break-words';
+          val.textContent = value == null ? '' : value;
+          row.appendChild(lbl);
+          row.appendChild(val);
+          return row;
+        }
+
+        detailDiv.appendChild(addRow('Entry No', r.entry_no || ''));
+        detailDiv.appendChild(addRow('Invoice No', r.invoice_no || ''));
+        detailDiv.appendChild(addRow('Statutory Body ID', r.statutory_body_id || ''));
+        detailDiv.appendChild(addRow('Registration No', r.registration_no || r.vehicle_no || ''));
+        detailDiv.appendChild(addRow('Type', r.type_of_transaction || r.record_type || ''));
+        detailDiv.appendChild(addRow('Validity / Due Date', r.due_date || r.validity_date || r.invoice_date || ''));
+        detailDiv.appendChild(addRow('Rate', r.rate || r.total_amount || ''));
+
+        const rawToggle = document.createElement('details');
+        rawToggle.className = 'mt-2';
+        const rawSummary = document.createElement('summary');
+        rawSummary.textContent = 'Show raw JSON';
+        rawSummary.className = 'cursor-pointer text-xs text-gray-600';
+        const rawPre = document.createElement('pre');
+        rawPre.style.whiteSpace = 'pre-wrap';
+        rawPre.style.fontSize = '0.75rem';
+        try { rawPre.textContent = JSON.stringify(r, null, 2); } catch (e) { rawPre.textContent = String(r); }
+        rawToggle.appendChild(rawSummary);
+        rawToggle.appendChild(rawPre);
+
+        details.appendChild(summary);
+        details.appendChild(detailDiv);
+        details.appendChild(rawToggle);
+        detailsTd.appendChild(details);
+        tr.appendChild(detailsTd);
+
+        tbody.appendChild(tr);
+      });
+    } catch (err) {
+      tbody.innerHTML = '<tr><td colspan="7" class="p-4 text-center text-red-600">Error: ' + (err && err.message ? err.message : String(err)) + '</td></tr>';
+    }
+  }
 </script>
 
 <script src="{{ url_for('static', filename='js/uppercase.js') }}"></script>
 {% include 'footer.html' %}
 </body>
 </html>
+
+<script>
+  // Fetch latest statutory records and update the top-level counts
+  async function refreshStatutoryCounts() {
+    try {
+      const res = await fetch('/api/statutory-records?status=all');
+      if (!res.ok) return;
+      const data = await res.json();
+      const records = data.records || [];
+
+      let compliant = 0, due_soon = 0, overdue = 0;
+      const perType = { 'fc': 0, 'insurance': 0, 'tax': 0, 'permit': 0, 'pucc': 0, 'registration': 0 };
+
+      function normType(s) {
+        if (!s) return '';
+        const ss = String(s).toLowerCase();
+        if (ss.includes('fitness') || ss.includes('fc')) return 'fc';
+        if (ss.includes('insur')) return 'insurance';
+        if (ss.includes('tax') || ss.includes('rate')) return 'tax';
+        if (ss.includes('permit')) return 'permit';
+        if (ss.includes('pucc') || ss.includes('pollut')) return 'pucc';
+        if (ss.includes('registr')) return 'registration';
+        return '';
+      }
+
+      records.forEach(r => {
+        const st = (r.statutory_status || '').toLowerCase();
+        if (st === 'compliant') compliant += 1;
+        else if (st === 'due_soon' || st === 'due soon') due_soon += 1;
+        else if (st === 'overdue') overdue += 1;
+
+        const raw = r.type_of_transaction || r.type || r.description || '';
+        const t = normType(raw);
+        if (t && perType.hasOwnProperty(t)) perType[t] += 1;
+      });
+
+      const setIf = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+      setIf('compliantCount', compliant);
+      setIf('dueSoonCount', due_soon);
+      setIf('overdueCount', overdue);
+      setIf('fcCount', perType.fc);
+      setIf('insuranceCount', perType.insurance);
+      setIf('taxCount', perType.tax);
+      setIf('permitCount', perType.permit);
+      setIf('puccCount', perType.pucc);
+      setIf('registrationCount', perType.registration);
+    } catch (err) {
+      console.error('Failed to refresh statutory counts', err);
+    }
+  }
+
+  document.addEventListener('DOMContentLoaded', function() {
+    // refresh on load so vehicle edits saved elsewhere reflect immediately
+    refreshStatutoryCounts();
+    // also refresh when statutory modal is closed/updated (optional)
+    // refresh every 30s while admin page is open
+    setInterval(refreshStatutoryCounts, 30000);
+  });
+</script>
