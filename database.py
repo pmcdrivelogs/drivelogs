@@ -1740,34 +1740,46 @@ def get_all_statutory_records():
 def get_all_trip_sheets():
     """Get all trip sheet records with vehicle and driver information"""
     try:
-        # Join trip_sheet with vehicles to get registration_no and with employees to get driver name
-        response = supabase.table('trip_sheet').select('''
-            *,
-            vehicles:vehicle_id(registration_no),
-            employees:driver_id(name)
-        ''').order('created_at', desc=True).execute()
-        
-        # Process the data to flatten the joined fields
+        # PostgREST / Supabase limits response size per request (commonly 1000 rows).
+        # Fetch records in chunks to ensure we return all rows when the table is large.
+        chunk_size = 1000
+        start = 0
         records = []
-        for record in (response.data or []):
-            # Flatten vehicle data
-            if record.get('vehicles'):
-                record['vehicle_no'] = record['vehicles']['registration_no']
-            else:
-                record['vehicle_no'] = '-'
-            
-            # Flatten employee data
-            if record.get('employees'):
-                record['driver_name'] = record['employees']['name']
-            else:
-                record['driver_name'] = '-'
-            
-            records.append(record)
-        
+        while True:
+            response = supabase.table('trip_sheet').select('''
+                *,
+                vehicles:vehicle_id(registration_no),
+                employees:driver_id(name)
+            ''').order('created_at', desc=True).range(start, start + chunk_size - 1).execute()
+
+            batch = response.data or []
+            if not batch:
+                break
+
+            # Flatten joined fields for this batch
+            for record in batch:
+                if record.get('vehicles'):
+                    record['vehicle_no'] = record['vehicles'].get('registration_no')
+                else:
+                    record['vehicle_no'] = '-'
+
+                if record.get('employees'):
+                    record['driver_name'] = record['employees'].get('name')
+                else:
+                    record['driver_name'] = '-'
+
+                records.append(record)
+
+            # If this batch is smaller than chunk_size, we've fetched all rows
+            if len(batch) < chunk_size:
+                break
+
+            start += chunk_size
+
         return records
     except Exception as e:
         print(f"Error getting trip sheet records: {e}")
-        # Fallback to basic query if join fails
+        # Fallback to a single request (best-effort)
         try:
             response = supabase.table('trip_sheet').select('*').order('created_at', desc=True).execute()
             records = []

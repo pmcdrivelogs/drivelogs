@@ -56,5 +56,15 @@
         "days_left": 13
       }
     }
+  ],
+  "2026-03-28": [
+    {
+      "vehicle_id": "89",
+      "field": "pucc_validity",
+      "ts": "2026-03-28T05:27:44.279227",
+      "info": {
+        "days_left": 0
+      }
+    }
   ]
 }

@@ -2376,6 +2376,93 @@ def stock_inventory():
         flash(f'Error loading inventory: {str(e)}', 'danger')
         return redirect(url_for('dashboard'))
 
+
+@app.route('/api/stock-totals')
+@login_required
+def api_stock_totals():
+    """Return authoritative stock totals computed from purchases, utilization, scrap and issue registers."""
+    try:
+        # Fetch necessary records
+        purchases = supabase.table('purchases').select('*').execute()
+        utilization = supabase.table('material_utilization').select('*').execute()
+        scrap = supabase.table('scrap').select('*').execute()
+        issue_register = supabase.table('stock_issue_register').select('*').execute()
+
+        # Helpers
+        def _safe_float(v):
+            try:
+                return float(v or 0)
+            except Exception:
+                try:
+                    return float(str(v).replace(',',''))
+                except Exception:
+                    return 0.0
+
+        # Aggregate utilization and scrap by normalized part key
+        utilized_by_part = {}
+        if utilization.data:
+            for r in utilization.data:
+                raw = r.get('part_no') or r.get('part_number') or ''
+                if raw is None:
+                    continue
+                key = str(raw).strip().lower()
+                utilized_by_part[key] = utilized_by_part.get(key, 0.0) + _safe_float(r.get('quantity'))
+
+        scrapped_by_part = {}
+        if scrap.data:
+            for r in scrap.data:
+                raw = r.get('part_no') or r.get('part_number') or ''
+                if raw is None:
+                    continue
+                key = str(raw).strip().lower()
+                scrapped_by_part[key] = scrapped_by_part.get(key, 0.0) + _safe_float(r.get('quantity'))
+
+        # Aggregate purchases by part
+        parts = {}
+        total_value_all_purchases = 0.0
+        total_current_qty = 0.0
+        if purchases.data:
+            for item in purchases.data:
+                raw = item.get('part_number') or item.get('part_no') or item.get('part') or ''
+                if raw is None:
+                    continue
+                part_no = str(raw).strip()
+                key = part_no.lower()
+                qty = _safe_float(item.get('quantity'))
+                total_value_all_purchases += _safe_float(item.get('net_payable'))
+                if key not in parts:
+                    parts[key] = {'part_no': part_no, 'current_qty': 0.0}
+                parts[key]['current_qty'] += qty
+                total_current_qty += qty
+
+        # Sum issued quantities
+        total_issued_qty = 0.0
+        if issue_register.data:
+            for r in issue_register.data:
+                total_issued_qty += _safe_float(r.get('quantity_issued') or r.get('quantity') or 0)
+
+        # Compute totals across parts
+        total_utilized_qty = sum(utilized_by_part.values())
+        total_scrapped_qty = sum(scrapped_by_part.values())
+
+        # Original received = current + utilized + scrapped + issued
+        original_received_qty = total_current_qty + total_utilized_qty + total_scrapped_qty + total_issued_qty
+        closing_stock_qty = total_current_qty
+
+        result = {
+            'total_original_received_qty': round(original_received_qty, 2),
+            'total_current_qty': round(total_current_qty, 2),
+            'total_utilized_qty': round(total_utilized_qty, 2),
+            'total_scrapped_qty': round(total_scrapped_qty, 2),
+            'total_issued_qty': round(total_issued_qty, 2),
+            'closing_stock_qty': round(closing_stock_qty, 2),
+            'total_purchase_value': f"{total_value_all_purchases:,.2f}"
+        }
+
+        return jsonify({'success': True, 'totals': result}), 200
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 @app.route('/issue-stock-form', methods=['GET', 'POST'])
 @login_required
 def issue_stock_form():
@@ -2979,10 +3066,45 @@ def admin_trip_records():
         # Calculate totals
         total_trips = len(trip_records)
         total_distance = sum(float(r.get('trip_close_km', 0) or 0) - float(r.get('trip_start_km', 0) or 0) for r in trip_records)
-        total_students = sum(int(r.get('student_total', 0) or 0) for r in trip_records)
-        total_faculty = sum(int(r.get('faculty_total', 0) or 0) for r in trip_records)
-        total_guests = sum(int(r.get('guest_total', 0) or 0) for r in trip_records)
-        total_passengers = sum(int(r.get('cumulative_strength', 0) or r.get('total_strength', 0) or 0) for r in trip_records)
+
+        # Compute totals with fallbacks: some historical records may store per-gender counts
+        def safe_int(val):
+            try:
+                return int(val or 0)
+            except Exception:
+                try:
+                    return int(float(str(val).replace(',', '').strip()))
+                except Exception:
+                    return 0
+
+        total_students = 0
+        total_faculty = 0
+        total_guests = 0
+        total_passengers = 0
+        for r in trip_records:
+            # students: prefer `student_total`, else sum gender fields
+            s = safe_int(r.get('student_total'))
+            if not s:
+                s = safe_int(r.get('student_male')) + safe_int(r.get('student_female')) + safe_int(r.get('student_transgender'))
+            total_students += s
+
+            # faculty
+            f = safe_int(r.get('faculty_total'))
+            if not f:
+                f = safe_int(r.get('faculty_male')) + safe_int(r.get('faculty_female')) + safe_int(r.get('faculty_transgender'))
+            total_faculty += f
+
+            # guests
+            g = safe_int(r.get('guest_total'))
+            if not g:
+                g = safe_int(r.get('guest_male')) + safe_int(r.get('guest_female')) + safe_int(r.get('guest_transgender'))
+            total_guests += g
+
+            # passengers: cumulative_strength/total_strength preferred, else male/female/transgender totals
+            p = safe_int(r.get('cumulative_strength') or r.get('total_strength'))
+            if not p:
+                p = safe_int(r.get('male_count')) + safe_int(r.get('female_count')) + safe_int(r.get('transgender_count'))
+            total_passengers += p
         
         # Compute daily and monthly averages (based on currently filtered trip_records)
         unique_dates = set()
@@ -3292,6 +3414,13 @@ def admin_analytics_dashboard():
             'total_issues': len(daily_issues),
             'total_utilization': len(daily_utilization),
             'total_scrap': len(daily_scrap),
+            # quantities for stock boxes
+            'purchases_qty': round(sum(float(r.get('quantity', 0) or r.get('purchased_quantity', 0) or r.get('original_quantity', 0) or 0) for r in daily_purchases), 2),
+            'utilization_qty': round(sum(float(r.get('quantity', 0) or 0) for r in daily_utilization), 2),
+            'scrap_qty': round(sum(float(r.get('quantity', 0) or 0) for r in daily_scrap), 2),
+            # approximate opening/closing stock qty: use overall current purchase totals as closing stock
+            'closing_stock_qty': round(sum(float(r.get('quantity', 0) or 0) for r in purchase_records), 2),
+            'opening_stock_qty': round((sum(float(r.get('quantity', 0) or 0) for r in purchase_records) - (sum(float(r.get('quantity', 0) or r.get('purchased_quantity', 0) or r.get('original_quantity', 0) or 0) for r in daily_purchases) - sum(float(r.get('quantity', 0) or 0) for r in daily_utilization) - sum(float(r.get('quantity', 0) or 0) for r in daily_scrap))), 2),
             'fuel_labels': ['Today'],
             'fuel_values': [sum(float(r.get('quantity', 0) or 0) for r in daily_fuel)],
             'trip_labels': ['Today'],
@@ -3305,7 +3434,104 @@ def admin_analytics_dashboard():
             'stock_labels': ['Purchases', 'Issues', 'Utilization', 'Scrap'],
             'stock_values': [len(daily_purchases), len(daily_issues), len(daily_utilization), len(daily_scrap)]
         }
-        
+
+        # Compute statutory summary (latest record per identifier+type)
+        try:
+            stat_rows = statutory_records or []
+            # Normalize helper for various input spellings/abbreviations
+            def _normalize_type(s):
+                if not s:
+                    return ''
+                ss = str(s).strip().lower()
+                if ss in ('fc', 'fitness', 'fitness certificate', 'fitness_cert'):
+                    return 'Fitness Certificate'
+                if 'insur' in ss:
+                    return 'Insurance'
+                if ss in ('tax', 'road tax', 'road_tax', 'rate and taxes', 'rate & taxes') or 'tax' in ss:
+                    return 'Road Tax'
+                if ss in ('permit', 'perm', 'permit fee'):
+                    return 'Permit'
+                if ss in ('pucc', 'pollution', 'pollution certificate'):
+                    return 'Pollution Certificate'
+                if ss in ('registration', 'reg', 'regn', 'vehicle registration'):
+                    return 'Registration'
+                return str(s).strip().title()
+
+            # Count all entered records by normalized type (so UI immediately reflects entries)
+            per_type_counts_all = {'Fitness Certificate': 0, 'Insurance': 0, 'Road Tax': 0, 'Permit': 0, 'Pollution Certificate': 0, 'Registration': 0}
+            for r in stat_rows:
+                raw = (r.get('type_of_transaction') or r.get('type') or r.get('description') or '')
+                n = _normalize_type(raw)
+                if n in per_type_counts_all:
+                    per_type_counts_all[n] += 1
+            latest_by_key = {}
+            for r in stat_rows:
+                typ = (r.get('type_of_transaction') or r.get('type') or '').strip()
+                identifier = (r.get('statutory_body_id') or r.get('vehicle_id') or r.get('registration_no') or '')
+                key = f"{identifier}||{typ}".strip()
+                cand_ts = r.get('created_at') or r.get('invoice_date') or r.get('date')
+                if key not in latest_by_key:
+                    latest_by_key[key] = (cand_ts, r)
+                else:
+                    prev_ts = latest_by_key[key][0]
+                    try:
+                        if cand_ts and prev_ts and str(cand_ts) > str(prev_ts):
+                            latest_by_key[key] = (cand_ts, r)
+                    except Exception:
+                        pass
+
+            compliant_count = due_soon_count = overdue_count = 0
+            # prefer per-type counts from latest records but fall back to all-record counts
+            per_type_counts = {'Fitness Certificate': 0, 'Insurance': 0, 'Road Tax': 0, 'Permit': 0, 'Pollution Certificate': 0, 'Registration': 0}
+            # merge counts: start with counts from latest_by_key
+            for _, tup in latest_by_key.items():
+                rec = tup[1]
+                raw = (rec.get('type_of_transaction') or rec.get('type') or '')
+                n = _normalize_type(raw)
+                if n in per_type_counts:
+                    per_type_counts[n] += 1
+            # if no latest-based counts, use all-record counts so entries show up immediately
+            if sum(per_type_counts.values()) == 0:
+                per_type_counts = per_type_counts_all
+            today = datetime.now().date()
+            # classify latest records by validity into overdue / due_soon / compliant
+            for _, tup in latest_by_key.items():
+                rec = tup[1]
+                vd = parse_date_str(rec.get('validity_date') or rec.get('validity') or rec.get('valid_to'))
+                try:
+                    days_left = (vd - today).days if vd else None
+                except Exception:
+                    days_left = None
+
+                if days_left is None:
+                    overdue_count += 1
+                elif days_left < 0:
+                    overdue_count += 1
+                elif days_left <= 30:
+                    due_soon_count += 1
+                else:
+                    compliant_count += 1
+
+                # (per-type counts already accounted for from latest_by_key merge)
+
+        except Exception:
+            compliant_count = due_soon_count = overdue_count = 0
+            per_type_counts = {k: 0 for k in ('Fitness Certificate','Insurance','Road Tax','Permit','Pollution Certificate','Registration')}
+
+        # After scanning latest records, make LIVE reflect total of per-type entries
+        try:
+            # LIVE = raw entered records whose validity is more than 30 days from today
+            live_total = 0
+            for r in stat_rows:
+                try:
+                    vd = parse_date_str(r.get('validity_date') or r.get('validity') or r.get('valid_to'))
+                    if vd and (vd - today).days > 30:
+                        live_total += 1
+                except Exception:
+                    continue
+        except Exception:
+            live_total = 0
+
         # Calculate weekly data (last 7 days)
         week_ago = today - timedelta(days=7)
         weekly_trips = [r for r in trip_records if r.get('created_at') and parse_datetime(r['created_at']) and parse_datetime(r['created_at']) >= week_ago]
@@ -3350,6 +3576,11 @@ def admin_analytics_dashboard():
             'total_issues': len(weekly_issues),
             'total_utilization': len(weekly_utilization),
             'total_scrap': len(weekly_scrap),
+            'purchases_qty': round(sum(float(r.get('quantity', 0) or r.get('purchased_quantity', 0) or r.get('original_quantity', 0) or 0) for r in weekly_purchases), 2),
+            'utilization_qty': round(sum(float(r.get('quantity', 0) or 0) for r in weekly_utilization), 2),
+            'scrap_qty': round(sum(float(r.get('quantity', 0) or 0) for r in weekly_scrap), 2),
+            'closing_stock_qty': round(sum(float(r.get('quantity', 0) or 0) for r in purchase_records), 2),
+            'opening_stock_qty': round((sum(float(r.get('quantity', 0) or 0) for r in purchase_records) - (sum(float(r.get('quantity', 0) or r.get('purchased_quantity', 0) or r.get('original_quantity', 0) or 0) for r in weekly_purchases) - sum(float(r.get('quantity', 0) or 0) for r in weekly_utilization) - sum(float(r.get('quantity', 0) or 0) for r in weekly_scrap))), 2),
             'fuel_labels': list(reversed(list(daily_fuel_map.keys()))),
             'fuel_values': list(reversed(list(daily_fuel_map.values()))),
             'trip_labels': list(reversed(list(daily_trip_map.keys()))),
@@ -3405,6 +3636,11 @@ def admin_analytics_dashboard():
             'total_issues': len(monthly_issues),
             'total_utilization': len(monthly_utilization),
             'total_scrap': len(monthly_scrap),
+            'purchases_qty': round(sum(float(r.get('quantity', 0) or r.get('purchased_quantity', 0) or r.get('original_quantity', 0) or 0) for r in monthly_purchases), 2),
+            'utilization_qty': round(sum(float(r.get('quantity', 0) or 0) for r in monthly_utilization), 2),
+            'scrap_qty': round(sum(float(r.get('quantity', 0) or 0) for r in monthly_scrap), 2),
+            'closing_stock_qty': round(sum(float(r.get('quantity', 0) or 0) for r in purchase_records), 2),
+            'opening_stock_qty': round((sum(float(r.get('quantity', 0) or 0) for r in purchase_records) - (sum(float(r.get('quantity', 0) or r.get('purchased_quantity', 0) or r.get('original_quantity', 0) or 0) for r in monthly_purchases) - sum(float(r.get('quantity', 0) or 0) for r in monthly_utilization) - sum(float(r.get('quantity', 0) or 0) for r in monthly_scrap))), 2),
             'fuel_labels': weekly_labels,
             'fuel_values': weekly_fuel_values,
             'trip_labels': weekly_labels,
@@ -3433,6 +3669,16 @@ def admin_analytics_dashboard():
             period_data['vehicle_labels'] = [v[0] for v in chart_vehicles]
             period_data['vehicle_values'] = [v[1] for v in chart_vehicles]
             period_data['total_active_vehicles'] = len(all_vehicles_data)
+            # Attach statutory summary counts so the dashboard shows LIVE/DueSoon/Overdue
+            period_data['compliant_count'] = compliant_count
+            period_data['due_soon_count'] = due_soon_count
+            period_data['overdue_count'] = overdue_count
+            period_data['fc_count'] = per_type_counts.get('Fitness Certificate', 0)
+            period_data['insurance_count'] = per_type_counts.get('Insurance', 0)
+            period_data['tax_count'] = per_type_counts.get('Road Tax', 0)
+            period_data['permit_count'] = per_type_counts.get('Permit', 0)
+            period_data['pucc_count'] = per_type_counts.get('Pollution Certificate', 0)
+            period_data['registration_count'] = per_type_counts.get('Registration', 0)
         
         # All performing vehicles (no :5 cap)
         top_vehicles = []
@@ -3490,15 +3736,30 @@ def admin_analytics_dashboard():
                 # ignore parse errors for individual records
                 continue
         
-        # Compute active / past drivers from employees table (best-effort)
+        # Compute active / past drivers and aggregate driver salaries from employees table
         try:
-            emp_res = supabase.table('employees').select('employee_id,status,name').execute()
+            emp_res = supabase.table('employees').select('employee_id,status,name,profile_post,basic_salary').execute()
             emp_rows = emp_res.data if emp_res.data else []
             active_drivers_count = sum(1 for e in emp_rows if str(e.get('status', '')).lower() == 'active')
             past_drivers_count = sum(1 for e in emp_rows if str(e.get('status', '')).lower() in ('inactive', 'terminated', 'resigned'))
+
+            # Sum basic_salary for employees whose profile_post indicates they are drivers
+            driver_salary_total = 0.0
+            for e in emp_rows:
+                try:
+                    post = (e.get('profile_post') or '')
+                    status = str(e.get('status', '')).lower()
+                    if post and 'driver' in str(post).lower() and status == 'active':
+                        v = e.get('basic_salary')
+                        if v is None:
+                            continue
+                        driver_salary_total += float(v or 0)
+                except Exception:
+                    continue
         except Exception:
             active_drivers_count = 0
             past_drivers_count = 0
+            driver_salary_total = 0.0
 
         # Expose driver counts inside the period datasets so frontend JS and PDF builder can read them
         try:
@@ -3508,9 +3769,34 @@ def admin_analytics_dashboard():
             daily_data['past_drivers'] = past_drivers_count
             weekly_data['past_drivers'] = past_drivers_count
             monthly_data['past_drivers'] = past_drivers_count
+            # expose aggregated driver salaries to frontend JS
+            daily_data['driver_salary'] = round(driver_salary_total, 2)
+            weekly_data['driver_salary'] = round(driver_salary_total, 2)
+            monthly_data['driver_salary'] = round(driver_salary_total, 2)
         except Exception:
             pass
 
+        # compute today's statutory payments (for Rate & Taxes / Payments Made)
+        try:
+            rate_and_taxes_today = round(sum(float(r.get('total_amount', 0) or r.get('amount', 0) or 0) for r in statutory_records if r.get('created_at') and parse_datetime(r['created_at']) == today), 2)
+        except Exception:
+            rate_and_taxes_today = 0.0
+
+        # attach today's statutory payments into the period datasets for JS
+        try:
+            daily_data['rate_and_taxes'] = rate_and_taxes_today
+            weekly_data['rate_and_taxes'] = rate_and_taxes_today
+            monthly_data['rate_and_taxes'] = rate_and_taxes_today
+        except Exception:
+            pass
+
+        # log per-type counts for debugging why LIVE may be zero
+        try:
+            app.logger.info(f"Statutory records: total={len(stat_rows)}, per_type_counts={per_type_counts}, per_type_counts_all={per_type_counts_all}, live_total={live_total}, rate_and_taxes_today={rate_and_taxes_today}")
+        except Exception:
+            pass
+
+        # pass per-type counts so initial server-rendered boxes show values
         return render_template('admin_analytics_dashboard.html',
                              daily_data=daily_data,
                              weekly_data=weekly_data,
@@ -3526,11 +3812,19 @@ def admin_analytics_dashboard():
                              total_scrap=daily_data['total_scrap'],
                              total_active_vehicles=len(all_vehicles_data),
                              top_vehicles=top_vehicles,
-                             active_drivers=active_drivers_count,
-                             past_drivers=past_drivers_count,
-                             compliant_count=compliant_count,
-                             due_soon_count=due_soon_count,
-                             overdue_count=overdue_count)
+                            active_drivers=active_drivers_count,
+                            past_drivers=past_drivers_count,
+                            compliant_count=live_total,
+                            due_soon_count=due_soon_count,
+                            overdue_count=overdue_count,
+                            fc_count=per_type_counts_all.get('Fitness Certificate', 0),
+                            insurance_count=per_type_counts_all.get('Insurance', 0),
+                            tax_count=per_type_counts_all.get('Road Tax', 0),
+                            permit_count=per_type_counts_all.get('Permit', 0),
+                            pucc_count=per_type_counts_all.get('Pollution Certificate', 0),
+                            registration_count=per_type_counts_all.get('Registration', 0),
+                            driver_salary=round(driver_salary_total, 2),
+                            rate_and_taxes=rate_and_taxes_today)
     
     except Exception as e:
         print(f"Error in analytics dashboard: {e}")
@@ -3715,6 +4009,195 @@ def api_analytics_custom():
         'stock_labels': ['Purchases', 'Issues', 'Utilization', 'Scrap'],
         'stock_values': [len(p), len(si), len(u), len(sc)]
     }
+    # Quantities for stock metrics (make opening/closing authoritative by using
+    # cumulative records up to the date boundaries rather than mixing filtered
+    # and unfiltered snapshots).
+    purchases_qty = round(sum(float(r.get('quantity', 0) or r.get('purchased_quantity', 0) or r.get('original_quantity', 0) or 0) for r in p), 2)
+    utilization_qty = round(sum(float(r.get('quantity', 0) or 0) for r in u), 2)
+    scrap_qty = round(sum(float(r.get('quantity', 0) or 0) for r in sc), 2)
+
+    # Helper to safely parse created_at to date using the local `to_date` helper
+    # Build cumulative sets up to end_date and up to (start_date - 1)
+    from datetime import timedelta
+    end_cutoff = end_date
+    start_before = start_date - timedelta(days=1)
+
+    def _sum_qty_up_to(rows, date_field='created_at', cutoff=end_cutoff):
+        s = 0.0
+        for r in rows:
+            d = to_date(r.get(date_field))
+            if d and d <= cutoff:
+                try:
+                    s += float(r.get('quantity', 0) or r.get('purchased_quantity', 0) or r.get('original_quantity', 0) or 0)
+                except Exception:
+                    try:
+                        s += float(str(r.get('quantity', 0)).replace(',', ''))
+                    except Exception:
+                        pass
+        return s
+
+    # cumulative up to end_date
+    purchases_upto_end = round(_sum_qty_up_to(purchase_records, cutoff=end_cutoff), 2)
+    utilization_upto_end = round(_sum_qty_up_to(utilization_records, cutoff=end_cutoff), 2)
+    scrap_upto_end = round(_sum_qty_up_to(scrap_records, cutoff=end_cutoff), 2)
+    # issued quantities may be stored under different keys
+    total_issued_upto_end = 0.0
+    for r in stock_issue_records:
+        d = to_date(r.get('created_at'))
+        if d and d <= end_cutoff:
+            try:
+                total_issued_upto_end += float(r.get('quantity_issued') or r.get('quantity') or 0)
+            except Exception:
+                try:
+                    total_issued_upto_end += float(str(r.get('quantity', 0)).replace(',', ''))
+                except Exception:
+                    pass
+
+    # cumulative up to the day before start_date (opening snapshot)
+    purchases_before = round(_sum_qty_up_to(purchase_records, cutoff=start_before), 2)
+    utilization_before = round(_sum_qty_up_to(utilization_records, cutoff=start_before), 2)
+    scrap_before = round(_sum_qty_up_to(scrap_records, cutoff=start_before), 2)
+    total_issued_before = 0.0
+    for r in stock_issue_records:
+        d = to_date(r.get('created_at'))
+        if d and d <= start_before:
+            try:
+                total_issued_before += float(r.get('quantity_issued') or r.get('quantity') or 0)
+            except Exception:
+                try:
+                    total_issued_before += float(str(r.get('quantity', 0)).replace(',', ''))
+                except Exception:
+                    pass
+
+    # closing = purchases up to end - removals up to end
+    closing_stock_qty = round(max(0.0, purchases_upto_end - utilization_upto_end - scrap_upto_end - total_issued_upto_end), 2)
+    # opening = purchases up to before-start - removals up to before-start
+    opening_stock_qty = round(max(0.0, purchases_before - utilization_before - scrap_before - total_issued_before), 2)
+
+    data['purchases_qty'] = purchases_qty
+    data['utilization_qty'] = utilization_qty
+    data['scrap_qty'] = scrap_qty
+    data['closing_stock_qty'] = closing_stock_qty
+    data['opening_stock_qty'] = opening_stock_qty
+    # Compute monetary totals for stock management boxes: purchases, utilization, issues, scrap
+    try:
+        # Build cost per unit map from all purchase_records (use net_payable/quantity when available)
+        cost_per_unit = {}
+        for item in purchase_records:
+            raw_part = item.get('part_number') or item.get('part_no') or item.get('part') or ''
+            if not raw_part:
+                continue
+            key = str(raw_part).strip().lower()
+            try:
+                qty = float(item.get('quantity', 0) or item.get('original_quantity', 0) or item.get('purchased_quantity', 0) or 0)
+            except Exception:
+                qty = 0
+            try:
+                net = float(item.get('net_payable', 0) or item.get('total_payment', 0) or item.get('total_value', 0) or 0)
+            except Exception:
+                net = 0
+
+            rate = 0.0
+            if qty > 0:
+                rate = net / qty
+            else:
+                try:
+                    rate = float(item.get('rate') or 0)
+                except Exception:
+                    rate = 0.0
+
+            if key in cost_per_unit:
+                # average to smooth multiple purchases
+                cost_per_unit[key] = (cost_per_unit[key] + rate) / 2.0
+            else:
+                cost_per_unit[key] = rate
+
+        # Sum monetary values for utilization, scrap and issues within the date range
+        util_amount = 0.0
+        for r in u:
+            raw_part = r.get('part_no') or r.get('part_number') or ''
+            if not raw_part:
+                continue
+            key = str(raw_part).strip().lower()
+            try:
+                q = float(r.get('quantity', 0) or 0)
+            except Exception:
+                q = 0
+            util_amount += q * float(cost_per_unit.get(key, 0))
+
+        scrap_amount = 0.0
+        for r in sc:
+            raw_part = r.get('part_no') or r.get('part_number') or ''
+            if not raw_part:
+                continue
+            key = str(raw_part).strip().lower()
+            try:
+                q = float(r.get('quantity', 0) or 0)
+            except Exception:
+                q = 0
+            scrap_amount += q * float(cost_per_unit.get(key, 0))
+
+        issue_amount = 0.0
+        for r in si:
+            raw_part = r.get('part_no') or r.get('part_number') or ''
+            if not raw_part:
+                continue
+            key = str(raw_part).strip().lower()
+            try:
+                q = float(r.get('quantity_issued', 0) or r.get('quantity', 0) or 0)
+            except Exception:
+                q = 0
+            issue_amount += q * float(cost_per_unit.get(key, 0))
+
+        # Expose monetary totals (purchase_expenditure kept for compatibility)
+        data['purchase_expenditure'] = data.get('total_purchase_value', 0)
+        data['utilization_expenditure'] = round(util_amount, 2)
+        data['scrap_expenditure'] = round(scrap_amount, 2)
+        data['issue_expenditure'] = round(issue_amount, 2)
+    except Exception:
+        data['purchase_expenditure'] = data.get('total_purchase_value', 0)
+        data['utilization_expenditure'] = 0
+        data['scrap_expenditure'] = 0
+        data['issue_expenditure'] = 0
+    # Compute student/faculty/guest/passenger totals for the custom range
+    def safe_int(val):
+        try:
+            return int(val or 0)
+        except Exception:
+            try:
+                return int(float(str(val).replace(',', '').strip()))
+            except Exception:
+                return 0
+
+    total_students = 0
+    total_faculty = 0
+    total_guests = 0
+    total_passengers = 0
+    for r in t:
+        s = safe_int(r.get('student_total'))
+        if not s:
+            s = safe_int(r.get('student_male')) + safe_int(r.get('student_female')) + safe_int(r.get('student_transgender'))
+        total_students += s
+
+        fct = safe_int(r.get('faculty_total'))
+        if not fct:
+            fct = safe_int(r.get('faculty_male')) + safe_int(r.get('faculty_female')) + safe_int(r.get('faculty_transgender'))
+        total_faculty += fct
+
+        g = safe_int(r.get('guest_total'))
+        if not g:
+            g = safe_int(r.get('guest_male')) + safe_int(r.get('guest_female')) + safe_int(r.get('guest_transgender'))
+        total_guests += g
+
+        p = safe_int(r.get('cumulative_strength') or r.get('total_strength'))
+        if not p:
+            p = safe_int(r.get('male_count')) + safe_int(r.get('female_count')) + safe_int(r.get('transgender_count'))
+        total_passengers += p
+
+    data['total_students'] = total_students
+    data['total_faculty'] = total_faculty
+    data['total_guests'] = total_guests
+    data['total_passengers'] = total_passengers
     # include active/past drivers counts from employees table
     try:
         emp_res = supabase.table('employees').select('status').execute()
@@ -3724,6 +4207,162 @@ def api_analytics_custom():
     except Exception:
         data['active_drivers'] = 0
         data['past_drivers'] = 0
+
+    # Statutory counts: compute latest validity per vehicle/statutory type and classify
+    try:
+        stat_rows = get_all_statutory_records() or []
+        # Group by identifier + type to pick latest record
+        latest_by_key = {}
+        from datetime import date as _date
+        # Also compute raw counts of all entered records by normalized type
+        per_type_counts_all = {'Fitness Certificate': 0, 'Insurance': 0, 'Road Tax': 0, 'Permit': 0, 'Pollution Certificate': 0, 'Registration': 0}
+        for r in stat_rows:
+            typ = (r.get('type_of_transaction') or r.get('type') or '').strip()
+            identifier = (r.get('statutory_body_id') or r.get('vehicle_id') or r.get('registration_no') or '')
+            key = f"{identifier}||{typ}".strip()
+            # prefer created_at or invoice_date for recency
+            cand_ts = r.get('created_at') or r.get('invoice_date') or r.get('date')
+            if key not in latest_by_key:
+                latest_by_key[key] = (cand_ts, r)
+            else:
+                prev_ts = latest_by_key[key][0]
+                try:
+                    # string compare is okay for ISO dates; fallback to keeping existing
+                    if cand_ts and prev_ts and str(cand_ts) > str(prev_ts):
+                        latest_by_key[key] = (cand_ts, r)
+                except Exception:
+                    pass
+            # count normalized raw type for overall LIVE calculation
+            try:
+                n = normalize_typename(typ)
+                if n in per_type_counts_all:
+                    per_type_counts_all[n] += 1
+            except Exception:
+                pass
+
+        compliant_count = 0
+        due_soon_count = 0
+        overdue_count = 0
+        per_type_counts = {'Fitness Certificate': 0, 'Insurance': 0, 'Road Tax': 0, 'Permit': 0, 'Pollution Certificate': 0, 'Registration': 0}
+        # helper to normalize type strings and accept common abbreviations
+        def normalize_typename(s):
+            if not s:
+                return ''
+            ss = str(s).strip().lower()
+            if ss in ('fc', 'fitness', 'fitness certificate', 'fitness_cert'):
+                return 'Fitness Certificate'
+            if 'insur' in ss:
+                return 'Insurance'
+            if ss in ('tax', 'road tax', 'road_tax', 'rate and taxes', 'rate & taxes') or 'tax' in ss:
+                return 'Road Tax'
+            if ss in ('permit', 'perm', 'permit fee'):
+                return 'Permit'
+            if ss in ('pucc', 'pollution', 'pollution certificate', 'pollution certificate (pucc)'):
+                return 'Pollution Certificate'
+            if ss in ('registration', 'reg', 'regn', 'vehicle registration'):
+                return 'Registration'
+            # fallback: title-case the string
+            return str(s).strip().title()
+        today = _date.today()
+        for _, tup in latest_by_key.items():
+            rec = tup[1]
+            vd = None
+            try:
+                vd = parse_date_str(rec.get('validity_date') or rec.get('validity') or rec.get('valid_to'))
+            except Exception:
+                vd = None
+            try:
+                if vd:
+                    days_left = (vd - today).days
+                else:
+                    days_left = None
+            except Exception:
+                days_left = None
+
+            if days_left is None:
+                # unknown validity: do not count as compliant; treat as needs attention (count as overdue)
+                overdue_count += 1
+            else:
+                if days_left < 0:
+                    overdue_count += 1
+                elif days_left <= 30:
+                    due_soon_count += 1
+                    compliant_count += 1
+                else:
+                    compliant_count += 1
+
+            typname_raw = (rec.get('type_of_transaction') or rec.get('type') or '')
+            typname = normalize_typename(typname_raw)
+            # Count per-type entries regardless of validity so the dashboard reflects entered records
+            if typname in per_type_counts:
+                per_type_counts[typname] += 1
+            else:
+                # if it's a new/unknown type, add to map to avoid losing it (but do not crash)
+                per_type_counts.setdefault(typname, 0)
+                per_type_counts[typname] += 1
+        # Also aggregate statutory payments within the requested date range (map to payments.rate_and_taxes)
+        try:
+            stat_in_range = [r for r in stat_rows if to_date(r.get('created_at')) and start_date <= to_date(r.get('created_at')) <= end_date]
+            payment_rate_and_taxes = round(sum(float(r.get('total_amount', 0) or r.get('amount', 0) or 0) for r in stat_in_range), 2)
+        except Exception:
+            payment_rate_and_taxes = 0.0
+        # Also compute driver salary aggregate (sum basic_salary for active drivers)
+        try:
+            emp_res = supabase.table('employees').select('profile_post,status,basic_salary').execute()
+            emp_rows = emp_res.data if emp_res.data else []
+            driver_salary_total = 0.0
+            for e in emp_rows:
+                try:
+                    post = (e.get('profile_post') or '')
+                    status = str(e.get('status', '')).lower()
+                    if post and 'driver' in str(post).lower() and status == 'active':
+                        v = e.get('basic_salary')
+                        if v is None:
+                            continue
+                        driver_salary_total += float(v or 0)
+                except Exception:
+                    continue
+        except Exception:
+            driver_salary_total = 0.0
+        # LIVE should reflect all entered records (not deduped by vehicle+type)
+        try:
+            # LIVE = count of entered records whose validity is more than 30 days from today
+            live_all = 0
+            for r in stat_rows:
+                vd = parse_date_str(r.get('validity_date') or r.get('validity') or r.get('valid_to'))
+                try:
+                    if vd and (vd - today).days > 30:
+                        live_all += 1
+                except Exception:
+                    continue
+        except Exception:
+            live_all = compliant_count
+        data['compliant_count'] = live_all
+        data['due_soon_count'] = due_soon_count
+        data['overdue_count'] = overdue_count
+        # expose per-type counts using keys used in template
+        data['fc_count'] = per_type_counts_all.get('Fitness Certificate', 0)
+        data['insurance_count'] = per_type_counts_all.get('Insurance', 0)
+        data['tax_count'] = per_type_counts_all.get('Road Tax', 0)
+        data['permit_count'] = per_type_counts_all.get('Permit', 0)
+        data['pucc_count'] = per_type_counts_all.get('Pollution Certificate', 0)
+        data['registration_count'] = per_type_counts_all.get('Registration', 0)
+        # payments mapping used by the dashboard (Payments Made -> Rate & Taxes)
+        data['payments'] = data.get('payments', {})
+        data['payments']['rate_and_taxes'] = payment_rate_and_taxes
+        # Expose top-level rate_and_taxes and driver_salary for frontend compatibility
+        data['rate_and_taxes'] = payment_rate_and_taxes
+        data['driver_salary'] = round(driver_salary_total, 2)
+    except Exception:
+        data['compliant_count'] = 0
+        data['due_soon_count'] = 0
+        data['overdue_count'] = 0
+        data['fc_count'] = 0
+        data['insurance_count'] = 0
+        data['tax_count'] = 0
+        data['permit_count'] = 0
+        data['pucc_count'] = 0
+        data['registration_count'] = 0
     return jsonify(data)
 
 
@@ -5400,6 +6039,8 @@ def hr_add_employee():
                 'route': request.form.get('route'),
                 'reference': request.form.get('reference'),
                 'expected_salary': request.form.get('expected_salary'),
+                # Basic salary (optional numeric)
+                'basic_salary': (lambda v: float(v) if (v is not None and str(v).strip() != '') else None)(request.form.get('basic_salary')),
                 'expected_date_of_joining': request.form.get('expected_date_of_joining') or None,
                 'status': 'active',
                 'bank_name': request.form.get('bank_name'),
@@ -5592,6 +6233,8 @@ def hr_edit_employee(employee_id):
                 'reference': request.form.get('reference'),
                 'expected_salary': request.form.get('expected_salary'),
                 'expected_date_of_joining': request.form.get('expected_date_of_joining') or None,
+                # Basic salary (optional numeric)
+                'basic_salary': (lambda v: float(v) if (v is not None and str(v).strip() != '') else None)(request.form.get('basic_salary')),
                 'bank_name': request.form.get('bank_name'),
                 'account_number': request.form.get('account_number'),
                 'account_holder_name': request.form.get('account_holder_name'),

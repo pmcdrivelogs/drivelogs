@@ -275,32 +275,39 @@
           <div class="stat-box" style="background:#a8e8f5;color:#111;">
             <h3 style="color:#374151;">Opening Stock</h3>
             <div class="value" id="openingStock">0</div>
+            <div class="change">Qty: <span id="openingStockQty">0</span></div>
           </div>
           <div class="stat-box" style="background:#8b5cf6;">
             <h3>Purchase</h3>
             <div class="value" id="purchasesCount">0</div>
+            <div class="change">Qty: <span id="purchasesQty">0</span></div>
           </div>
           <div class="stat-box" style="background:#14b8a6;">
             <h3>Utilization</h3>
             <div class="value" id="utilizationCount">0</div>
+            <div class="change">Qty: <span id="utilizationQty">0</span></div>
           </div>
           <div class="stat-box" style="background:#64748b;">
             <h3>Scrap</h3>
             <div class="value" id="scrapCount">0</div>
+            <div class="change">Qty: <span id="scrapQty">0</span></div>
           </div>
         </div>
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-4">
           <div class="stat-box" style="background:#ec4899;">
             <h3>Purchase Return</h3>
             <div class="value" id="purchaseReturnCount">0</div>
+            <div class="change">Qty: <span id="purchaseReturnQty">0</span></div>
           </div>
           <div class="stat-box" style="background:#f59e0b;">
             <h3>Closing Stock</h3>
             <div class="value" id="closingStock">0</div>
+            <div class="change">Qty: <span id="closingStockQty">0</span></div>
           </div>
           <div class="stat-box" style="background:#10b981;">
             <h3>Total Purchase Value</h3>
             <div class="value" id="totalPurchaseValue">₹0.00</div>
+            <div class="change">Items: <span id="totalPurchaseItems">0</span> &nbsp;|&nbsp; Qty: <span id="totalPurchaseQty">0</span></div>
           </div>
         </div>
       </div>
@@ -685,12 +692,21 @@
 
       // Stock management fields (best-effort from data)
       if (document.getElementById('openingStock')) document.getElementById('openingStock').textContent = data.opening_stock || 0;
+      if (document.getElementById('openingStockQty')) document.getElementById('openingStockQty').textContent = (data.opening_stock_qty || 0);
       if (document.getElementById('purchasesCount')) document.getElementById('purchasesCount').textContent = data.total_purchases || 0;
+      if (document.getElementById('purchasesQty')) document.getElementById('purchasesQty').textContent = (data.purchases_qty || 0);
       if (document.getElementById('utilizationCount')) document.getElementById('utilizationCount').textContent = data.total_utilization || 0;
+      if (document.getElementById('utilizationQty')) document.getElementById('utilizationQty').textContent = (data.utilization_qty || 0);
       if (document.getElementById('scrapCount')) document.getElementById('scrapCount').textContent = data.total_scrap || 0;
+      if (document.getElementById('scrapQty')) document.getElementById('scrapQty').textContent = (data.scrap_qty || 0);
       if (document.getElementById('purchaseReturnCount')) document.getElementById('purchaseReturnCount').textContent = data.total_purchase_returns || 0;
+      if (document.getElementById('purchaseReturnQty')) document.getElementById('purchaseReturnQty').textContent = (data.purchase_return_qty || 0);
       if (document.getElementById('closingStock')) document.getElementById('closingStock').textContent = data.closing_stock || 0;
+      if (document.getElementById('closingStockQty')) document.getElementById('closingStockQty').textContent = (data.closing_stock_qty || 0);
       if (document.getElementById('totalPurchaseValue')) document.getElementById('totalPurchaseValue').textContent = '₹' + ((data.total_purchase_value || 0).toFixed ? data.total_purchase_value.toFixed(2) : (data.total_purchase_value || 0));
+      // Populate total purchase items and qty
+      if (document.getElementById('totalPurchaseItems')) document.getElementById('totalPurchaseItems').textContent = (data.total_purchases || 0);
+      if (document.getElementById('totalPurchaseQty')) document.getElementById('totalPurchaseQty').textContent = (data.purchases_qty || 0);
 
       // Expenditure breakdown (populate totals)
       if (document.getElementById('purchaseExpenditure')) document.getElementById('purchaseExpenditure').textContent = '₹' + ((data.purchase_expenditure || data.total_purchase_value) || 0).toFixed(2);
@@ -1382,12 +1398,62 @@
         const summary = document.createElement('summary');
         summary.textContent = 'Show details';
         summary.className = 'cursor-pointer text-sm text-blue-600';
-        const pre = document.createElement('pre');
-        pre.style.whiteSpace = 'pre-wrap';
-        pre.style.fontSize = '0.75rem';
-        try { pre.textContent = JSON.stringify(r, null, 2); } catch (e) { pre.textContent = String(r); }
+        // Build a structured details view (label: value pairs)
+        const detailDiv = document.createElement('div');
+        detailDiv.className = 'p-3 bg-white rounded-md border border-gray-100 shadow-sm text-sm space-y-2';
+
+        function addRow(label, value) {
+          const row = document.createElement('div');
+          row.className = 'flex flex-wrap gap-2 items-start';
+          const lbl = document.createElement('div');
+          lbl.className = 'w-44 font-semibold text-gray-700';
+          lbl.textContent = label;
+          const val = document.createElement('div');
+          val.className = 'text-gray-900 break-words';
+          val.textContent = value == null ? '' : value;
+          row.appendChild(lbl);
+          row.appendChild(val);
+          return row;
+        }
+
+        // Common fields shown first
+        detailDiv.appendChild(addRow('Entry No', r.entry_no || ''));
+        detailDiv.appendChild(addRow('Invoice No', r.invoice_no || ''));
+        detailDiv.appendChild(addRow('Statutory Body ID', r.statutory_body_id || ''));
+        detailDiv.appendChild(addRow('Registration No', r.registration_no || r.vehicle_no || ''));
+        detailDiv.appendChild(addRow('Type', r.type_of_transaction || r.record_type || ''));
+        detailDiv.appendChild(addRow('Validity / Due Date', r.due_date || r.validity_date || r.invoice_date || ''));
+        detailDiv.appendChild(addRow('Rate', r.rate || r.total_amount || ''));
+        detailDiv.appendChild(addRow('Taxable Amount', r.taxable_amount || ''));
+
+        // GST breakdown, if present
+        const gstContainer = document.createElement('div');
+        gstContainer.className = 'mt-2 grid grid-cols-1 md:grid-cols-3 gap-2';
+        gstContainer.appendChild(addRow('SGST % / Amt', (r.sgst_percent || '') + ' / ' + (r.sgst_amount || '')));
+        gstContainer.appendChild(addRow('CGST % / Amt', (r.cgst_percent || '') + ' / ' + (r.cgst_amount || '')));
+        gstContainer.appendChild(addRow('IGST % / Amt', (r.igst_percent || '') + ' / ' + (r.igst_amount || '')));
+        detailDiv.appendChild(gstContainer);
+
+        detailDiv.appendChild(addRow('Entered By', r.entered_by || ''));
+        detailDiv.appendChild(addRow('Approved By', r.approved_by || ''));
+        detailDiv.appendChild(addRow('Created At', r.created_at || ''));
+
+        // Add a small collapsible raw JSON view toggle for debugging
+        const rawToggle = document.createElement('details');
+        rawToggle.className = 'mt-2';
+        const rawSummary = document.createElement('summary');
+        rawSummary.textContent = 'Show raw JSON';
+        rawSummary.className = 'cursor-pointer text-xs text-gray-600';
+        const rawPre = document.createElement('pre');
+        rawPre.style.whiteSpace = 'pre-wrap';
+        rawPre.style.fontSize = '0.75rem';
+        try { rawPre.textContent = JSON.stringify(r, null, 2); } catch (e) { rawPre.textContent = String(r); }
+        rawToggle.appendChild(rawSummary);
+        rawToggle.appendChild(rawPre);
+
         details.appendChild(summary);
-        details.appendChild(pre);
+        details.appendChild(detailDiv);
+        details.appendChild(rawToggle);
         detailsTd.appendChild(details);
         tr.appendChild(detailsTd);
 

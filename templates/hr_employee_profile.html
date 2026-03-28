@@ -618,6 +618,10 @@
             <div class="info-label">DATE OF JOINING</div>
             <div class="info-value">{{ employee.date_of_joining or employee.expected_date_of_joining or '-' }}</div>
           </div>
+          <div class="info-item">
+            <div class="info-label">BASIC SALARY</div>
+            <div class="info-value">{% if employee.basic_salary is not none and employee.basic_salary != '' %}{{ ('%.2f'|format(employee.basic_salary|float)) }}{% else %}-{% endif %}</div>
+          </div>
         </div>
 
         <!-- PERSONAL DATA -->

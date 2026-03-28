@@ -82,8 +82,8 @@ def get_settings():
                 'recipients': None,
                 'enabled': True,
                 'immediate_enabled': True,
-                'reminder_days': 15,
-                'reminder_hour': 7,
+                'reminder_days': 30,
+                'reminder_hour': 9,
                 'reminder_minute': 0
             }
         with open(SETTINGS_FILE, 'r', encoding='utf-8') as fh:
@@ -93,8 +93,8 @@ def get_settings():
                 'recipients': data.get('recipients') or None,
                 'enabled': bool(data.get('enabled', True)),
                 'immediate_enabled': bool(data.get('immediate_enabled', True)),
-                'reminder_days': int(data.get('reminder_days', 15)),
-                'reminder_hour': int(data.get('reminder_hour', 7)),
+                'reminder_days': int(data.get('reminder_days', 30)),
+                'reminder_hour': int(data.get('reminder_hour', 9)),
                 'reminder_minute': int(data.get('reminder_minute', 0))
             }
     except Exception:
@@ -103,8 +103,8 @@ def get_settings():
             'recipients': None,
             'enabled': True,
             'immediate_enabled': True,
-            'reminder_days': 15,
-            'reminder_hour': 7,
+            'reminder_days': 30,
+            'reminder_hour': 9,
             'reminder_minute': 0
         }
 
@@ -133,7 +133,7 @@ def check_and_send_validity_reminders(reminder_days=None):
         return
 
     try:
-        reminder_days = int(reminder_days or settings.get('reminder_days') or os.getenv('REMINDER_DAYS', '15'))
+        reminder_days = int(reminder_days or settings.get('reminder_days') or os.getenv('REMINDER_DAYS', '30'))
     except Exception:
         reminder_days = 15
 
@@ -189,7 +189,7 @@ def start_scheduler(app=None):
         logger.warning('APScheduler unavailable; reminders scheduler disabled')
         return None
 
-    hour = os.getenv('REMINDER_HOUR', '7')
+    hour = os.getenv('REMINDER_HOUR', '9')
     minute = os.getenv('REMINDER_MINUTE', '0')
 
     scheduler = BackgroundScheduler()

@@ -305,6 +305,11 @@
               <label class="form-label">NATIVITY</label>
               <input type="text" name="nativity" class="form-input" value="{{ employee.nativity if edit_mode else '' }}">
             </div>
+
+            <div class="form-group">
+              <label class="form-label">BASIC SALARY</label>
+              <input type="number" step="0.01" name="basic_salary" class="form-input" value="{{ ('%.2f'|format(employee.basic_salary|float)) if edit_mode and employee.basic_salary is not none and employee.basic_salary != '' else '' }}" placeholder="0.00">
+            </div>
             
             <div class="form-group">
               <label class="form-label">BLOOD GROUP</label>

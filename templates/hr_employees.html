@@ -221,6 +221,7 @@
                 <th>Aadhar No</th>
                 <th>Phone</th>
                 <th>Nativity</th>
+                <th>Basic Salary</th>
                 <th>Status</th>
                 <th class="no-print">Actions</th>
               </tr>
@@ -235,6 +236,7 @@
                 <td>{{ emp.aadhar_no or '-' }}</td>
                 <td>{{ emp.phone_no or '-' }}</td>
                 <td>{{ emp.nativity or '-' }}</td>
+                <td>{{ emp.basic_salary | default('-') }}</td>
                 <td>
                   {% if emp.status == 'active' %}
                   <span class="badge badge-active">Active</span>
