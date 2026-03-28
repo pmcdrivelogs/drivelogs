@@ -1891,6 +1891,146 @@ def get_all_purchases():
         print(f"Error getting purchase records: {e}")
         return []
 
+
+def get_stock_totals():
+    """Compute authoritative stock totals from purchases, utilization, scrap and issue register.
+    Returns a dict with numeric totals (not formatted strings).
+    """
+    try:
+        # Fetch necessary records
+        purchases = supabase.table('purchases').select('*').execute()
+        utilization = supabase.table('material_utilization').select('*').execute()
+        scrap = supabase.table('scrap').select('*').execute()
+        issue_register = supabase.table('stock_issue_register').select('*').execute()
+
+        def _safe_float(v):
+            try:
+                return float(v or 0)
+            except Exception:
+                try:
+                    return float(str(v).replace(',',''))
+                except Exception:
+                    return 0.0
+
+        utilized_by_part = {}
+        if utilization.data:
+            for r in utilization.data:
+                raw = r.get('part_no') or r.get('part_number') or ''
+                if raw is None:
+                    continue
+                key = str(raw).strip().lower()
+                utilized_by_part[key] = utilized_by_part.get(key, 0.0) + _safe_float(r.get('quantity'))
+
+        scrapped_by_part = {}
+        if scrap.data:
+            for r in scrap.data:
+                raw = r.get('part_no') or r.get('part_number') or ''
+                if raw is None:
+                    continue
+                key = str(raw).strip().lower()
+                scrapped_by_part[key] = scrapped_by_part.get(key, 0.0) + _safe_float(r.get('quantity'))
+
+        parts = {}
+        total_value_all_purchases = 0.0
+        total_current_qty = 0.0
+        if purchases.data:
+            for item in purchases.data:
+                raw = item.get('part_number') or item.get('part_no') or item.get('part') or ''
+                if raw is None:
+                    continue
+                part_no = str(raw).strip()
+                key = part_no.lower()
+                qty = _safe_float(item.get('quantity'))
+                total_value_all_purchases += _safe_float(item.get('net_payable'))
+                if key not in parts:
+                    parts[key] = {'part_no': part_no, 'current_qty': 0.0}
+                parts[key]['current_qty'] += qty
+                total_current_qty += qty
+
+        total_issued_qty = 0.0
+        if issue_register.data:
+            for r in issue_register.data:
+                total_issued_qty += _safe_float(r.get('quantity_issued') or r.get('quantity') or 0)
+
+        total_utilized_qty = sum(utilized_by_part.values())
+        total_scrapped_qty = sum(scrapped_by_part.values())
+
+        original_received_qty = total_current_qty + total_utilized_qty + total_scrapped_qty + total_issued_qty
+        closing_stock_qty = total_current_qty
+
+        # Compute values for instock/utilized/scrapped using a simple cost-per-unit map
+        cost_per_unit_map = {}
+        if purchases.data:
+            for item in purchases.data:
+                raw = item.get('part_number') or item.get('part_no') or item.get('part') or ''
+                if raw is None:
+                    continue
+                try:
+                    part_no = str(raw).strip()
+                    key = part_no.lower()
+                except Exception:
+                    key = str(raw)
+                purchased_qty = _safe_float(item.get('quantity'))
+                original_qty = _safe_float(item.get('original_quantity'))
+                net_payable = _safe_float(item.get('net_payable'))
+                try:
+                    rate_val = float(item.get('rate')) if item.get('rate') is not None else None
+                except Exception:
+                    rate_val = None
+
+                if purchased_qty > 0:
+                    cost_per_unit = net_payable / purchased_qty if net_payable and purchased_qty else (rate_val or 0)
+                elif original_qty > 0:
+                    cost_per_unit = net_payable / original_qty if net_payable and original_qty else (rate_val or 0)
+                elif rate_val and rate_val > 0:
+                    cost_per_unit = rate_val
+                elif net_payable > 0:
+                    cost_per_unit = net_payable
+                else:
+                    cost_per_unit = 0
+
+                if key in cost_per_unit_map:
+                    cost_per_unit_map[key] = (cost_per_unit_map[key] + cost_per_unit) / 2
+                else:
+                    cost_per_unit_map[key] = cost_per_unit
+
+        utilized_value = 0.0
+        for k, qty in utilized_by_part.items():
+            utilized_value += qty * cost_per_unit_map.get(k, 0)
+
+        scrapped_value = 0.0
+        for k, qty in scrapped_by_part.items():
+            scrapped_value += qty * cost_per_unit_map.get(k, 0)
+
+        instock_value = total_value_all_purchases - utilized_value - scrapped_value
+
+        return {
+            'total_original_received_qty': round(original_received_qty, 2),
+            'total_current_qty': round(total_current_qty, 2),
+            'total_utilized_qty': round(total_utilized_qty, 2),
+            'total_scrapped_qty': round(total_scrapped_qty, 2),
+            'total_issued_qty': round(total_issued_qty, 2),
+            'closing_stock_qty': round(closing_stock_qty, 2),
+            'total_purchase_value': round(total_value_all_purchases, 2),
+            'instock_value': round(instock_value, 2),
+            'utilized_value': round(utilized_value, 2),
+            'scrapped_value': round(scrapped_value, 2)
+        }
+    except Exception as e:
+        print(f"Error computing stock totals: {e}")
+        return {
+            'total_original_received_qty': 0.0,
+            'total_current_qty': 0.0,
+            'total_utilized_qty': 0.0,
+            'total_scrapped_qty': 0.0,
+            'total_issued_qty': 0.0,
+            'closing_stock_qty': 0.0,
+            'total_purchase_value': 0.0,
+            'instock_value': 0.0,
+            'utilized_value': 0.0,
+            'scrapped_value': 0.0
+        }
+
 def get_all_stock_issues():
     """Get all stock issue records"""
     try:

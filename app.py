@@ -48,7 +48,7 @@ from database import (
     admin_delete_user, admin_toggle_user_status, admin_add_vehicle, admin_update_vehicle,
     admin_delete_vehicle, get_all_fuel_records, get_all_statutory_records, 
     get_all_trip_sheets, get_all_purchases, get_all_stock_issues, get_all_utilization, 
-    get_all_scrap, save_maintenance_entry, update_maintenance_entry, supabase
+    get_all_scrap, get_stock_totals, save_maintenance_entry, update_maintenance_entry, supabase
 )
 from database import save_dc_entry, get_all_dc_entries, get_dc_entry, get_last_dc_save_error, _get_next_dc_number
 from database import save_material_utilization, consume_part_from_purchases
@@ -2358,6 +2358,22 @@ def stock_inventory():
         except Exception:
             maintenance_pending = []
 
+        # Use centralized stock totals helper so displayed totals match API/dashboard
+        try:
+            stock_totals = get_stock_totals()
+        except Exception:
+            stock_totals = None
+
+        # Fallback to previously computed values if helper fails
+        total_items_val = round(original_received_qty, 2) if stock_totals is None else stock_totals.get('total_original_received_qty', round(original_received_qty, 2))
+        active_items_val = round(final_available_qty, 2) if stock_totals is None else stock_totals.get('total_current_qty', round(final_available_qty, 2))
+        total_value_val = (f"{total_value_all_purchases:,.2f}") if stock_totals is None else f"{stock_totals.get('total_purchase_value', 0.0):,.2f}"
+        total_utilized_val = round(total_utilized_qty, 2) if stock_totals is None else stock_totals.get('total_utilized_qty', round(total_utilized_qty, 2))
+        total_scrapped_val = round(total_scrapped_qty, 2) if stock_totals is None else stock_totals.get('total_scrapped_qty', round(total_scrapped_qty, 2))
+        instock_value_val = (f"{final_instock_value:,.2f}") if stock_totals is None else f"{stock_totals.get('instock_value', 0.0):,.2f}"
+        utilized_value_val = (f"{utilized_value:,.2f}") if stock_totals is None else f"{stock_totals.get('utilized_value', 0.0):,.2f}"
+        scrapped_value_val = (f"{scrapped_value:,.2f}") if stock_totals is None else f"{stock_totals.get('scrapped_value', 0.0):,.2f}"
+
         return render_template('stock_inventory.html', 
                              items=available_items,
                              issued_items=issued_items.data,
@@ -2365,14 +2381,14 @@ def stock_inventory():
                              scrap_records=scrap_records.data if scrap_records.data else [],
                              maintenance_corrected=maintenance_corrected,
                              maintenance_pending=maintenance_pending,
-                             total_items=round(original_received_qty, 2),  # Original total quantity received
-                             active_items=round(final_available_qty, 2),  # Current in-stock quantity
-                             total_value=f"{total_value_all_purchases:,.2f}",  # Total value of ALL purchases
-                             total_utilized=round(total_utilized_qty, 2),
-                             total_scrapped=round(total_scrapped_qty, 2),
-                             instock_value=f"{final_instock_value:,.2f}",
-                             utilized_value=f"{utilized_value:,.2f}",
-                             scrapped_value=f"{scrapped_value:,.2f}",
+                             total_items=total_items_val,  # Original total quantity received
+                             active_items=active_items_val,  # Current in-stock quantity
+                             total_value=total_value_val,  # Total value of ALL purchases
+                             total_utilized=total_utilized_val,
+                             total_scrapped=total_scrapped_val,
+                             instock_value=instock_value_val,
+                             utilized_value=utilized_value_val,
+                             scrapped_value=scrapped_value_val,
                              vendors=sorted(vendors),
                              purchase_types=sorted(purchase_types))
     except Exception as e:
@@ -2385,83 +2401,20 @@ def stock_inventory():
 def api_stock_totals():
     """Return authoritative stock totals computed from purchases, utilization, scrap and issue registers."""
     try:
-        # Fetch necessary records
-        purchases = supabase.table('purchases').select('*').execute()
-        utilization = supabase.table('material_utilization').select('*').execute()
-        scrap = supabase.table('scrap').select('*').execute()
-        issue_register = supabase.table('stock_issue_register').select('*').execute()
-
-        # Helpers
-        def _safe_float(v):
-            try:
-                return float(v or 0)
-            except Exception:
-                try:
-                    return float(str(v).replace(',',''))
-                except Exception:
-                    return 0.0
-
-        # Aggregate utilization and scrap by normalized part key
-        utilized_by_part = {}
-        if utilization.data:
-            for r in utilization.data:
-                raw = r.get('part_no') or r.get('part_number') or ''
-                if raw is None:
-                    continue
-                key = str(raw).strip().lower()
-                utilized_by_part[key] = utilized_by_part.get(key, 0.0) + _safe_float(r.get('quantity'))
-
-        scrapped_by_part = {}
-        if scrap.data:
-            for r in scrap.data:
-                raw = r.get('part_no') or r.get('part_number') or ''
-                if raw is None:
-                    continue
-                key = str(raw).strip().lower()
-                scrapped_by_part[key] = scrapped_by_part.get(key, 0.0) + _safe_float(r.get('quantity'))
-
-        # Aggregate purchases by part
-        parts = {}
-        total_value_all_purchases = 0.0
-        total_current_qty = 0.0
-        if purchases.data:
-            for item in purchases.data:
-                raw = item.get('part_number') or item.get('part_no') or item.get('part') or ''
-                if raw is None:
-                    continue
-                part_no = str(raw).strip()
-                key = part_no.lower()
-                qty = _safe_float(item.get('quantity'))
-                total_value_all_purchases += _safe_float(item.get('net_payable'))
-                if key not in parts:
-                    parts[key] = {'part_no': part_no, 'current_qty': 0.0}
-                parts[key]['current_qty'] += qty
-                total_current_qty += qty
-
-        # Sum issued quantities
-        total_issued_qty = 0.0
-        if issue_register.data:
-            for r in issue_register.data:
-                total_issued_qty += _safe_float(r.get('quantity_issued') or r.get('quantity') or 0)
-
-        # Compute totals across parts
-        total_utilized_qty = sum(utilized_by_part.values())
-        total_scrapped_qty = sum(scrapped_by_part.values())
-
-        # Original received = current + utilized + scrapped + issued
-        original_received_qty = total_current_qty + total_utilized_qty + total_scrapped_qty + total_issued_qty
-        closing_stock_qty = total_current_qty
-
+        totals = get_stock_totals()
+        # Mirror the previous JSON structure but with numeric values where appropriate
         result = {
-            'total_original_received_qty': round(original_received_qty, 2),
-            'total_current_qty': round(total_current_qty, 2),
-            'total_utilized_qty': round(total_utilized_qty, 2),
-            'total_scrapped_qty': round(total_scrapped_qty, 2),
-            'total_issued_qty': round(total_issued_qty, 2),
-            'closing_stock_qty': round(closing_stock_qty, 2),
-            'total_purchase_value': f"{total_value_all_purchases:,.2f}"
+            'total_original_received_qty': totals.get('total_original_received_qty', 0.0),
+            'total_current_qty': totals.get('total_current_qty', 0.0),
+            'total_utilized_qty': totals.get('total_utilized_qty', 0.0),
+            'total_scrapped_qty': totals.get('total_scrapped_qty', 0.0),
+            'total_issued_qty': totals.get('total_issued_qty', 0.0),
+            'closing_stock_qty': totals.get('closing_stock_qty', 0.0),
+            'total_purchase_value': f"{totals.get('total_purchase_value', 0.0):,.2f}",
+            'instock_value': f"{totals.get('instock_value', 0.0):,.2f}",
+            'utilized_value': f"{totals.get('utilized_value', 0.0):,.2f}",
+            'scrapped_value': f"{totals.get('scrapped_value', 0.0):,.2f}"
         }
-
         return jsonify({'success': True, 'totals': result}), 200
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
@@ -3151,44 +3104,10 @@ def admin_trip_records():
         daily_avg = (total_trips / days_with_entries) if days_with_entries else 0
         monthly_avg = (total_trips / months_with_entries) if months_with_entries else 0
 
-        # Determine days to use for per-day averages: prefer explicit filter range if provided
-        days_for_avg = None
-        avg_range_label = ''
-        try:
-            if date_from and date_to:
-                df = datetime.strptime(date_from, '%Y-%m-%d').date()
-                dt_obj = datetime.strptime(date_to, '%Y-%m-%d').date()
-                if dt_obj < df:
-                    days_for_avg = 1
-                else:
-                    days_for_avg = (dt_obj - df).days + 1
-                avg_range_label = f"{df.isoformat()} to {dt_obj.isoformat()}"
-            elif date_from and not date_to:
-                df = datetime.strptime(date_from, '%Y-%m-%d').date()
-                if unique_dates:
-                    max_date = max(unique_dates)
-                    dmax = datetime.strptime(max_date, '%Y-%m-%d').date()
-                    days_for_avg = (dmax - df).days + 1 if dmax >= df else 1
-                    avg_range_label = f"{df.isoformat()} to {dmax.isoformat()}"
-                else:
-                    days_for_avg = 1
-                    avg_range_label = df.isoformat()
-            elif date_to and not date_from:
-                dt_obj = datetime.strptime(date_to, '%Y-%m-%d').date()
-                if unique_dates:
-                    min_date = min(unique_dates)
-                    dmin = datetime.strptime(min_date, '%Y-%m-%d').date()
-                    days_for_avg = (dt_obj - dmin).days + 1 if dt_obj >= dmin else 1
-                    avg_range_label = f"{dmin.isoformat()} to {dt_obj.isoformat()}"
-                else:
-                    days_for_avg = 1
-                    avg_range_label = dt_obj.isoformat()
-            else:
-                days_for_avg = days_with_entries if days_with_entries else 1
-                avg_range_label = f"{days_with_entries} days with entries" if days_with_entries else 'no range'
-        except Exception:
-            days_for_avg = days_with_entries if days_with_entries else 1
-            avg_range_label = f"{days_with_entries} days with entries" if days_with_entries else 'no range'
+        # Always base per-day averages on actual days that have entries (not calendar days).
+        # This ensures a 30-day range where only 20 days have records shows avg over 20 days.
+        days_for_avg = days_with_entries if days_with_entries else 1
+        avg_range_label = f"{days_with_entries} days with entries" if days_with_entries else 'no range'
 
         # Per-day averages (based on filter range when available)
         avg_trips_per_day = (total_trips / days_for_avg) if days_for_avg else 0
@@ -3457,7 +3376,8 @@ def admin_analytics_dashboard():
                 0, 0, 0
             ],
             'stock_labels': ['Purchases', 'Issues', 'Utilization', 'Scrap'],
-            'stock_values': [len(daily_purchases), len(daily_issues), len(daily_utilization), len(daily_scrap)]
+            'stock_values': [len(daily_purchases), len(daily_issues), len(daily_utilization), len(daily_scrap)],
+            'days_with_entries': len(set(parse_datetime(r['created_at']).isoformat() for r in daily_trips if r.get('created_at') and parse_datetime(r['created_at'])))
         }
 
         # Compute statutory summary (latest record per identifier+type)
@@ -3617,7 +3537,8 @@ def admin_analytics_dashboard():
                 0, 0, 0
             ],
             'stock_labels': ['Purchases', 'Issues', 'Utilization', 'Scrap'],
-            'stock_values': [len(weekly_purchases), len(weekly_issues), len(weekly_utilization), len(weekly_scrap)]
+            'stock_values': [len(weekly_purchases), len(weekly_issues), len(weekly_utilization), len(weekly_scrap)],
+            'days_with_entries': len(set(parse_datetime(r['created_at']).isoformat() for r in weekly_trips if r.get('created_at') and parse_datetime(r['created_at'])))
         }
         
         # Calculate monthly data (last 30 days)
@@ -3677,7 +3598,8 @@ def admin_analytics_dashboard():
                 0, 0, 0
             ],
             'stock_labels': ['Purchases', 'Issues', 'Utilization', 'Scrap'],
-            'stock_values': [len(monthly_purchases), len(monthly_issues), len(monthly_utilization), len(monthly_scrap)]
+            'stock_values': [len(monthly_purchases), len(monthly_issues), len(monthly_utilization), len(monthly_scrap)],
+            'days_with_entries': len(set(parse_datetime(r['created_at']).isoformat() for r in monthly_trips if r.get('created_at') and parse_datetime(r['created_at'])))
         }
         
         # Calculate vehicle utilization
@@ -3860,6 +3782,12 @@ def admin_analytics_dashboard():
             pass
 
         # pass per-type counts so initial server-rendered boxes show values
+        # attach overall stock totals so dashboard and inventory show the same authoritative values
+        try:
+            overall_stock_totals = get_stock_totals()
+        except Exception:
+            overall_stock_totals = {}
+
         return render_template('admin_analytics_dashboard.html',
                              daily_data=daily_data,
                              weekly_data=weekly_data,
@@ -3887,7 +3815,8 @@ def admin_analytics_dashboard():
                             pucc_count=per_type_counts_all.get('Pollution Certificate', 0),
                             registration_count=per_type_counts_all.get('Registration', 0),
                             driver_salary=round(driver_salary_total, 2),
-                            rate_and_taxes=rate_and_taxes_today)
+                            rate_and_taxes=rate_and_taxes_today,
+                            overall_stock_totals=overall_stock_totals)
                             
     
     except Exception as e:
@@ -4006,11 +3935,73 @@ def api_analytics_custom():
     if not start_str or not end_str:
         return jsonify({'error': 'start and end required'}), 400
 
+    # Accept flexible date formats (YYYY-MM-DD, DD-MM-YYYY, ISO timestamps, etc.)
     try:
-        start_date = datetime.strptime(start_str, '%Y-%m-%d').date()
-        end_date = datetime.strptime(end_str, '%Y-%m-%d').date()
-    except ValueError:
-        return jsonify({'error': 'Invalid date format. Use YYYY-MM-DD'}), 400
+        # Prefer the app-level helper `parse_date_str` if available in this module
+        try:
+            start_date = parse_date_str(start_str)
+            end_date = parse_date_str(end_str)
+        except Exception:
+            start_date = None
+            end_date = None
+
+        # Fallback: try common formats
+        if not start_date:
+            # Try common dash-separated formats first
+            try:
+                start_date = datetime.strptime(start_str, '%Y-%m-%d').date()
+            except Exception:
+                try:
+                    start_date = datetime.strptime(start_str, '%d-%m-%Y').date()
+                except Exception:
+                    # Try slash-separated formats like DD/MM/YYYY or YYYY/MM/DD
+                    try:
+                        start_date = datetime.strptime(start_str, '%d/%m/%Y').date()
+                    except Exception:
+                        try:
+                            start_date = datetime.strptime(start_str, '%Y/%m/%d').date()
+                        except Exception:
+                            # last resort: extract a date-like substring and normalize separators
+                            m = re.search(r'(\d{4}[\-/]\d{2}[\-/]\d{2}|\d{2}[\-/]\d{2}[\-/]\d{4})', str(start_str))
+                            if m:
+                                s = m.group(1).replace('/', '-')
+                                # If it's DD-MM-YYYY convert to YYYY-MM-DD
+                                if re.match(r'\d{2}-\d{2}-\d{4}', s):
+                                    parts = s.split('-')
+                                    s = parts[2] + '-' + parts[1] + '-' + parts[0]
+                                try:
+                                    start_date = datetime.strptime(s, '%Y-%m-%d').date()
+                                except Exception:
+                                    start_date = None
+
+        if not end_date:
+            try:
+                end_date = datetime.strptime(end_str, '%Y-%m-%d').date()
+            except Exception:
+                try:
+                    end_date = datetime.strptime(end_str, '%d-%m-%Y').date()
+                except Exception:
+                    try:
+                        end_date = datetime.strptime(end_str, '%d/%m/%Y').date()
+                    except Exception:
+                        try:
+                            end_date = datetime.strptime(end_str, '%Y/%m/%d').date()
+                        except Exception:
+                            m2 = re.search(r'(\d{4}[\-/]\d{2}[\-/]\d{2}|\d{2}[\-/]\d{2}[\-/]\d{4})', str(end_str))
+                            if m2:
+                                s2 = m2.group(1).replace('/', '-')
+                                if re.match(r'\d{2}-\d{2}-\d{4}', s2):
+                                    p = s2.split('-')
+                                    s2 = p[2] + '-' + p[1] + '-' + p[0]
+                                try:
+                                    end_date = datetime.strptime(s2, '%Y-%m-%d').date()
+                                except Exception:
+                                    end_date = None
+
+        if not start_date or not end_date:
+            return jsonify({'error': 'Invalid date format. Use YYYY-MM-DD or DD-MM-YYYY'}), 400
+    except Exception as exc:
+        return jsonify({'error': 'Invalid date format. Use YYYY-MM-DD', 'detail': str(exc)}), 400
 
     def to_date(val):
         if not val:
@@ -4031,8 +4022,30 @@ def api_analytics_custom():
     utilization_records = get_all_utilization()
     scrap_records = get_all_scrap()
 
+    def row_date(r):
+        # Try several common date fields on records and parse them to date
+        for key in ('date_time', 'created_at', 'date', 'trip_date', 'createdAt'):
+            v = r.get(key)
+            if not v:
+                continue
+            try:
+                # Prefer module-level parse_date_str for varied formats
+                d = parse_date_str(v)
+                if d:
+                    return d
+            except Exception:
+                pass
+            # Fallback to simple YYYY-MM-DD extraction
+            try:
+                m = re.search(r'(\d{4}-\d{2}-\d{2})', str(v))
+                if m:
+                    return datetime.strptime(m.group(1), '%Y-%m-%d').date()
+            except Exception:
+                pass
+        return None
+
     def in_range(r):
-        d = to_date(r.get('created_at'))
+        d = row_date(r)
         return d and start_date <= d <= end_date
 
     f = [r for r in fuel_records if in_range(r)]
@@ -4053,11 +4066,11 @@ def api_analytics_custom():
     fuel_by_day = defaultdict(float)
     trip_by_day = defaultdict(int)
     for r in f:
-        d = to_date(r.get('created_at'))
+        d = row_date(r)
         if d:
             fuel_by_day[d.strftime('%d/%m')] += float(r.get('quantity', 0) or 0)
     for r in t:
-        d = to_date(r.get('created_at'))
+        d = row_date(r)
         if d:
             trip_by_day[d.strftime('%d/%m')] += 1
 
@@ -4283,6 +4296,8 @@ def api_analytics_custom():
     data['total_faculty'] = total_faculty
     data['total_guests'] = total_guests
     data['total_passengers'] = total_passengers
+    # days with trip entries in the custom range
+    data['days_with_entries'] = len(set(row_date(r).isoformat() for r in t if row_date(r)))
     # include active/past drivers counts from employees table
     try:
         emp_res = supabase.table('employees').select('status').execute()

@@ -187,12 +187,39 @@
               <input type="date" id="endDate" class="date-input">
               <button onclick="applyCustomDate()" class="bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-semibold">Apply</button>
             </div>
-            <button onclick="generatePDFReport()" class="export-btn">
-              <svg width="18" height="18" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M19 12v7H5v-7H3v7c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2v-7h-2zm-6 .67l2.59-2.58L17 11.5l-5 5-5-5 1.41-1.41L11 12.67V3h2z"/>
-              </svg>
-              Generate PDF Report
-            </button>
+            <!-- PDF Download — two format options -->
+            <div class="relative" id="pdfDropdownContainer">
+              <button onclick="togglePdfDropdown()" class="export-btn" style="gap:6px;padding-right:14px;">
+                <svg width="18" height="18" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M19 12v7H5v-7H3v7c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2v-7h-2zm-6 .67l2.59-2.58L17 11.5l-5 5-5-5 1.41-1.41L11 12.67V3h2z"/>
+                </svg>
+                Download PDF
+                <svg width="14" height="14" fill="currentColor" viewBox="0 0 20 20" style="margin-left:2px;">
+                  <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clip-rule="evenodd"/>
+                </svg>
+              </button>
+              <div id="pdfDropdownMenu" class="hidden absolute right-0 mt-2 bg-white rounded-xl shadow-2xl border border-gray-200 z-50 overflow-hidden" style="min-width:230px;">
+                <div class="px-4 py-2 bg-gray-50 border-b border-gray-100 text-xs font-bold text-gray-500 uppercase tracking-widest">Select Report Format</div>
+                <button onclick="generatePDFReport(1);togglePdfDropdown();" class="w-full text-left px-4 py-3 hover:bg-blue-50 transition-colors border-b border-gray-100 flex items-start gap-3">
+                  <div class="mt-0.5 w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0" style="background:#dbeafe;">
+                    <span style="font-size:13px;">🎨</span>
+                  </div>
+                  <div>
+                    <div class="font-semibold text-sm text-gray-800">Format 1 — Color Report</div>
+                    <div class="text-xs text-gray-500 mt-0.5">Light colors, colored borders &amp; text</div>
+                  </div>
+                </button>
+                <button onclick="generatePDFReport(2);togglePdfDropdown();" class="w-full text-left px-4 py-3 hover:bg-gray-50 transition-colors flex items-start gap-3">
+                  <div class="mt-0.5 w-6 h-6 rounded-lg flex items-center justify-center flex-shrink-0 bg-gray-100">
+                    <span style="font-size:13px;">🖨</span>
+                  </div>
+                  <div>
+                    <div class="font-semibold text-sm text-gray-800">Format 2 — Minimal Report</div>
+                    <div class="text-xs text-gray-500 mt-0.5">No fill colors, clean print-ready</div>
+                  </div>
+                </button>
+              </div>
+            </div>
           </div>
         </div>
         
@@ -220,7 +247,7 @@
           <div class="stat-box">
             <h3>Total Trips</h3>
             <div class="value" id="totalTrips">{{ total_trips|default(0) }}</div>
-            <div class="change">Avg/day: <span id="avgTripsPerDay">-</span></div>
+            <div class="change">Avg/day: <span id="avgTripsPerDay">-</span><div class="avg-days-label" style="font-size:0.7rem;opacity:0.7;margin-top:2px;"></div></div>
           </div>
 
           <div class="stat-box" style="background:#3b82f6;">
@@ -232,13 +259,13 @@
           <div class="stat-box" style="background:#f59e0b;">
             <h3>Fuel Consumed</h3>
             <div class="value" id="totalFuel">{{ total_fuel|default(0) }}L</div>
-            <div class="change">Avg/day: <span id="avgFuelPerDay">-</span></div>
+            <div class="change">Avg/day: <span id="avgFuelPerDay">-</span><div class="avg-days-label" style="font-size:0.7rem;opacity:0.7;margin-top:2px;"></div></div>
           </div>
 
           <div class="stat-box" style="background:#10b981;">
             <h3>Total Distance</h3>
             <div class="value" id="totalDistance">{{ total_distance|default(0) }} KM</div>
-            <div class="change">Avg/day: <span id="avgDistancePerDay">-</span></div>
+            <div class="change">Avg/day: <span id="avgDistancePerDay">-</span><div class="avg-days-label" style="font-size:0.7rem;opacity:0.7;margin-top:2px;"></div></div>
           </div>
         </div>
 
@@ -246,19 +273,19 @@
           <div class="stat-box" style="background:#06b6d4;">
             <h3>Fuel Expenditure</h3>
             <div class="value" id="totalExpenditure">₹{{ total_expenditure|default(0) }}</div>
-            <div class="change">Avg/day: <span id="avgExpPerDay">-</span></div>
+            <div class="change">Avg/day: <span id="avgExpPerDay">-</span><div class="avg-days-label" style="font-size:0.7rem;opacity:0.7;margin-top:2px;"></div></div>
           </div>
 
           <div class="stat-box" style="background:#8b5cf6;">
             <h3>Students</h3>
             <div class="value" id="totalStudents">{{ total_students|default(0) }}</div>
-            <div class="change">Avg/day: <span id="avgStudentsPerDay">-</span></div>
+            <div class="change">Avg/day: <span id="avgStudentsPerDay">-</span><div class="avg-days-label" style="font-size:0.7rem;opacity:0.7;margin-top:2px;"></div></div>
           </div>
 
           <div class="stat-box" style="background:#ec4899;">
             <h3>Faculty</h3>
             <div class="value" id="totalFaculty">{{ total_faculty|default(0) }}</div>
-            <div class="change">Avg/day: <span id="avgFacultyPerDay">-</span></div>
+            <div class="change">Avg/day: <span id="avgFacultyPerDay">-</span><div class="avg-days-label" style="font-size:0.7rem;opacity:0.7;margin-top:2px;"></div></div>
           </div>
 
           <div class="stat-box" style="background:#64748b;">
@@ -364,39 +391,86 @@
             <div class="text-green-600 font-semibold text-sm mb-1">LIVE</div>
             <div class="text-2xl font-bold text-green-700" id="compliantCount">{{ compliant_count|default(0) }}</div>
             <div class="text-xs text-green-600 mt-1">UP TO DATE</div>
+
+            <!-- Per-type live counters (FC / Insurance / Tax / Permit / PUCC) -->
+            <div class="grid grid-cols-5 gap-2 mt-3">
+              <div onclick="showStatutoryByType('Fitness Certificate')" class="p-2 bg-blue-50 border border-blue-200 rounded text-center cursor-pointer">
+                <div class="text-xs text-blue-600 font-semibold">FC</div>
+                <div class="text-sm font-bold text-blue-800" id="fcCount">0</div>
+              </div>
+              <div onclick="showStatutoryByType('Insurance')" class="p-2 bg-indigo-50 border border-indigo-200 rounded text-center cursor-pointer">
+                <div class="text-xs text-indigo-600 font-semibold">Insurance</div>
+                <div class="text-sm font-bold text-indigo-800" id="insuranceCount">0</div>
+              </div>
+              <div onclick="showStatutoryByType('Road Tax')" class="p-2 bg-amber-50 border border-amber-200 rounded text-center cursor-pointer">
+                <div class="text-xs text-amber-600 font-semibold">Tax</div>
+                <div class="text-sm font-bold text-amber-800" id="taxCount">0</div>
+              </div>
+              <div onclick="showStatutoryByType('Permit')" class="p-2 bg-emerald-50 border border-emerald-200 rounded text-center cursor-pointer">
+                <div class="text-xs text-emerald-600 font-semibold">Permit</div>
+                <div class="text-sm font-bold text-emerald-800" id="permitCount">0</div>
+              </div>
+              <div onclick="showStatutoryByType('Pollution Certificate')" class="p-2 bg-slate-50 border border-slate-200 rounded text-center cursor-pointer">
+                <div class="text-xs text-slate-600 font-semibold">PUCC</div>
+                <div class="text-sm font-bold text-slate-800" id="puccCount">0</div>
+              </div>
+            </div>
           </div>
           <div onclick="showStatutoryList('due_soon')" role="button" tabindex="0" class="p-4 bg-yellow-50 border border-yellow-200 rounded-lg cursor-pointer">
             <div class="text-yellow-600 font-semibold text-sm mb-1">Due Soon</div>
             <div class="text-2xl font-bold text-yellow-700" id="dueSoonCount">{{ due_soon_count|default(0) }}</div>
             <div class="text-xs text-yellow-600 mt-1">Within 30 days</div>
+
+            <div class="grid grid-cols-5 gap-2 mt-3">
+              <div class="p-2 bg-blue-50 border border-blue-200 rounded text-center cursor-pointer">
+                <div class="text-xs text-blue-600 font-semibold">FC</div>
+                <div class="text-sm font-bold text-blue-800" id="fcCountDue">{{ fc_count|default(0) }}</div>
+              </div>
+              <div class="p-2 bg-indigo-50 border border-indigo-200 rounded text-center cursor-pointer">
+                <div class="text-xs text-indigo-600 font-semibold">Insurance</div>
+                <div class="text-sm font-bold text-indigo-800" id="insuranceCountDue">{{ insurance_count|default(0) }}</div>
+              </div>
+              <div class="p-2 bg-amber-50 border border-amber-200 rounded text-center cursor-pointer">
+                <div class="text-xs text-amber-600 font-semibold">Tax</div>
+                <div class="text-sm font-bold text-amber-800" id="taxCountDue">{{ tax_count|default(0) }}</div>
+              </div>
+              <div class="p-2 bg-emerald-50 border border-emerald-200 rounded text-center cursor-pointer">
+                <div class="text-xs text-emerald-600 font-semibold">Permit</div>
+                <div class="text-sm font-bold text-emerald-800" id="permitCountDue">{{ permit_count|default(0) }}</div>
+              </div>
+              <div class="p-2 bg-slate-50 border border-slate-200 rounded text-center cursor-pointer">
+                <div class="text-xs text-slate-600 font-semibold">PUCC</div>
+                <div class="text-sm font-bold text-slate-800" id="puccCountDue">{{ pucc_count|default(0) }}</div>
+              </div>
+            </div>
           </div>
           <div onclick="showStatutoryList('overdue')" role="button" tabindex="0" class="p-4 bg-red-50 border border-red-200 rounded-lg cursor-pointer">
             <div class="text-red-600 font-semibold text-sm mb-1">Overdue</div>
             <div class="text-2xl font-bold text-red-700" id="overdueCount">{{ overdue_count|default(0) }}</div>
             <div class="text-xs text-red-600 mt-1">Needs attention</div>
-          </div>
-        </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-5 gap-4 mt-4">
-          <div onclick="showStatutoryByType('Fitness Certificate')" class="p-3 bg-blue-50 border border-blue-200 rounded-lg text-center cursor-pointer">
-            <div class="text-sm text-blue-600 font-semibold">FC</div>
-            <div class="text-xl font-bold text-blue-800" id="fcCount">{{ fc_count|default(0) }}</div>
-          </div>
-          <div onclick="showStatutoryByType('Insurance')" class="p-3 bg-indigo-50 border border-indigo-200 rounded-lg text-center cursor-pointer">
-            <div class="text-sm text-indigo-600 font-semibold">Insurance</div>
-            <div class="text-xl font-bold text-indigo-800" id="insuranceCount">{{ insurance_count|default(0) }}</div>
-          </div>
-          <div onclick="showStatutoryByType('Road Tax')" class="p-3 bg-amber-50 border border-amber-200 rounded-lg text-center cursor-pointer">
-            <div class="text-sm text-amber-600 font-semibold">Tax</div>
-            <div class="text-xl font-bold text-amber-800" id="taxCount">{{ tax_count|default(0) }}</div>
-          </div>
-          <div onclick="showStatutoryByType('Permit')" class="p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-center cursor-pointer">
-            <div class="text-sm text-emerald-600 font-semibold">Permit</div>
-            <div class="text-xl font-bold text-emerald-800" id="permitCount">{{ permit_count|default(0) }}</div>
-          </div>
-          <div onclick="showStatutoryByType('Pollution Certificate')" class="p-3 bg-slate-50 border border-slate-200 rounded-lg text-center cursor-pointer">
-            <div class="text-sm text-slate-600 font-semibold">PUCC</div>
-            <div class="text-xl font-bold text-slate-800" id="puccCount">{{ pucc_count|default(0) }}</div>
+            <div class="grid grid-cols-5 gap-2 mt-3">
+              <div class="p-2 bg-blue-50 border border-blue-200 rounded text-center cursor-pointer">
+                <div class="text-xs text-blue-600 font-semibold">FC</div>
+                <div class="text-sm font-bold text-blue-800" id="fcCountOverdue">{{ fc_count|default(0) }}</div>
+              </div>
+              <div class="p-2 bg-indigo-50 border border-indigo-200 rounded text-center cursor-pointer">
+                <div class="text-xs text-indigo-600 font-semibold">Insurance</div>
+                <div class="text-sm font-bold text-indigo-800" id="insuranceCountOverdue">{{ insurance_count|default(0) }}</div>
+              </div>
+              <div class="p-2 bg-amber-50 border border-amber-200 rounded text-center cursor-pointer">
+                <div class="text-xs text-amber-600 font-semibold">Tax</div>
+                <div class="text-sm font-bold text-amber-800" id="taxCountOverdue">{{ tax_count|default(0) }}</div>
+              </div>
+              <div class="p-2 bg-emerald-50 border border-emerald-200 rounded text-center cursor-pointer">
+                <div class="text-xs text-emerald-600 font-semibold">Permit</div>
+                <div class="text-sm font-bold text-emerald-800" id="permitCountOverdue">{{ permit_count|default(0) }}</div>
+              </div>
+              <div class="p-2 bg-slate-50 border border-slate-200 rounded text-center cursor-pointer">
+                <div class="text-xs text-slate-600 font-semibold">PUCC</div>
+                <div class="text-sm font-bold text-slate-800" id="puccCountOverdue">{{ pucc_count|default(0) }}</div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -554,6 +628,8 @@
       weekly: {{ weekly_data|tojson|safe }},
       monthly: {{ monthly_data|tojson|safe }}
     };
+    // Authoritative overall stock totals (from server) - prefer these for summary boxes when present
+    const overallStockTotals = {{ overall_stock_totals|tojson|safe }} || {};
 
     function changePeriod(period) {
       currentPeriod = period;
@@ -574,9 +650,22 @@
     }
 
     function applyCustomDate() {
-      const startDate = document.getElementById('startDate').value;
-      const endDate = document.getElementById('endDate').value;
-      
+      const rawStart = document.getElementById('startDate').value;
+      const rawEnd = document.getElementById('endDate').value;
+      function toIso(s) {
+        if (!s) return '';
+        // handle possible dd-mm-yyyy or yyyy-mm-dd inputs
+        if (/^\d{2}-\d{2}-\d{4}$/.test(s)) {
+          const parts = s.split('-'); // dd-mm-yyyy
+          return parts[2] + '-' + parts[1] + '-' + parts[0];
+        }
+        // assume already yyyy-mm-dd or a browser date input value
+        return s;
+      }
+
+      const startDate = toIso(rawStart);
+      const endDate = toIso(rawEnd);
+
       if (startDate && endDate) {
         fetchCustomData(startDate, endDate);
       } else {
@@ -590,13 +679,19 @@
       document.getElementById('currentPeriodDisplay').textContent = startDate + ' to ' + endDate;
 
       // Build a merged data object from all three periods filtered by date range
-      const start = new Date(startDate);
-      const end = new Date(endDate);
+      // Parse dates without timezone shifts: split ISO YYYY-MM-DD
+      function parseISO(s) {
+        const m = String(s).match(/(\d{4})-(\d{2})-(\d{2})/);
+        if (!m) return null;
+        return new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])));
+      }
+      const start = parseISO(startDate);
+      const end = parseISO(endDate);
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 
       // Determine which pre-fetched dataset best covers the requested range
-      const diffDays = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
+      const diffDays = (start && end) ? (Math.round((end - start) / (1000 * 60 * 60 * 24)) + 1) : 0;
       let baseData;
       if (diffDays <= 1) {
         baseData = dashboardData.daily;
@@ -618,7 +713,7 @@
       });
 
       // Attempt a real server fetch with the date range
-      fetch('/api/analytics-custom?start=' + startDate + '&end=' + endDate)
+      fetch('/api/analytics-custom?start=' + encodeURIComponent(startDate) + '&end=' + encodeURIComponent(endDate))
         .then(r => r.ok ? r.json() : null)
         .then(data => {
           if (data) updateDashboard('custom', data);
@@ -646,20 +741,26 @@
       document.getElementById('totalDistance').textContent = (data.total_distance || 0) + ' KM';
       document.getElementById('totalExpenditure').textContent = '₹' + (data.total_expenditure || 0);
 
-      // Averages: determine days for current period
+      // Averages: prefer days_with_entries (actual days that have trip entries)
       let days = 30;
       if (period === 'daily') days = 1;
       else if (period === 'weekly') days = 7;
       else if (period === 'monthly') days = 30;
-      if (data.days) days = data.days;
+      const daysWithEntries = (data.days_with_entries !== undefined && data.days_with_entries !== null) ? data.days_with_entries : null;
+      if (daysWithEntries !== null && daysWithEntries > 0) days = daysWithEntries;
+      else if (data.days) days = data.days;
+
+      // Update the "(X days with entries)" sub-label on all avg stat boxes
+      const daysLabel = daysWithEntries !== null ? '(' + daysWithEntries + ' days with entries)' : '';
+      document.querySelectorAll('.avg-days-label').forEach(function(el) { el.textContent = daysLabel; });
 
       // Populate operation averages
       const trips = data.total_trips || 0;
       const fuel = data.total_fuel || 0;
       const dist = data.total_distance || 0;
-      document.getElementById('avgTripsPerDay').textContent = days > 0 ? (trips / days).toFixed(2) : '0';
+      document.getElementById('avgTripsPerDay').textContent = days > 0 ? (trips / days).toFixed(1) : '0';
       document.getElementById('avgFuelPerDay').textContent = days > 0 ? (fuel / days).toFixed(2) + 'L' : '0L';
-      document.getElementById('avgDistancePerDay').textContent = days > 0 ? (dist / days).toFixed(2) + ' KM' : '0 KM';
+      document.getElementById('avgDistancePerDay').textContent = days > 0 ? (dist / days).toFixed(1) + ' KM' : '0 KM';
       document.getElementById('avgExpPerDay').textContent = days > 0 ? ('₹' + ((data.total_expenditure || 0) / days).toFixed(2)) : '₹0.00';
 
       // Students/Faculty (try to derive from trip_records if present)
@@ -687,9 +788,10 @@
       }
       document.getElementById('avgMileage').textContent = avgM;
 
-      // Stock management fields (best-effort from data)
-      if (document.getElementById('openingStock')) document.getElementById('openingStock').textContent = data.opening_stock || 0;
-      if (document.getElementById('openingStockQty')) document.getElementById('openingStockQty').textContent = (data.opening_stock_qty || 0);
+      // Stock management fields (prefer authoritative overallStockTotals when provided)
+      const stockSource = (overallStockTotals && Object.keys(overallStockTotals).length) ? overallStockTotals : data;
+      if (document.getElementById('openingStock')) document.getElementById('openingStock').textContent = stockSource.opening_stock || data.opening_stock || 0;
+      if (document.getElementById('openingStockQty')) document.getElementById('openingStockQty').textContent = (stockSource.opening_stock_qty || data.opening_stock_qty || 0);
       if (document.getElementById('purchasesCount')) document.getElementById('purchasesCount').textContent = data.total_purchases || 0;
       if (document.getElementById('purchasesQty')) document.getElementById('purchasesQty').textContent = (data.purchases_qty || 0);
       if (document.getElementById('utilizationCount')) document.getElementById('utilizationCount').textContent = data.total_utilization || 0;
@@ -698,10 +800,14 @@
       if (document.getElementById('scrapQty')) document.getElementById('scrapQty').textContent = (data.scrap_qty || 0);
       if (document.getElementById('purchaseReturnCount')) document.getElementById('purchaseReturnCount').textContent = data.total_purchase_returns || 0;
       if (document.getElementById('purchaseReturnQty')) document.getElementById('purchaseReturnQty').textContent = (data.purchase_return_qty || 0);
-      if (document.getElementById('closingStock')) document.getElementById('closingStock').textContent = data.closing_stock || 0;
-      if (document.getElementById('closingStockQty')) document.getElementById('closingStockQty').textContent = (data.closing_stock_qty || 0);
-      if (document.getElementById('totalPurchaseValue')) document.getElementById('totalPurchaseValue').textContent = '₹' + ((data.total_purchase_value || 0).toFixed ? data.total_purchase_value.toFixed(2) : (data.total_purchase_value || 0));
-      // Populate total purchase items and qty
+      if (document.getElementById('closingStock')) document.getElementById('closingStock').textContent = stockSource.closing_stock || stockSource.closing_stock_qty || data.closing_stock || 0;
+      if (document.getElementById('closingStockQty')) document.getElementById('closingStockQty').textContent = (stockSource.closing_stock_qty || data.closing_stock_qty || 0);
+      // Total purchase value: handle numeric or preformatted values
+      if (document.getElementById('totalPurchaseValue')) {
+        const tp = stockSource.total_purchase_value || data.total_purchase_value || 0;
+        document.getElementById('totalPurchaseValue').textContent = '₹' + (typeof tp === 'number' ? tp.toFixed(2) : tp);
+      }
+      // Populate total purchase items and qty (period counts remain from data)
       if (document.getElementById('totalPurchaseItems')) document.getElementById('totalPurchaseItems').textContent = (data.total_purchases || 0);
       if (document.getElementById('totalPurchaseQty')) document.getElementById('totalPurchaseQty').textContent = (data.purchases_qty || 0);
 
@@ -922,7 +1028,19 @@
       }
     }
 
-    async function generatePDFReport() {
+    function togglePdfDropdown() {
+      const menu = document.getElementById('pdfDropdownMenu');
+      if (menu) menu.classList.toggle('hidden');
+    }
+    document.addEventListener('click', function(e) {
+      const c = document.getElementById('pdfDropdownContainer');
+      const m = document.getElementById('pdfDropdownMenu');
+      if (c && m && !c.contains(e.target)) m.classList.add('hidden');
+    });
+
+    async function generatePDFReport(fmt) {
+      fmt = fmt || 1;  // 1 = light colors, 2 = minimal/no fill colors
+
       // refresh latest data from server (best-effort) to avoid stale values in PDF
       try {
         let fetchUrl = '/api/analytics-custom?period=' + encodeURIComponent(currentPeriod || 'daily');
@@ -932,23 +1050,11 @@
           if (s && e) fetchUrl = '/api/analytics-custom?start=' + encodeURIComponent(s) + '&end=' + encodeURIComponent(e);
         }
         const resp = await fetch(fetchUrl);
-        if (resp && resp.ok) {
-          const json = await resp.json();
-          // update dashboard DOM with freshest server data
-          updateDashboard(currentPeriod, json);
-        } else {
-          // fallback to existing in-page data
-          updateDashboard(currentPeriod);
-        }
-      } catch (err) {
-        // network failed — still use current DOM
-        updateDashboard(currentPeriod);
-      }
+        if (resp && resp.ok) { const json = await resp.json(); updateDashboard(currentPeriod, json); }
+        else { updateDashboard(currentPeriod); }
+      } catch (err) { updateDashboard(currentPeriod); }
 
-      // give the UI a short moment to repaint and charts to update
       await new Promise(r => setTimeout(r, 700));
-
-      // attempt to force chart updates so canvases contain latest rendering
       try { if (fuelChart && typeof fuelChart.update === 'function') fuelChart.update(); } catch (e) {}
       try { if (tripChart && typeof tripChart.update === 'function') tripChart.update(); } catch (e) {}
       try { if (expBreakdownChart && typeof expBreakdownChart.update === 'function') expBreakdownChart.update(); } catch (e) {}
@@ -959,11 +1065,11 @@
       const doc = new jsPDF('p', 'mm', 'a4');
       const pageWidth  = 210;
       const pageHeight = 297;
-      const M  = 14;   // margin
-      const CW = pageWidth - M * 2;  // content width
-      const HDR_H = 30; // header image height
+      const M  = 14;
+      const CW = pageWidth - M * 2;
+      const HDR_H = 30;
 
-      // ── Palette ──────────────────────────────────────────────────────────────
+      // ── Base palette ──────────────────────────────────────────────────────────
       const C = {
         darkBlue : [15, 40, 100],
         blue     : [37, 99, 235],
@@ -975,18 +1081,16 @@
         teal     : [13, 148, 136],
         slate    : [71, 85, 105],
         red      : [185, 28, 28],
-        dark     : [15, 23, 42],
+        dark     : [30, 30, 30],
         gray     : [100, 116, 139],
-        lgray    : [226, 232, 240],
+        lgray    : [210, 218, 228],
         offWhite : [248, 250, 252],
         white    : [255, 255, 255],
-        bgYellow : [254, 252, 232],
       };
 
       // ── Low-level helpers ─────────────────────────────────────────────────────
       const fill   = (x,y,w,h,r,col) => { doc.setFillColor(...col); doc.roundedRect(x,y,w,h,r,r,'F'); };
       const stroke = (x,y,w,h,r,col,lw=0.35) => { doc.setDrawColor(...col); doc.setLineWidth(lw); doc.roundedRect(x,y,w,h,r,r,'S'); };
-      const hLine  = (y, col=C.lgray, lw=0.25) => { doc.setDrawColor(...col); doc.setLineWidth(lw); doc.line(M,y,pageWidth-M,y); };
       const txt    = (t,x,y,sz,col,bold=false,align='left') => {
         doc.setFontSize(sz); doc.setTextColor(...col);
         doc.setFont('helvetica', bold ? 'bold' : 'normal');
@@ -995,26 +1099,83 @@
 
       const sanitize = (s) => {
         if (s == null) return '';
-        return String(s).replace(/₹/g, 'Rs.').replace(/[^\x00-\x7F]/g, '').trim();
+        return String(s).replace(/₹/g,'Rs.').replace(/[^\x00-\x7F]/g,'').trim();
       };
       const el = (id) => {
         const e = document.getElementById(id);
         return e ? sanitize(e.textContent) : '0';
       };
 
-      // ── Page header (college logo image or fallback bar) ──────────────────────
-      const drawHeader = (img) => {
-        if (img) {
-          doc.addImage(img, 'PNG', M, 5, CW, HDR_H - 5);
+      // ── Format 1: light pastels — colored text + borders, no solid fill ───────
+      // ── Format 2: monochrome — white bg, dark text, gray borders only  ───────
+
+      // sCard — stat box
+      const sCard = (x, y, w, h, label, value, sub, accentRGB, _fg) => {
+        if (fmt === 1) {
+          // Very light pastel background (~93% white blend)
+          const lb = accentRGB.map(c => Math.round(c * 0.07 + 255 * 0.93));
+          fill(x, y, w, h, 3, lb);
+          // Colored border + colored left accent bar
+          doc.setDrawColor(...accentRGB); doc.setLineWidth(0.5); doc.roundedRect(x,y,w,h,3,3,'S');
+          fill(x, y+2, 3, h-4, 2, accentRGB);
+          // Label in gray, value in darkened accent color
+          txt(label, x+7, y+5.5, 6, C.gray);
+          const vc = accentRGB.map(c => Math.min(Math.round(c*0.72), 215));
+          txt(sanitize(String(value)), x+7, y+(sub ? 12.5 : h/2+4), 9.5, vc, true);
+          if (sub) txt(sanitize(String(sub)), x+7, y+h-2.5, 5.5, C.gray);
         } else {
-          // fallback simple header text
-          txt('PMC LOGISTICS REPORTS', pageWidth/2, 19, 14, C.blue, true, 'center');
+          // Format 2: plain white, gray border, gray left accent, dark text
+          fill(x, y, w, h, 3, C.white);
+          doc.setDrawColor(...C.lgray); doc.setLineWidth(0.35); doc.roundedRect(x,y,w,h,3,3,'S');
+          fill(x, y+2, 3, h-4, 2, [185,195,210]);
+          txt(label, x+7, y+5.5, 6, C.gray);
+          txt(sanitize(String(value)), x+7, y+(sub ? 12.5 : h/2+4), 9.5, C.dark, true);
+          if (sub) txt(sanitize(String(sub)), x+7, y+h-2.5, 5.5, C.gray);
         }
       };
 
-      // ── Page footer ───────────────────────────────────────────────────────────
+      // secBar — section heading bar
+      const secBar = (title, yy, _bgRGB, accentRGB) => {
+        if (fmt === 1) {
+          fill(M, yy, CW, 8.5, 2, [243,246,251]);
+          fill(M, yy, 4, 8.5, 1, accentRGB);
+          doc.setDrawColor(...C.lgray); doc.setLineWidth(0.25); doc.roundedRect(M,yy,CW,8.5,2,2,'S');
+          const tc = accentRGB.map(c => Math.min(Math.round(c*0.72),200));
+          txt(title, M+9, yy+6, 8.5, tc, true);
+        } else {
+          fill(M, yy, CW, 8.5, 2, [242,244,248]);
+          fill(M, yy, 4, 8.5, 1, C.dark);
+          doc.setDrawColor(...C.lgray); doc.setLineWidth(0.25); doc.roundedRect(M,yy,CW,8.5,2,2,'S');
+          txt(title, M+9, yy+6, 8.5, C.dark, true);
+        }
+        return yy + 12;
+      };
+
+      // compBadgeSmall — statutory compliance badge
+      const compBadgeSmall = (x, y, w, label, value, desc, accentColor) => {
+        if (fmt === 1) {
+          const lb = accentColor.map(c => Math.round(c*0.07 + 255*0.93));
+          fill(x, y, w, 20, 3, lb);
+          doc.setDrawColor(...accentColor); doc.setLineWidth(0.5); doc.roundedRect(x,y,w,20,3,3,'S');
+          const tc = accentColor.map(c => Math.min(Math.round(c*0.72),210));
+          txt(label.toUpperCase(), x+w/2, y+6.5, 6.5, tc, true, 'center');
+          txt(sanitize(String(value)), x+w/2, y+15, 14, tc, true, 'center');
+          if (desc) txt(desc, x+w/2, y+19.2, 5.5, C.gray, false, 'center');
+        } else {
+          fill(x, y, w, 20, 3, C.white);
+          doc.setDrawColor(...C.lgray); doc.setLineWidth(0.35); doc.roundedRect(x,y,w,20,3,3,'S');
+          txt(label.toUpperCase(), x+w/2, y+6.5, 6.5, C.gray, true, 'center');
+          txt(sanitize(String(value)), x+w/2, y+15, 14, C.dark, true, 'center');
+          if (desc) txt(desc, x+w/2, y+19.2, 5.5, C.gray, false, 'center');
+        }
+      };
+
+      const drawHeader = (img) => {
+        if (img) doc.addImage(img, 'PNG', M, 5, CW, HDR_H - 5);
+        else txt('PMC LOGISTICS REPORTS', pageWidth/2, 19, 14, C.darkBlue, true, 'center');
+      };
+
       const drawFooter = (pageNum, total) => {
-        hLine(pageHeight - 14, C.lgray, 0.4);
         fill(M, pageHeight-12, CW, 9, 2, C.offWhite);
         const period = sanitize(document.getElementById('currentPeriodDisplay').textContent);
         txt('Drive Logs Analytics  |  Period: ' + period, M+3, pageHeight-6.5, 7, C.darkBlue);
@@ -1023,49 +1184,25 @@
           '  '+new Date().toLocaleTimeString(), pageWidth/2, pageHeight-6.5, 7, C.gray, false, 'center');
       };
 
-      // ── Section heading pill ──────────────────────────────────────────────────
+      // ── Section heading pill (page 2, charts) ────────────────────────────────
       const sectionHead = (text, y, color=C.darkBlue) => {
         fill(M, y, CW, 9, 2, C.offWhite);
-        fill(M, y, 4, 9, 1, color);
-        txt(text, M+8, y+6.5, 9.5, color, true);
+        fill(M, y, 4, 9, 1, fmt === 1 ? color : C.dark);
+        const tc = fmt === 1 ? color.map(c => Math.min(Math.round(c*0.72),200)) : C.dark;
+        txt(text, M+8, y+6.5, 9.5, tc, true);
         return y + 13;
       };
 
-      // ── Metric card with coloured left bar ────────────────────────────────────
-      const metricCard = (x, y, w, h, label, value, sub, color) => {
-        fill(x, y, w, h, 3, C.white);
-        stroke(x, y, w, h, 3, C.lgray);
-        fill(x, y+2, 3, h-4, 2, color);
-        txt(label.toUpperCase(), x+7, y+6.5, 6.5, C.gray);
-        txt(value, x+7, y+15, 13, color, true);
-        if (sub) txt(sub, x+7, y+h-3, 6, C.gray);
-      };
+      // ── Metric card (page 1 stat boxes) ──────────────────────────────────────
+      // sCard is already defined above with format awareness
 
-      // ── Compliance badge card ────────────────────────────────────────────────
-      const compBadge = (x, y, w, label, value, desc, color) => {
-        fill(x, y, w, 26, 3, C.white);
-        stroke(x, y, w, 26, 3, color, 0.6);
-        fill(x, y, w, 8, 3, color);
-        // round bottom corners of top bar patch
-        fill(x, y+5, w, 3, 0, color);
-        txt(label.toUpperCase(), x+w/2, y+6, 7, C.white, true, 'center');
-        txt(value, x+w/2, y+19, 16, color, true, 'center');
-        txt(desc, x+w/2, y+25, 6.5, C.gray, false, 'center');
-      };
+      const G   = 3;
+      const CH  = 19;
+      const SH  = 14;
+      const cW4 = (CW - G*3) / 4;
+      const cW3 = (CW - G*2) / 3;
+      const cW5 = (CW - G*4) / 5;
 
-      // smaller compliance badge for compact PDF layout
-      const compBadgeSmall = (x, y, w, label, value, desc, color) => {
-        const H = 18;
-        fill(x, y, w, H, 3, C.white);
-        stroke(x, y, w, H, 3, color, 0.45);
-        fill(x, y, w, 6, 2, color);
-        txt(label.toUpperCase(), x + w/2, y + 4.5, 6, C.white, true, 'center');
-        txt(value, x + w/2, y + 11, 11, color, true, 'center');
-        if (desc) txt(desc, x + w/2, y + H - 2, 5, C.gray, false, 'center');
-      };
-
-      // ─────────────────────────────────────────────────────────────────────────
-      // Build PDF — single page, reproduces the front-page boxes exactly
       // ─────────────────────────────────────────────────────────────────────────
       const buildPDF = (img) => {
         let y = 5;
@@ -1074,254 +1211,224 @@
         if (img) {
           doc.addImage(img, 'PNG', M, y, CW, 18);
           y += 21;
-          // small centered report title below the image
           txt('PMC LOGISTICS REPORT', pageWidth/2, y+5, 10, C.darkBlue, true, 'center');
-          y += 8;
+          y += 9;
         } else {
-          fill(M, y, CW, 18, 3, C.darkBlue);
-          txt('PMC LOGISTICS REPORT', pageWidth/2, y+8, 12, C.white, true, 'center');
-          txt('Fleet Analytics & Operations Report', pageWidth/2, y+14.5, 7.5, [180,205,255], false, 'center');
-          y += 21;
+          fill(M, y, CW, 18, 3, fmt === 1 ? [235,241,255] : C.offWhite);
+          if (fmt === 1) { doc.setDrawColor(...C.darkBlue); doc.setLineWidth(0.4); doc.roundedRect(M,y,CW,18,3,3,'S'); }
+          txt('PMC LOGISTICS REPORT', pageWidth/2, y+8, 12, C.darkBlue, true, 'center');
+          txt('Fleet Analytics & Operations Report', pageWidth/2, y+14.5, 7.5, C.gray, false, 'center');
+          y += 22;
         }
 
-        // ── Period bar + Active/Past drivers badges ─────────────────────────────
+        // ── Period bar ──────────────────────────────────────────────────────────
         const period = sanitize(document.getElementById('currentPeriodDisplay').textContent);
-        fill(M, y, CW, 10, 2, [235,240,255]);
+        fill(M, y, CW, 10, 2, fmt === 1 ? [239,245,255] : C.offWhite);
+        if (fmt === 1) { doc.setDrawColor(...C.darkBlue); doc.setLineWidth(0.3); doc.roundedRect(M,y,CW,10,2,2,'S'); }
         txt('Report Period: ' + period + '   |   ' +
             new Date().toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}),
             M+5, y+7, 7.5, C.darkBlue, true);
-        const bdW = 36;
-        // tighten spacing between the two small badges on the right
-        const gapBR = 6;
+
+        // Active / Past driver badges
+        const bdW = 36, gapBR = 5;
         const rightX = pageWidth - M - bdW;
         const leftX = rightX - bdW - gapBR;
         fill(leftX, y+1, bdW, 8, 2, C.white);
-        stroke(leftX, y+1, bdW, 8, 2, C.lgray);
+        doc.setDrawColor(...(fmt === 1 ? C.lgray : C.lgray)); doc.setLineWidth(0.3); doc.roundedRect(leftX,y+1,bdW,8,2,2,'S');
         txt('Active Drivers', leftX+3, y+5.5, 5.5, C.gray);
-        txt(el('activeDrivers'), leftX+bdW-3, y+5.5, 7, C.dark, true, 'right');
-        fill(rightX, y+1, bdW, 8, 2, [254,226,226]);
-        stroke(rightX, y+1, bdW, 8, 2, [252,165,165]);
-        txt('Past Drivers', rightX+3, y+5.5, 5.5, C.red);
-        txt(el('pastDrivers'), rightX+bdW-3, y+5.5, 7, C.red, true, 'right');
+        txt(el('activeDrivers'), leftX+bdW-3, y+5.5, 7, fmt===1?C.darkBlue:C.dark, true, 'right');
+        fill(rightX, y+1, bdW, 8, 2, fmt===1?[255,241,241]:C.white);
+        doc.setDrawColor(...(fmt===1?[220,180,180]:C.lgray)); doc.setLineWidth(0.3); doc.roundedRect(rightX,y+1,bdW,8,2,2,'S');
+        txt('Past Drivers', rightX+3, y+5.5, 5.5, fmt===1?C.red:C.gray);
+        txt(el('pastDrivers'), rightX+bdW-3, y+5.5, 7, fmt===1?C.red:C.dark, true, 'right');
         y += 13;
-
-        // ── Coloured box card (matches the front-end stat-box style) ───────────
-        const sCard = (xx, yy, w, h, label, value, sub, bgRGB, fgRGB) => {
-          fill(xx, yy, w, h, 3, bgRGB);
-          doc.setFontSize(6); doc.setTextColor(...fgRGB); doc.setFont('helvetica','normal');
-          doc.text(label, xx+4, yy+5.5);
-          doc.setFontSize(9); doc.setFont('helvetica','bold');
-          doc.text(sanitize(String(value)), xx+4, yy+(sub ? 12.5 : h/2+4));
-          if (sub) {
-            doc.setFontSize(5.5); doc.setFont('helvetica','normal');
-            doc.text(sanitize(String(sub)), xx+4, yy+h-2.5);
-          }
-        };
-
-        // ── Section heading bar ───────────────────────────────────────────────
-        const secBar = (title, yy, bgRGB, accentRGB) => {
-          fill(M, yy, CW, 7.5, 2, bgRGB);
-          fill(M, yy, 3.5, 7.5, 0, accentRGB);
-          doc.setFontSize(8.5); doc.setTextColor(...C.white); doc.setFont('helvetica','bold');
-          doc.text(title, M+7, yy+5.5);
-          return yy + 10.5;
-        };
-
-        const G   = 3;    // gap between cards
-        const CH  = 18;   // tall card height (shows avg/day sub-line)
-        const SH  = 13;   // short card height
-        const cW4 = (CW - G*3) / 4;
-        const cW3 = (CW - G*2) / 3;
-        const cW5 = (CW - G*4) / 5;
 
         // ══════════════════════════════════════════════════════════════════════
         // 1. OPERATIONS — KEY METRICS
         // ══════════════════════════════════════════════════════════════════════
-        y = secBar('Operations - Key Metrics', y, C.darkBlue, [255,210,0]);
+        y = secBar('Operations - Key Metrics', y, C.darkBlue, [37,99,235]);
 
         [
-          { label:'Total Trips',    value:el('totalTrips'),    sub:'Avg/day: '+el('avgTripsPerDay'),    bg:[239,175,43],  fg:[60,30,0] },
-          { label:'Active Bus',     value:el('activeVehicles'),sub:'Currently active',                  bg:[59,130,246],  fg:[255,255,255] },
-          { label:'Fuel Consumed',  value:el('totalFuel'),     sub:'Avg/day: '+el('avgFuelPerDay'),     bg:[245,158,11],  fg:[255,255,255] },
-          { label:'Total Distance', value:el('totalDistance'), sub:'Avg/day: '+el('avgDistancePerDay'), bg:[16,185,129],  fg:[255,255,255] },
-        ].forEach((c,i) => sCard(M+i*(cW4+G), y, cW4, CH, c.label, c.value, c.sub, c.bg, c.fg));
+          { label:'Total Trips',    value:el('totalTrips'),    sub:'Avg/day: '+el('avgTripsPerDay'),    bg:[239,175,43] },
+          { label:'Active Bus',     value:el('activeVehicles'),sub:'Currently active',                  bg:[59,130,246] },
+          { label:'Fuel Consumed',  value:el('totalFuel'),     sub:'Avg/day: '+el('avgFuelPerDay'),     bg:[245,158,11] },
+          { label:'Total Distance', value:el('totalDistance'), sub:'Avg/day: '+el('avgDistancePerDay'), bg:[16,185,129] },
+        ].forEach((c,i) => sCard(M+i*(cW4+G), y, cW4, CH, c.label, c.value, c.sub, c.bg));
         y += CH + 2;
 
         [
-          { label:'Fuel Expenditure', value:el('totalExpenditure'), sub:'Avg/day: '+el('avgExpPerDay'),      bg:[6,182,212],   fg:[255,255,255] },
-          { label:'Students',         value:el('totalStudents'),    sub:'Avg/day: '+el('avgStudentsPerDay'), bg:[139,92,246],  fg:[255,255,255] },
-          { label:'Faculty',          value:el('totalFaculty'),     sub:'Avg/day: '+el('avgFacultyPerDay'),  bg:[236,72,153],  fg:[255,255,255] },
-          { label:'Average Mileage',  value:el('avgMileage'),       sub:'Fleet avg',                         bg:[100,116,139], fg:[255,255,255] },
-        ].forEach((c,i) => sCard(M+i*(cW4+G), y, cW4, CH, c.label, c.value, c.sub, c.bg, c.fg));
-        y += CH + 4;
+          { label:'Fuel Expenditure', value:el('totalExpenditure'), sub:'Avg/day: '+el('avgExpPerDay'),      bg:[6,182,212]   },
+          { label:'Students',         value:el('totalStudents'),    sub:'Avg/day: '+el('avgStudentsPerDay'), bg:[139,92,246]  },
+          { label:'Faculty',          value:el('totalFaculty'),     sub:'Avg/day: '+el('avgFacultyPerDay'),  bg:[236,72,153]  },
+          { label:'Average Mileage',  value:el('avgMileage'),       sub:'Fleet avg',                         bg:[100,116,139] },
+        ].forEach((c,i) => sCard(M+i*(cW4+G), y, cW4, CH, c.label, c.value, c.sub, c.bg));
+        y += CH + 5;
 
         // ══════════════════════════════════════════════════════════════════════
         // 2. STOCK MANAGEMENT
         // ══════════════════════════════════════════════════════════════════════
-        y = secBar('Stock Management', y, [67,20,120], [200,150,255]);
+        y = secBar('Stock Management', y, [67,20,120], [139,92,246]);
 
         [
-          { label:'Opening Stock',  value:el('openingStock'),    bg:[168,232,245], fg:[17,94,89] },
-          { label:'Purchase',       value:el('purchasesCount'),  bg:[139,92,246],  fg:[255,255,255] },
-          { label:'Utilization',    value:el('utilizationCount'),bg:[20,184,166],  fg:[255,255,255] },
-          { label:'Scrap',          value:el('scrapCount'),      bg:[100,116,139], fg:[255,255,255] },
-        ].forEach((c,i) => sCard(M+i*(cW4+G), y, cW4, SH, c.label, c.value, null, c.bg, c.fg));
+          { label:'Opening Stock',  value:el('openingStock'),    bg:[20,184,166]  },
+          { label:'Purchase',       value:el('purchasesCount'),  bg:[139,92,246]  },
+          { label:'Utilization',    value:el('utilizationCount'),bg:[13,148,136]  },
+          { label:'Scrap',          value:el('scrapCount'),      bg:[100,116,139] },
+        ].forEach((c,i) => sCard(M+i*(cW4+G), y, cW4, SH, c.label, c.value, null, c.bg));
         y += SH + 2;
 
         [
-          { label:'Purchase Return',      value:el('purchaseReturnCount'), bg:[236,72,153], fg:[255,255,255] },
-          { label:'Closing Stock',        value:el('closingStock'),        bg:[245,158,11], fg:[255,255,255] },
-          { label:'Total Purchase Value', value:el('totalPurchaseValue'),  bg:[16,185,129], fg:[255,255,255] },
-        ].forEach((c,i) => sCard(M+i*(cW3+G), y, cW3, SH, c.label, c.value, null, c.bg, c.fg));
-        y += SH + 4;
+          { label:'Purchase Return',      value:el('purchaseReturnCount'), bg:[236,72,153] },
+          { label:'Closing Stock',        value:el('closingStock'),        bg:[245,158,11] },
+          { label:'Total Purchase Value', value:el('totalPurchaseValue'),  bg:[16,185,129] },
+        ].forEach((c,i) => sCard(M+i*(cW3+G), y, cW3, SH, c.label, c.value, null, c.bg));
+        y += SH + 5;
 
         // ══════════════════════════════════════════════════════════════════════
         // 3. TOTAL EXPENDITURE
         // ══════════════════════════════════════════════════════════════════════
-        y = secBar('Total Expenditure', y, [185,28,28], [255,180,0]);
+        y = secBar('Total Expenditure', y, [185,28,28], [220,80,50]);
 
         [
-          { label:'Purchase (expenditure)', value:el('purchaseExpenditure'), bg:[254,214,170], fg:[92,45,0] },
-          { label:'Fuel',                   value:el('fuelExpenditure'),     bg:[245,158,11],  fg:[255,255,255] },
-          { label:'Driver Salary',          value:el('driverSalary'),        bg:[199,210,254], fg:[55,48,163] },
-          { label:'Rate & Taxes',           value:el('rateAndTaxes'),        bg:[209,250,229], fg:[6,95,70] },
-        ].forEach((c,i) => sCard(M+i*(cW4+G), y, cW4, SH, c.label, c.value, null, c.bg, c.fg));
-        y += SH + 4;
+          { label:'Purchase Expenditure', value:el('purchaseExpenditure'), bg:[213,130,40]  },
+          { label:'Fuel',                 value:el('fuelExpenditure'),     bg:[245,158,11]  },
+          { label:'Driver Salary',        value:el('driverSalary'),        bg:[99,102,241]  },
+          { label:'Rate & Taxes',         value:el('rateAndTaxes'),        bg:[22,163,74]   },
+        ].forEach((c,i) => sCard(M+i*(cW4+G), y, cW4, SH, c.label, c.value, null, c.bg));
+        y += SH + 5;
 
         // ══════════════════════════════════════════════════════════════════════
         // 4. STATUTORY COMPLIANCE STATUS
         // ══════════════════════════════════════════════════════════════════════
-        y = secBar('Statutory Compliance Status', y, [20,100,60], [100,235,140]);
-
-        const statItems = [
-          { label:'LIVE',     value:el('compliantCount'), desc:'UP TO DATE', color:C.green },
-          { label:'Due Soon', value:el('dueSoonCount'),   desc:'Within 30 days', color:C.amber },
-          { label:'Overdue',  value:el('overdueCount'),   desc:'Needs attention', color:C.red },
-        ];
-        statItems.forEach((c,i) => compBadgeSmall(M+i*(cW3+G), y, cW3, c.label, c.value, c.desc, c.color));
-        y += 20;
+        y = secBar('Statutory Compliance Status', y, [20,100,60], [22,163,74]);
 
         [
-          { label:'FC',        value:el('fcCount'),        bg:[239,246,255], fg:[29,78,216] },
-          { label:'Insurance', value:el('insuranceCount'), bg:[238,242,255], fg:[79,70,229] },
-          { label:'Tax',       value:el('taxCount'),       bg:[255,251,235], fg:[161,98,7] },
-          { label:'Permit',    value:el('permitCount'),    bg:[236,253,245], fg:[4,120,87] },
-          { label:'PUCC',      value:el('puccCount'),      bg:[248,250,252], fg:[51,65,85] },
-        ].forEach((c,i) => sCard(M+i*(cW5+G), y, cW5, SH-2, c.label, c.value, null, c.bg, c.fg));
-        y += (SH-2) + 4;
+          { label:'LIVE',     value:el('compliantCount'), desc:'Up to date',     color:C.green },
+          { label:'Due Soon', value:el('dueSoonCount'),   desc:'Within 30 days', color:C.amber },
+          { label:'Overdue',  value:el('overdueCount'),   desc:'Needs attention',color:C.red   },
+        ].forEach((c,i) => compBadgeSmall(M+i*(cW3+G), y, cW3, c.label, c.value, c.desc, c.color));
+        y += 24;
+
+        [
+          { label:'FC',        value:el('fcCount'),        bg:[29,78,216]   },
+          { label:'Insurance', value:el('insuranceCount'), bg:[79,70,229]   },
+          { label:'Tax',       value:el('taxCount'),       bg:[161,98,7]    },
+          { label:'Permit',    value:el('permitCount'),    bg:[4,120,87]    },
+          { label:'PUCC',      value:el('puccCount'),      bg:[71,85,105]   },
+        ].forEach((c,i) => sCard(M+i*(cW5+G), y, cW5, SH-1, c.label, c.value, null, c.bg));
+        y += (SH-1) + 5;
 
         // ══════════════════════════════════════════════════════════════════════
         // 5. PAYMENTS MADE
         // ══════════════════════════════════════════════════════════════════════
-        y = secBar('Payments Made', y, [30,58,138], [147,210,255]);
+        y = secBar('Payments Made', y, [30,58,138], [37,99,235]);
 
         [
-          { label:'Rate & Taxes',  value:el('paymentRateTaxes'),    bg:[254,252,232], fg:[180,83,9] },
-          { label:'Driver Salary', value:el('paymentDriverSalary'), bg:[224,242,254], fg:[3,105,161] },
-          { label:'Total Fuel',    value:el('paymentFuel'),         bg:[254,242,242], fg:[185,28,28] },
-          { label:'Maintenance',   value:el('paymentMaintenance'),  bg:[238,242,255], fg:[124,58,237] },
-        ].forEach((c,i) => sCard(M+i*(cW4+G), y, cW4, SH, c.label, c.value, null, c.bg, c.fg));
-        y += SH + 4;
+          { label:'Rate & Taxes',  value:el('paymentRateTaxes'),    bg:[180,83,9]    },
+          { label:'Driver Salary', value:el('paymentDriverSalary'), bg:[3,105,161]   },
+          { label:'Total Fuel',    value:el('paymentFuel'),         bg:[185,28,28]   },
+          { label:'Maintenance',   value:el('paymentMaintenance'),  bg:[124,58,237]  },
+        ].forEach((c,i) => sCard(M+i*(cW4+G), y, cW4, SH, c.label, c.value, null, c.bg));
+        y += SH + 5;
 
         // ══════════════════════════════════════════════════════════════════════
         // 6. ACCIDENTS & INCIDENTS
         // ══════════════════════════════════════════════════════════════════════
-        y = secBar('Accidents & Incidents', y, [185,28,28], [255,180,0]);
+        y = secBar('Accidents & Incidents', y, [185,28,28], [220,60,60]);
 
         [
-          { label:'No. of Accidents',           value:el('accidentsCount'),   bg:[254,226,226], fg:[127,29,29] },
-          { label:'No. of Incidents',           value:el('incidentsCount'),   bg:[254,243,199], fg:[146,64,14] },
-          { label:'Total Payments (Incidents)', value:el('incidentsPayments'),bg:[238,242,255], fg:[30,58,138] },
-        ].forEach((c,i) => sCard(M+i*(cW3+G), y, cW3, SH, c.label, c.value, null, c.bg, c.fg));
-        y += SH + 4;
+          { label:'No. of Accidents',           value:el('accidentsCount'),   bg:[185,28,28]   },
+          { label:'No. of Incidents',           value:el('incidentsCount'),   bg:[146,64,14]   },
+          { label:'Total Payments (Incidents)', value:el('incidentsPayments'),bg:[30,58,138]   },
+        ].forEach((c,i) => sCard(M+i*(cW3+G), y, cW3, SH, c.label, c.value, null, c.bg));
+        y += SH + 5;
 
         // ══════════════════════════════════════════════════════════════════════
         // 7. OVERALL EXPENDITURE BANNER
         // ══════════════════════════════════════════════════════════════════════
-        fill(M, y, CW, 14, 3, C.white);
-        stroke(M, y, CW, 14, 3, C.lgray, 0.5);
-        fill(M, y, 4, 14, 2, C.darkBlue);
-        txt('Overall Expenditure', M+9, y+5.5, 8, C.dark, true);
-        txt('Aggregated total of all expense categories', M+9, y+11, 5.5, C.gray);
-        txt(sanitize(document.getElementById('overallExpenditure').textContent),
-            pageWidth-M-4, y+10, 13, C.darkBlue, true, 'right');
-        y += 18;
+        const OEH = 14;
+        fill(M, y, CW, OEH, 3, fmt===1 ? [240,244,255] : C.white);
+        if (fmt===1) { doc.setDrawColor(...C.darkBlue); doc.setLineWidth(0.4); doc.roundedRect(M,y,CW,OEH,3,3,'S'); }
+        else { doc.setDrawColor(...C.lgray); doc.setLineWidth(0.3); doc.roundedRect(M,y,CW,OEH,3,3,'S'); }
+        fill(M, y+2, 4, OEH-4, 2, fmt===1 ? C.darkBlue : [185,195,210]);
+        txt('Overall Expenditure', M+10, y+6, 8, fmt===1?C.darkBlue:C.dark, true);
+        txt('Aggregated total of all expense categories', M+10, y+11, 5.5, C.gray);
+        const oeVal = sanitize(document.getElementById('overallExpenditure').textContent);
+        txt(oeVal, pageWidth-M-4, y+10, 13, fmt===1?C.darkBlue:C.dark, true, 'right');
+        y += OEH + 3;
 
-        // ── Footer (no horizontal divider) ─────────────────────────────────────
-        fill(M, pageHeight-12, CW, 9, 2, C.offWhite);
-        const footerLeft = 'PMC Logistics  |  Drive Logs Analytics  |  Period: ' + period + '  Page 1 of 2';
-        txt(footerLeft, M+3, pageHeight-6.5, 6.5, C.darkBlue);
-        txt(new Date().toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}) +
-          '  ' + new Date().toLocaleTimeString(), pageWidth-M-3, pageHeight-6.5, 6.5, C.gray, false, 'right');
+        // ── Page 1 footer ─────────────────────────────────────────────────────
+        drawFooter(1, 2);
 
-        // ── PAGE 2 — Additional Analytics + Vehicles Table ──────────────────────
+        // ── PAGE 2 — Charts + Vehicles Table ──────────────────────────────────
         doc.addPage();
         drawHeader(img);
         let y2 = HDR_H + 6;
 
-        // Charts area (stacked)
         y2 = sectionHead('Additional Analytics — Charts', y2, C.amber);
         const chartH = 68;
-        fill(M, y2, CW, chartH, 3, C.white); stroke(M, y2, CW, chartH, 3, C.lgray);
-        const fuelCanvasEl = document.getElementById('fuelChart');
-        if (fuelCanvasEl) {
-          try { doc.addImage(fuelCanvasEl.toDataURL('image/png',1.0), 'PNG', M+2, y2+2, CW-4, chartH-4); } catch(e){}
-        }
-        y2 += chartH + 6;
 
-        fill(M, y2, CW, chartH, 3, C.white); stroke(M, y2, CW, chartH, 3, C.lgray);
-        const tripCanvasEl = document.getElementById('tripChart');
-        if (tripCanvasEl) {
-          try { doc.addImage(tripCanvasEl.toDataURL('image/png',1.0), 'PNG', M+2, y2+2, CW-4, chartH-4); } catch(e){}
-        }
-        y2 += chartH + 6;
+        const drawChartBox = (canvasId, yy) => {
+          fill(M, yy, CW, chartH, 3, C.white);
+          doc.setDrawColor(...C.lgray); doc.setLineWidth(0.3); doc.roundedRect(M,yy,CW,chartH,3,3,'S');
+          const cv = document.getElementById(canvasId);
+          if (cv) { try { doc.addImage(cv.toDataURL('image/png',1.0),'PNG',M+2,yy+2,CW-4,chartH-4); } catch(e){} }
+          return yy + chartH + 6;
+        };
 
-        // Expenditure breakdown
+        y2 = drawChartBox('fuelChart', y2);
+        y2 = drawChartBox('tripChart', y2);
         y2 = sectionHead('Expenditure Breakdown', y2, C.red);
-        fill(M, y2, CW, chartH, 3, C.white); stroke(M, y2, CW, chartH, 3, C.lgray);
-        const ebdCanvasEl = document.getElementById('expBreakdownChart') || document.getElementById('expenditureChart');
-        if (ebdCanvasEl) {
-          try { doc.addImage(ebdCanvasEl.toDataURL('image/png',1.0), 'PNG', M+2, y2+2, CW-4, chartH-4); } catch(e){}
-        }
+        fill(M, y2, CW, chartH, 3, C.white);
+        doc.setDrawColor(...C.lgray); doc.setLineWidth(0.3); doc.roundedRect(M,y2,CW,chartH,3,3,'S');
+        const ebdEl = document.getElementById('expBreakdownChart') || document.getElementById('expenditureChart');
+        if (ebdEl) { try { doc.addImage(ebdEl.toDataURL('image/png',1.0),'PNG',M+2,y2+2,CW-4,chartH-4); } catch(e){} }
         y2 += chartH + 8;
 
-        // Vehicles table (detailed)
+        // ── Vehicles table ─────────────────────────────────────────────────────
         y2 = sectionHead('All Performing Vehicles — Detailed Report', y2, C.darkBlue);
         const colW  = [40, 28, 40, 40, 40];
         const colX  = [M];
         colW.forEach((w,i) => { if(i>0) colX.push(colX[i-1]+colW[i-1]); });
         const hdrs  = ['Vehicle ID','Trips','Distance (KM)','Fuel Used (L)','Efficiency'];
         const ROW_H = 7;
-        const drawTableHeader = (yy) => { fill(M, yy, CW, ROW_H+1, 2, C.darkBlue); hdrs.forEach((h,i)=> txt(h, colX[i]+2, yy+ROW_H-1, 7, C.white, true)); return yy + ROW_H + 2; };
+
+        const drawTableHeader = (yy) => {
+          if (fmt === 1) {
+            fill(M, yy, CW, ROW_H+1, 2, [235,241,255]);
+            doc.setDrawColor(...C.darkBlue); doc.setLineWidth(0.4); doc.roundedRect(M,yy,CW,ROW_H+1,2,2,'S');
+            hdrs.forEach((h,i) => txt(h, colX[i]+2, yy+ROW_H-1, 7, C.darkBlue, true));
+          } else {
+            fill(M, yy, CW, ROW_H+1, 2, [242,244,248]);
+            doc.setDrawColor(...C.lgray); doc.setLineWidth(0.3); doc.roundedRect(M,yy,CW,ROW_H+1,2,2,'S');
+            hdrs.forEach((h,i) => txt(h, colX[i]+2, yy+ROW_H-1, 7, C.dark, true));
+          }
+          return yy + ROW_H + 2;
+        };
+
         y2 = drawTableHeader(y2);
         const tableRows = document.querySelectorAll('#topVehiclesTable tbody tr');
         let rowIdx = 0;
         tableRows.forEach(row => {
           const cells = row.querySelectorAll('td'); if (cells.length === 0) return;
           if (y2 + ROW_H > pageHeight - 18) {
-            // footer for this page (minimal)
-            fill(M, pageHeight-12, CW, 9, 2, C.offWhite);
-            const footerLeftPart = 'PMC Logistics  |  Drive Logs Analytics  |  Period: ' + period + '  Page 2 of 2';
-            txt(footerLeftPart, M+3, pageHeight-6.5, 6.5, C.darkBlue);
-            txt(new Date().toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}) +
-              '  ' + new Date().toLocaleTimeString(), pageWidth-M-3, pageHeight-6.5, 6.5, C.gray, false, 'right');
-            doc.addPage(); drawHeader(img); y2 = HDR_H + 8; y2 = drawTableHeader(y2);
+            drawFooter(2, 3); doc.addPage(); drawHeader(img); y2 = HDR_H + 8; y2 = drawTableHeader(y2);
           }
           fill(M, y2, CW, ROW_H, 0, rowIdx % 2 === 0 ? C.white : C.offWhite);
-          doc.setDrawColor(...C.lgray); doc.setLineWidth(0.2); doc.line(M, y2+ROW_H, M+CW, y2+ROW_H);
-          cells.forEach((td, i) => { const color = i === 4 ? C.green : C.dark; txt(sanitize(td.textContent), colX[i]+2, y2+ROW_H-2, 8, color, i===0); });
+          doc.setDrawColor(...C.lgray); doc.setLineWidth(0.15); doc.line(M, y2+ROW_H, M+CW, y2+ROW_H);
+          cells.forEach((td,i) => {
+            const color = (i===4) ? (fmt===1?C.green:C.dark) : C.dark;
+            txt(sanitize(td.textContent), colX[i]+2, y2+ROW_H-2, 8, color, i===0);
+          });
           y2 += ROW_H; rowIdx++;
         });
 
-        // final footer on page 2 (minimal)
-        fill(M, pageHeight-12, CW, 9, 2, C.offWhite);
-        txt('PMC Logistics  |  Drive Logs Analytics  |  Period: ' + period + '  Page 2 of 2', M+3, pageHeight-6.5, 6.5, C.darkBlue);
-        txt(new Date().toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'}) +
-          '  ' + new Date().toLocaleTimeString(), pageWidth-M-3, pageHeight-6.5, 6.5, C.gray, false, 'right');
+        drawFooter(2, 2);
 
-        // ── Save ───────────────────────────────────────────────────────────────
+        // ── Save ──────────────────────────────────────────────────────────────
         const pLabel = sanitize(document.getElementById('currentPeriodDisplay').textContent).replace(/\s+/g,'_');
-        doc.save('PMC_LogisticsReport_' + pLabel + '_' + new Date().toISOString().split('T')[0] + '.pdf');
+        const fmtLabel = fmt === 1 ? 'Format1_Color' : 'Format2_Minimal';
+        doc.save('PMC_LogisticsReport_' + fmtLabel + '_' + pLabel + '_' + new Date().toISOString().split('T')[0] + '.pdf');
       };
 
       // Load header image
@@ -1579,7 +1686,9 @@
       const records = data.records || [];
 
       let compliant = 0, due_soon = 0, overdue = 0;
-      const perType = { 'fc': 0, 'insurance': 0, 'tax': 0, 'permit': 0, 'pucc': 0, 'registration': 0 };
+      const perTypeLive    = { 'fc': 0, 'insurance': 0, 'tax': 0, 'permit': 0, 'pucc': 0 };
+      const perTypeDue     = { 'fc': 0, 'insurance': 0, 'tax': 0, 'permit': 0, 'pucc': 0 };
+      const perTypeOverdue = { 'fc': 0, 'insurance': 0, 'tax': 0, 'permit': 0, 'pucc': 0 };
 
       function normType(s) {
         if (!s) return '';
@@ -1593,27 +1702,64 @@
         return '';
       }
 
+      // Determine status from validity_date when statutory_status is absent
+      const today = new Date(); today.setHours(0,0,0,0);
       records.forEach(r => {
-        const st = (r.statutory_status || '').toLowerCase();
+        let st = (r.statutory_status || '').toLowerCase();
+        if (!st || st === 'unknown') {
+          // Derive from due_date / validity_date
+          const rawDate = r.due_date || r.validity_date || r.validity || r.valid_to || r.next_due_date;
+          if (rawDate) {
+            const d = new Date(String(rawDate).substring(0, 10));
+            if (!isNaN(d)) {
+              const diff = Math.floor((d - today) / 86400000);
+              if (diff < 0) st = 'overdue';
+              else if (diff <= 30) st = 'due_soon';
+              else st = 'compliant';
+            }
+          }
+        }
         if (st === 'compliant') compliant += 1;
         else if (st === 'due_soon' || st === 'due soon') due_soon += 1;
         else if (st === 'overdue') overdue += 1;
 
         const raw = r.type_of_transaction || r.type || r.description || '';
         const t = normType(raw);
-        if (t && perType.hasOwnProperty(t)) perType[t] += 1;
+        if (t) {
+          if (st === 'compliant') {
+            if (perTypeLive.hasOwnProperty(t)) perTypeLive[t] += 1;
+          }
+          if (st === 'due_soon' || st === 'due soon') {
+            if (perTypeDue.hasOwnProperty(t)) perTypeDue[t] += 1;
+          }
+          if (st === 'overdue') {
+            if (perTypeOverdue.hasOwnProperty(t)) perTypeOverdue[t] += 1;
+          }
+        }
       });
 
       const setIf = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
       setIf('compliantCount', compliant);
       setIf('dueSoonCount', due_soon);
       setIf('overdueCount', overdue);
-      setIf('fcCount', perType.fc);
-      setIf('insuranceCount', perType.insurance);
-      setIf('taxCount', perType.tax);
-      setIf('permitCount', perType.permit);
-      setIf('puccCount', perType.pucc);
-      setIf('registrationCount', perType.registration);
+      // Live (up-to-date) per-type
+      setIf('fcCount',          perTypeLive.fc);
+      setIf('insuranceCount',   perTypeLive.insurance);
+      setIf('taxCount',         perTypeLive.tax);
+      setIf('permitCount',      perTypeLive.permit);
+      setIf('puccCount',        perTypeLive.pucc);
+      // Due Soon per-type
+      setIf('fcCountDue',          perTypeDue.fc);
+      setIf('insuranceCountDue',   perTypeDue.insurance);
+      setIf('taxCountDue',         perTypeDue.tax);
+      setIf('permitCountDue',      perTypeDue.permit);
+      setIf('puccCountDue',        perTypeDue.pucc);
+      // Overdue per-type
+      setIf('fcCountOverdue',          perTypeOverdue.fc);
+      setIf('insuranceCountOverdue',   perTypeOverdue.insurance);
+      setIf('taxCountOverdue',         perTypeOverdue.tax);
+      setIf('permitCountOverdue',      perTypeOverdue.permit);
+      setIf('puccCountOverdue',        perTypeOverdue.pucc);
     } catch (err) {
       console.error('Failed to refresh statutory counts', err);
     }
