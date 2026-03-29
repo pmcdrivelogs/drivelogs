@@ -301,8 +301,7 @@
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <div class="stat-box" style="background:#a8e8f5;color:#111;">
             <h3 style="color:#374151;">Opening Stock</h3>
-            <div class="value" id="openingStock">0</div>
-            <div class="change">Qty: <span id="openingStockQty">0</span></div>
+            <div class="value" id="openingStock">{{ opening_stock|default(0) }}</div>
           </div>
           <div class="stat-box" style="background:#8b5cf6;">
             <h3>Purchase</h3>
@@ -320,7 +319,7 @@
             <div class="change">Qty: <span id="scrapQty">0</span></div>
           </div>
         </div>
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mt-4">
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mt-4">
           <div class="stat-box" style="background:#ec4899;">
             <h3>Purchase Return</h3>
             <div class="value" id="purchaseReturnCount">0</div>
@@ -329,12 +328,42 @@
           <div class="stat-box" style="background:#f59e0b;">
             <h3>Closing Stock</h3>
             <div class="value" id="closingStock">0</div>
-            <div class="change">Qty: <span id="closingStockQty">0</span></div>
           </div>
           <div class="stat-box" style="background:#10b981;">
             <h3>Total Purchase Value</h3>
             <div class="value" id="totalPurchaseValue">₹0.00</div>
             <div class="change">Items: <span id="totalPurchaseItems">0</span> &nbsp;|&nbsp; Qty: <span id="totalPurchaseQty">0</span></div>
+          </div>
+          <div class="stat-box" style="background:#06b6d4;color:#ffffff;">
+            <h3>In-stock Value</h3>
+            <div class="value" id="instockValue">₹0.00</div>
+            <div class="change">Qty: <span id="instockQty">0</span></div>
+          </div>
+        </div>
+        <div class="mt-4">
+          <h4 style="font-size:1rem;margin-bottom:8px;color:#374151;">Opening Stock (start of month)</h4>
+          <div style="max-height:180px;overflow:auto;padding:8px;border-radius:6px;background:#f8fafc;">
+            <table style="width:100%;border-collapse:collapse;">
+              <thead>
+                <tr>
+                  <th style="text-align:left;padding:6px;font-weight:600;">Month</th>
+                  <th style="text-align:right;padding:6px;font-weight:600;">Opening</th>
+                  <th style="text-align:right;padding:6px;font-weight:600;">Closing</th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for m in opening_stock_monthly %}
+                <tr>
+                  <td style="padding:6px;border-top:1px solid #e6edf3;">{{ m.label }}</td>
+                  <td style="padding:6px;border-top:1px solid #e6edf3;text-align:right;">{{ m.opening }}</td>
+                  <td style="padding:6px;border-top:1px solid #e6edf3;text-align:right;">{{ m.closing }}</td>
+                </tr>
+                {% endfor %}
+                {% if not opening_stock_monthly %}
+                <tr><td colspan="3" style="padding:6px;">No monthly opening data available.</td></tr>
+                {% endif %}
+              </tbody>
+            </table>
           </div>
         </div>
       </div>
@@ -630,6 +659,8 @@
     };
     // Authoritative overall stock totals (from server) - prefer these for summary boxes when present
     const overallStockTotals = {{ overall_stock_totals|tojson|safe }} || {};
+    // Monthly opening/closing rows (server computed historical ledger)
+    const monthlyOpenings = {{ opening_stock_monthly|tojson|safe }} || [];
 
     function changePeriod(period) {
       currentPeriod = period;
@@ -790,26 +821,40 @@
 
       // Stock management fields (prefer authoritative overallStockTotals when provided)
       const stockSource = (overallStockTotals && Object.keys(overallStockTotals).length) ? overallStockTotals : data;
-      if (document.getElementById('openingStock')) document.getElementById('openingStock').textContent = stockSource.opening_stock || data.opening_stock || 0;
-      if (document.getElementById('openingStockQty')) document.getElementById('openingStockQty').textContent = (stockSource.opening_stock_qty || data.opening_stock_qty || 0);
+      if (document.getElementById('openingStock')) {
+        if (typeof stockSource.opening_stock !== 'undefined') document.getElementById('openingStock').textContent = stockSource.opening_stock;
+        else if (typeof data.opening_stock !== 'undefined') document.getElementById('openingStock').textContent = data.opening_stock;
+      }
       if (document.getElementById('purchasesCount')) document.getElementById('purchasesCount').textContent = data.total_purchases || 0;
-      if (document.getElementById('purchasesQty')) document.getElementById('purchasesQty').textContent = (data.purchases_qty || 0);
+      // Use authoritative totals from get_stock_totals() — same source as inventory page
+      if (document.getElementById('purchasesQty')) document.getElementById('purchasesQty').textContent = (overallStockTotals.total_original_received_qty !== undefined ? overallStockTotals.total_original_received_qty : (data.purchases_qty || 0));
       if (document.getElementById('utilizationCount')) document.getElementById('utilizationCount').textContent = data.total_utilization || 0;
-      if (document.getElementById('utilizationQty')) document.getElementById('utilizationQty').textContent = (data.utilization_qty || 0);
+      if (document.getElementById('utilizationQty')) document.getElementById('utilizationQty').textContent = (overallStockTotals.total_utilized_qty !== undefined ? overallStockTotals.total_utilized_qty : (data.utilization_qty || 0));
       if (document.getElementById('scrapCount')) document.getElementById('scrapCount').textContent = data.total_scrap || 0;
-      if (document.getElementById('scrapQty')) document.getElementById('scrapQty').textContent = (data.scrap_qty || 0);
+      if (document.getElementById('scrapQty')) document.getElementById('scrapQty').textContent = (overallStockTotals.total_scrapped_qty !== undefined ? overallStockTotals.total_scrapped_qty : (data.scrap_qty || 0));
       if (document.getElementById('purchaseReturnCount')) document.getElementById('purchaseReturnCount').textContent = data.total_purchase_returns || 0;
       if (document.getElementById('purchaseReturnQty')) document.getElementById('purchaseReturnQty').textContent = (data.purchase_return_qty || 0);
-      if (document.getElementById('closingStock')) document.getElementById('closingStock').textContent = stockSource.closing_stock || stockSource.closing_stock_qty || data.closing_stock || 0;
-      if (document.getElementById('closingStockQty')) document.getElementById('closingStockQty').textContent = (stockSource.closing_stock_qty || data.closing_stock_qty || 0);
+      // Closing Stock = authoritative total_current_qty (same as In Stock on inventory page)
+      const closingStockVal = overallStockTotals.total_current_qty !== undefined ? overallStockTotals.total_current_qty : (overallStockTotals.closing_stock_qty || data.closing_stock || 0);
+      if (document.getElementById('closingStock')) document.getElementById('closingStock').textContent = closingStockVal;
       // Total purchase value: handle numeric or preformatted values
       if (document.getElementById('totalPurchaseValue')) {
         const tp = stockSource.total_purchase_value || data.total_purchase_value || 0;
         document.getElementById('totalPurchaseValue').textContent = '₹' + (typeof tp === 'number' ? tp.toFixed(2) : tp);
       }
-      // Populate total purchase items and qty (period counts remain from data)
+      // In-stock value: authoritative from overallStockTotals when available
+      if (document.getElementById('instockValue')) {
+        const iv = (stockSource.instock_value !== undefined) ? stockSource.instock_value : (data.instock_value || 0);
+        document.getElementById('instockValue').textContent = '₹' + (typeof iv === 'number' ? iv.toFixed(2) : iv);
+      }
+      // In-stock quantity (use authoritative total_current_qty or fallbacks)
+      if (document.getElementById('instockQty')) {
+        const iq = stockSource.total_current_qty || stockSource.closing_stock_qty || data.total_current_qty || data.closing_stock_qty || 0;
+        document.getElementById('instockQty').textContent = (typeof iq === 'number' ? iq.toFixed(2) : iq);
+      }
+      // Populate total purchase items and qty — qty uses authoritative total_original_received_qty
       if (document.getElementById('totalPurchaseItems')) document.getElementById('totalPurchaseItems').textContent = (data.total_purchases || 0);
-      if (document.getElementById('totalPurchaseQty')) document.getElementById('totalPurchaseQty').textContent = (data.purchases_qty || 0);
+      if (document.getElementById('totalPurchaseQty')) document.getElementById('totalPurchaseQty').textContent = (overallStockTotals.total_original_received_qty !== undefined ? overallStockTotals.total_original_received_qty : (data.purchases_qty || 0));
 
       // Expenditure breakdown (populate totals)
       if (document.getElementById('purchaseExpenditure')) document.getElementById('purchaseExpenditure').textContent = '₹' + ((data.purchase_expenditure || data.total_purchase_value) || 0).toFixed(2);
@@ -1054,6 +1099,8 @@
         else { updateDashboard(currentPeriod); }
       } catch (err) { updateDashboard(currentPeriod); }
 
+      // Re-fetch statutory counts — updateDashboard clobbers them with API data that lacks these values
+      try { await refreshStatutoryCounts(); } catch(e) {}
       await new Promise(r => setTimeout(r, 700));
       try { if (fuelChart && typeof fuelChart.update === 'function') fuelChart.update(); } catch (e) {}
       try { if (tripChart && typeof tripChart.update === 'function') tripChart.update(); } catch (e) {}
@@ -1116,57 +1163,58 @@
           const lb = accentRGB.map(c => Math.round(c * 0.07 + 255 * 0.93));
           fill(x, y, w, h, 3, lb);
           // Colored border + colored left accent bar
-          doc.setDrawColor(...accentRGB); doc.setLineWidth(0.5); doc.roundedRect(x,y,w,h,3,3,'S');
-          fill(x, y+2, 3, h-4, 2, accentRGB);
-          // Label in gray, value in darkened accent color
-          txt(label, x+7, y+5.5, 6, C.gray);
+          doc.setDrawColor(...accentRGB); doc.setLineWidth(0.7); doc.roundedRect(x,y,w,h,3,3,'S');
+          fill(x, y+2, 4, h-4, 2, accentRGB);   // thicker accent bar
+          // Label
+          txt(label, x+9, y+6.5, 7.5, C.gray, true);
           const vc = accentRGB.map(c => Math.min(Math.round(c*0.72), 215));
-          txt(sanitize(String(value)), x+7, y+(sub ? 12.5 : h/2+4), 9.5, vc, true);
-          if (sub) txt(sanitize(String(sub)), x+7, y+h-2.5, 5.5, C.gray);
+          txt(sanitize(String(value)), x+9, y+(sub ? 14.5 : h/2+5), 12, vc, true);
+          if (sub) txt(sanitize(String(sub)), x+9, y+h-2.5, 6.5, C.gray, false);
         } else {
           // Format 2: plain white, gray border, gray left accent, dark text
           fill(x, y, w, h, 3, C.white);
-          doc.setDrawColor(...C.lgray); doc.setLineWidth(0.35); doc.roundedRect(x,y,w,h,3,3,'S');
-          fill(x, y+2, 3, h-4, 2, [185,195,210]);
-          txt(label, x+7, y+5.5, 6, C.gray);
-          txt(sanitize(String(value)), x+7, y+(sub ? 12.5 : h/2+4), 9.5, C.dark, true);
-          if (sub) txt(sanitize(String(sub)), x+7, y+h-2.5, 5.5, C.gray);
+          doc.setDrawColor(...C.lgray); doc.setLineWidth(0.4); doc.roundedRect(x,y,w,h,3,3,'S');
+          fill(x, y+2, 4, h-4, 2, [185,195,210]);
+          txt(label, x+9, y+6.5, 7.5, C.gray, true);
+          txt(sanitize(String(value)), x+9, y+(sub ? 14.5 : h/2+5), 12, C.dark, true);
+          if (sub) txt(sanitize(String(sub)), x+9, y+h-2.5, 6.5, C.gray, false);
         }
       };
 
       // secBar — section heading bar
       const secBar = (title, yy, _bgRGB, accentRGB) => {
         if (fmt === 1) {
-          fill(M, yy, CW, 8.5, 2, [243,246,251]);
-          fill(M, yy, 4, 8.5, 1, accentRGB);
-          doc.setDrawColor(...C.lgray); doc.setLineWidth(0.25); doc.roundedRect(M,yy,CW,8.5,2,2,'S');
+          fill(M, yy, CW, 10, 3, [235,241,252]);
+          fill(M, yy, 5, 10, 2, accentRGB);
+          doc.setDrawColor(...accentRGB); doc.setLineWidth(0.4); doc.roundedRect(M,yy,CW,10,3,3,'S');
           const tc = accentRGB.map(c => Math.min(Math.round(c*0.72),200));
-          txt(title, M+9, yy+6, 8.5, tc, true);
+          txt(title, M+12, yy+7.2, 10, tc, true);
         } else {
-          fill(M, yy, CW, 8.5, 2, [242,244,248]);
-          fill(M, yy, 4, 8.5, 1, C.dark);
-          doc.setDrawColor(...C.lgray); doc.setLineWidth(0.25); doc.roundedRect(M,yy,CW,8.5,2,2,'S');
-          txt(title, M+9, yy+6, 8.5, C.dark, true);
+          fill(M, yy, CW, 10, 3, [238,241,246]);
+          fill(M, yy, 5, 10, 2, C.dark);
+          doc.setDrawColor(...C.lgray); doc.setLineWidth(0.3); doc.roundedRect(M,yy,CW,10,3,3,'S');
+          txt(title, M+12, yy+7.2, 10, C.dark, true);
         }
-        return yy + 12;
+        return yy + 14;
       };
 
       // compBadgeSmall — statutory compliance badge
       const compBadgeSmall = (x, y, w, label, value, desc, accentColor) => {
+        const BH = 24;
         if (fmt === 1) {
           const lb = accentColor.map(c => Math.round(c*0.07 + 255*0.93));
-          fill(x, y, w, 20, 3, lb);
-          doc.setDrawColor(...accentColor); doc.setLineWidth(0.5); doc.roundedRect(x,y,w,20,3,3,'S');
+          fill(x, y, w, BH, 3, lb);
+          doc.setDrawColor(...accentColor); doc.setLineWidth(0.7); doc.roundedRect(x,y,w,BH,3,3,'S');
           const tc = accentColor.map(c => Math.min(Math.round(c*0.72),210));
-          txt(label.toUpperCase(), x+w/2, y+6.5, 6.5, tc, true, 'center');
-          txt(sanitize(String(value)), x+w/2, y+15, 14, tc, true, 'center');
-          if (desc) txt(desc, x+w/2, y+19.2, 5.5, C.gray, false, 'center');
+          txt(label.toUpperCase(), x+w/2, y+7.5, 8, tc, true, 'center');
+          txt(sanitize(String(value)), x+w/2, y+18, 17, tc, true, 'center');
+          if (desc) txt(desc, x+w/2, y+BH-1.5, 6.5, C.gray, false, 'center');
         } else {
-          fill(x, y, w, 20, 3, C.white);
-          doc.setDrawColor(...C.lgray); doc.setLineWidth(0.35); doc.roundedRect(x,y,w,20,3,3,'S');
-          txt(label.toUpperCase(), x+w/2, y+6.5, 6.5, C.gray, true, 'center');
-          txt(sanitize(String(value)), x+w/2, y+15, 14, C.dark, true, 'center');
-          if (desc) txt(desc, x+w/2, y+19.2, 5.5, C.gray, false, 'center');
+          fill(x, y, w, BH, 3, C.white);
+          doc.setDrawColor(...C.lgray); doc.setLineWidth(0.4); doc.roundedRect(x,y,w,BH,3,3,'S');
+          txt(label.toUpperCase(), x+w/2, y+7.5, 8, C.gray, true, 'center');
+          txt(sanitize(String(value)), x+w/2, y+18, 17, C.dark, true, 'center');
+          if (desc) txt(desc, x+w/2, y+BH-1.5, 6.5, C.gray, false, 'center');
         }
       };
 
@@ -1176,29 +1224,30 @@
       };
 
       const drawFooter = (pageNum, total) => {
-        fill(M, pageHeight-12, CW, 9, 2, C.offWhite);
+        fill(M, pageHeight-13, CW, 10, 3, [235,241,252]);
+        doc.setDrawColor(...C.lgray); doc.setLineWidth(0.3); doc.roundedRect(M,pageHeight-13,CW,10,3,3,'S');
         const period = sanitize(document.getElementById('currentPeriodDisplay').textContent);
-        txt('Drive Logs Analytics  |  Period: ' + period, M+3, pageHeight-6.5, 7, C.darkBlue);
-        txt('Page ' + pageNum + ' of ' + total, pageWidth-M-3, pageHeight-6.5, 7, C.gray, false, 'right');
+        txt('Drive Logs Analytics  |  Period: ' + period, M+5, pageHeight-6.5, 8, C.darkBlue, true);
+        txt('Page ' + pageNum + ' of ' + total, pageWidth-M-5, pageHeight-6.5, 8, C.gray, true, 'right');
         txt(new Date().toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})+
-          '  '+new Date().toLocaleTimeString(), pageWidth/2, pageHeight-6.5, 7, C.gray, false, 'center');
+          '  '+new Date().toLocaleTimeString(), pageWidth/2, pageHeight-6.5, 7.5, C.gray, false, 'center');
       };
 
       // ── Section heading pill (page 2, charts) ────────────────────────────────
       const sectionHead = (text, y, color=C.darkBlue) => {
-        fill(M, y, CW, 9, 2, C.offWhite);
-        fill(M, y, 4, 9, 1, fmt === 1 ? color : C.dark);
+        fill(M, y, CW, 11, 3, C.offWhite);
+        fill(M, y, 5, 11, 2, fmt === 1 ? color : C.dark);
         const tc = fmt === 1 ? color.map(c => Math.min(Math.round(c*0.72),200)) : C.dark;
-        txt(text, M+8, y+6.5, 9.5, tc, true);
-        return y + 13;
+        txt(text, M+11, y+8, 11, tc, true);
+        return y + 16;
       };
 
       // ── Metric card (page 1 stat boxes) ──────────────────────────────────────
       // sCard is already defined above with format awareness
 
-      const G   = 3;
-      const CH  = 19;
-      const SH  = 14;
+      const G   = 4;    // gap between cards
+      const CH  = 22;   // card height with subtitle (ops/stock)
+      const SH  = 15;   // card height without subtitle
       const cW4 = (CW - G*3) / 4;
       const cW3 = (CW - G*2) / 3;
       const cW5 = (CW - G*4) / 5;
@@ -1206,6 +1255,18 @@
       // ─────────────────────────────────────────────────────────────────────────
       const buildPDF = (img) => {
         let y = 5;
+        let pageNum = 1;
+        const SAFE = pageHeight - 20;  // safe bottom of content area
+        // Page-break helper: if needed height won't fit, draw footer and start new page
+        const checkPageBreak = (needed) => {
+          if (y + needed > SAFE) {
+            drawFooter(pageNum, 2);
+            doc.addPage();
+            pageNum++;
+            if (img) { doc.addImage(img, 'PNG', M, 5, CW, 12); y = 20; }
+            else { fill(M,5,CW,10,2,fmt===1?[235,241,255]:C.offWhite); txt('Analytics (continued)',M+5,12,7,C.darkBlue,true); y=18; }
+          }
+        };
 
         // ── Header ─────────────────────────────────────────────────────────────
         if (img) {
@@ -1246,6 +1307,7 @@
         // ══════════════════════════════════════════════════════════════════════
         // 1. OPERATIONS — KEY METRICS
         // ══════════════════════════════════════════════════════════════════════
+        checkPageBreak(12+CH+2+CH+5);
         y = secBar('Operations - Key Metrics', y, C.darkBlue, [37,99,235]);
 
         [
@@ -1267,26 +1329,29 @@
         // ══════════════════════════════════════════════════════════════════════
         // 2. STOCK MANAGEMENT
         // ══════════════════════════════════════════════════════════════════════
+        checkPageBreak(12+CH+2+CH+5);
         y = secBar('Stock Management', y, [67,20,120], [139,92,246]);
 
         [
-          { label:'Opening Stock',  value:el('openingStock'),    bg:[20,184,166]  },
-          { label:'Purchase',       value:el('purchasesCount'),  bg:[139,92,246]  },
-          { label:'Utilization',    value:el('utilizationCount'),bg:[13,148,136]  },
-          { label:'Scrap',          value:el('scrapCount'),      bg:[100,116,139] },
-        ].forEach((c,i) => sCard(M+i*(cW4+G), y, cW4, SH, c.label, c.value, null, c.bg));
-        y += SH + 2;
+          { label:'Opening Stock',  value:el('openingStock'),    sub:null,                                          bg:[20,184,166]  },
+          { label:'Purchase',       value:el('purchasesCount'),  sub:'Qty: '+el('purchasesQty'),                    bg:[139,92,246]  },
+          { label:'Utilization',    value:el('utilizationCount'),sub:'Qty: '+el('utilizationQty'),                  bg:[13,148,136]  },
+          { label:'Scrap',          value:el('scrapCount'),      sub:'Qty: '+el('scrapQty'),                        bg:[100,116,139] },
+        ].forEach((c,i) => sCard(M+i*(cW4+G), y, cW4, CH, c.label, c.value, c.sub, c.bg));
+        y += CH + 2;
 
         [
-          { label:'Purchase Return',      value:el('purchaseReturnCount'), bg:[236,72,153] },
-          { label:'Closing Stock',        value:el('closingStock'),        bg:[245,158,11] },
-          { label:'Total Purchase Value', value:el('totalPurchaseValue'),  bg:[16,185,129] },
-        ].forEach((c,i) => sCard(M+i*(cW3+G), y, cW3, SH, c.label, c.value, null, c.bg));
-        y += SH + 5;
+          { label:'Purchase Return',      value:el('purchaseReturnCount'), sub:'Qty: '+el('purchaseReturnQty'),                       bg:[236,72,153] },
+          { label:'Closing Stock',        value:el('closingStock'),        sub:null,                                                   bg:[245,158,11] },
+          { label:'Total Purchase Value', value:el('totalPurchaseValue'),  sub:'Items: '+el('totalPurchaseItems')+'  Qty: '+el('totalPurchaseQty'), bg:[16,185,129] },
+          { label:'In-stock Value',       value:el('instockValue'),        sub:'Qty: '+el('instockQty'),                               bg:[6,182,212]  },
+        ].forEach((c,i) => sCard(M+i*(cW4+G), y, cW4, CH, c.label, c.value, c.sub, c.bg));
+        y += CH + 5;
 
         // ══════════════════════════════════════════════════════════════════════
         // 3. TOTAL EXPENDITURE
         // ══════════════════════════════════════════════════════════════════════
+        checkPageBreak(12+SH+5);
         y = secBar('Total Expenditure', y, [185,28,28], [220,80,50]);
 
         [
@@ -1300,6 +1365,7 @@
         // ══════════════════════════════════════════════════════════════════════
         // 4. STATUTORY COMPLIANCE STATUS
         // ══════════════════════════════════════════════════════════════════════
+        checkPageBreak(12+20+32);
         y = secBar('Statutory Compliance Status', y, [20,100,60], [22,163,74]);
 
         [
@@ -1309,18 +1375,35 @@
         ].forEach((c,i) => compBadgeSmall(M+i*(cW3+G), y, cW3, c.label, c.value, c.desc, c.color));
         y += 24;
 
-        [
-          { label:'FC',        value:el('fcCount'),        bg:[29,78,216]   },
-          { label:'Insurance', value:el('insuranceCount'), bg:[79,70,229]   },
-          { label:'Tax',       value:el('taxCount'),       bg:[161,98,7]    },
-          { label:'Permit',    value:el('permitCount'),    bg:[4,120,87]    },
-          { label:'PUCC',      value:el('puccCount'),      bg:[71,85,105]   },
-        ].forEach((c,i) => sCard(M+i*(cW5+G), y, cW5, SH-1, c.label, c.value, null, c.bg));
-        y += (SH-1) + 5;
+        // Compact per-type table: rows = LIVE / Due Soon / Overdue, cols = FC/Insurance/Tax/Permit/PUCC
+        const tTypeLabels = ['FC','Insurance','Tax','Permit','PUCC'];
+        const tStatData = [
+          { label:'LIVE',     ids:['fcCount','insuranceCount','taxCount','permitCount','puccCount'],         color:C.green },
+          { label:'Due Soon', ids:['fcCountDue','insuranceCountDue','taxCountDue','permitCountDue','puccCountDue'], color:C.amber },
+          { label:'Overdue',  ids:['fcCountOverdue','insuranceCountOverdue','taxCountOverdue','permitCountOverdue','puccCountOverdue'], color:C.red },
+        ];
+        const tColW = (CW-26)/5;
+        const tRowH = 8;
+        // header row
+        fill(M, y, CW, tRowH, 0, fmt===1?[235,241,255]:C.offWhite);
+        doc.setDrawColor(...C.lgray); doc.setLineWidth(0.2); doc.rect(M, y, CW, tRowH);
+        txt('Status', M+4, y+5.5, 6.5, C.gray, true);
+        tTypeLabels.forEach((lbl,i) => txt(lbl, M+26+i*tColW+tColW/2, y+5.5, 6.5, C.darkBlue, true, 'center'));
+        y += tRowH;
+        tStatData.forEach((row, ri) => {
+          fill(M, y, CW, tRowH, 0, ri%2===0?C.white:C.offWhite);
+          doc.setDrawColor(...C.lgray); doc.setLineWidth(0.15); doc.line(M,y+tRowH,M+CW,y+tRowH);
+          const tc = row.color.map(c=>Math.min(Math.round(c*0.72),210));
+          txt(row.label, M+4, y+5.5, 7, tc, true);
+          row.ids.forEach((id,i) => txt(el(id), M+26+i*tColW+tColW/2, y+5.5, 8, C.dark, true, 'center'));
+          y += tRowH;
+        });
+        y += 6;
 
         // ══════════════════════════════════════════════════════════════════════
         // 5. PAYMENTS MADE
         // ══════════════════════════════════════════════════════════════════════
+        checkPageBreak(12+SH+5);
         y = secBar('Payments Made', y, [30,58,138], [37,99,235]);
 
         [
@@ -1334,6 +1417,7 @@
         // ══════════════════════════════════════════════════════════════════════
         // 6. ACCIDENTS & INCIDENTS
         // ══════════════════════════════════════════════════════════════════════
+        checkPageBreak(12+SH+5);
         y = secBar('Accidents & Incidents', y, [185,28,28], [220,60,60]);
 
         [
@@ -1346,19 +1430,20 @@
         // ══════════════════════════════════════════════════════════════════════
         // 7. OVERALL EXPENDITURE BANNER
         // ══════════════════════════════════════════════════════════════════════
-        const OEH = 14;
-        fill(M, y, CW, OEH, 3, fmt===1 ? [240,244,255] : C.white);
-        if (fmt===1) { doc.setDrawColor(...C.darkBlue); doc.setLineWidth(0.4); doc.roundedRect(M,y,CW,OEH,3,3,'S'); }
-        else { doc.setDrawColor(...C.lgray); doc.setLineWidth(0.3); doc.roundedRect(M,y,CW,OEH,3,3,'S'); }
-        fill(M, y+2, 4, OEH-4, 2, fmt===1 ? C.darkBlue : [185,195,210]);
-        txt('Overall Expenditure', M+10, y+6, 8, fmt===1?C.darkBlue:C.dark, true);
-        txt('Aggregated total of all expense categories', M+10, y+11, 5.5, C.gray);
+        const OEH = 17;
+        checkPageBreak(OEH + 5);
+        fill(M, y, CW, OEH, 3, fmt===1 ? [235,241,255] : C.white);
+        if (fmt===1) { doc.setDrawColor(...C.darkBlue); doc.setLineWidth(0.5); doc.roundedRect(M,y,CW,OEH,3,3,'S'); }
+        else { doc.setDrawColor(...C.lgray); doc.setLineWidth(0.35); doc.roundedRect(M,y,CW,OEH,3,3,'S'); }
+        fill(M, y+2, 5, OEH-4, 2, fmt===1 ? C.darkBlue : [185,195,210]);
+        txt('Overall Expenditure', M+12, y+7.5, 10, fmt===1?C.darkBlue:C.dark, true);
+        txt('Aggregated total of all expense categories', M+12, y+13.5, 7, C.gray, false);
         const oeVal = sanitize(document.getElementById('overallExpenditure').textContent);
-        txt(oeVal, pageWidth-M-4, y+10, 13, fmt===1?C.darkBlue:C.dark, true, 'right');
+        txt(oeVal, pageWidth-M-5, y+13, 14, fmt===1?C.darkBlue:C.dark, true, 'right');
         y += OEH + 3;
 
         // ── Page 1 footer ─────────────────────────────────────────────────────
-        drawFooter(1, 2);
+        drawFooter(pageNum, 2);
 
         // ── PAGE 2 — Charts + Vehicles Table ──────────────────────────────────
         doc.addPage();
