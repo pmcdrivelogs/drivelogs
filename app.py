@@ -3788,6 +3788,148 @@ def admin_analytics_dashboard():
         except Exception:
             overall_stock_totals = {}
 
+        # Compute monthly Opening and Closing from Jan 2026 through current month.
+        try:
+            from datetime import date, timedelta
+            monthly_opening_stocks = []
+            months = []
+            # start from Jan 2026
+            start_year = 2026
+            start_month = 1
+            # build months list from Jan 2026 to current month (inclusive)
+            y = start_year
+            m = start_month
+            while (y < today.year) or (y == today.year and m <= today.month):
+                ms = date(y, m, 1)
+                if m == 12:
+                    next_ms = date(y + 1, 1, 1)
+                else:
+                    next_ms = date(y, m + 1, 1)
+                me = next_ms - timedelta(days=1)
+                months.append((ms, me))
+                # increment month
+                m += 1
+                if m > 12:
+                    m = 1
+                    y += 1
+
+            def _sum_between(records, field_names, start_dt, end_dt):
+                s = 0.0
+                for r in (records or []):
+                    try:
+                        cd = r.get('created_at') or r.get('date') or r.get('invoice_date')
+                        rd = parse_datetime(cd)
+                        if not rd:
+                            continue
+                        if rd >= start_dt and rd <= end_dt:
+                            for fn in field_names:
+                                val = r.get(fn)
+                                if val is None:
+                                    continue
+                                try:
+                                    s += float(val or 0)
+                                except Exception:
+                                    try:
+                                        s += float(str(val).replace(',',''))
+                                    except Exception:
+                                        continue
+                    except Exception:
+                        continue
+                return s
+
+            def _sum_before(records, field_names, upto_date):
+                s = 0.0
+                for r in (records or []):
+                    try:
+                        cd = r.get('created_at') or r.get('date') or r.get('invoice_date')
+                        rd = parse_datetime(cd)
+                        if not rd:
+                            continue
+                        if rd < upto_date:
+                            for fn in field_names:
+                                val = r.get(fn)
+                                if val is None:
+                                    continue
+                                try:
+                                    s += float(val or 0)
+                                except Exception:
+                                    try:
+                                        s += float(str(val).replace(',',''))
+                                    except Exception:
+                                        continue
+                    except Exception:
+                        continue
+                return s
+
+            # For first month opening: total purchases before first month (per request)
+            prev_closing = 0.0
+            if months:
+                first_ms = months[0][0]
+                purchases_before = _sum_before(purchase_records, ['quantity', 'purchased_quantity', 'original_quantity'], first_ms)
+                utilization_before = _sum_before(utilization_records, ['quantity'], first_ms)
+                scrap_before = _sum_before(scrap_records, ['quantity'], first_ms)
+                issues_before = _sum_before(stock_issue_records, ['quantity_issued', 'quantity'], first_ms)
+                # Opening shown for first month should be total purchases before it (user requested)
+                opening_first = purchases_before
+                # compute prev_closing as net before first month for continuity
+                prev_closing = round(purchases_before - utilization_before - scrap_before - issues_before, 2)
+            
+            for idx, (ms, me) in enumerate(months):
+                if idx == 0:
+                    opening_qty = opening_first
+                else:
+                    opening_qty = prev_closing
+
+                # sums within the month
+                purchases_in = _sum_between(purchase_records, ['quantity', 'purchased_quantity', 'original_quantity'], ms, me)
+                utilization_in = _sum_between(utilization_records, ['quantity'], ms, me)
+                scrap_in = _sum_between(scrap_records, ['quantity'], ms, me)
+                issues_in = _sum_between(stock_issue_records, ['quantity_issued', 'quantity'], ms, me)
+
+                closing_qty = opening_qty + purchases_in - utilization_in - scrap_in - issues_in
+                closing_qty = round(closing_qty, 2)
+
+                # For the current month, override closing with the authoritative DB value
+                # (overall_stock_totals.total_current_qty) so monthly table matches inventory page.
+                is_current_month = (ms.year == today.year and ms.month == today.month)
+                if is_current_month and isinstance(overall_stock_totals, dict):
+                    db_current_qty = overall_stock_totals.get('total_current_qty')
+                    if db_current_qty is not None:
+                        closing_qty = round(float(db_current_qty), 2)
+
+                monthly_opening_stocks.append({'label': ms.strftime('%b %Y'), 'opening': round(opening_qty, 2), 'closing': closing_qty})
+
+                # set prev_closing for next month
+                prev_closing = closing_qty
+            # Debug: log details for March 2026 if present
+            try:
+                for entry in monthly_opening_stocks:
+                    if entry.get('label') == 'Mar 2026':
+                        app.logger.info(f"[DEBUG] Mar 2026 -> opening={entry.get('opening')} closing={entry.get('closing')}")
+                        # Also log detailed month sums to aid debugging
+                        # find ms, me for Mar 2026
+                        for ms, me in months:
+                            if ms.strftime('%b %Y') == 'Mar 2026':
+                                p_in = _sum_between(purchase_records, ['quantity', 'purchased_quantity', 'original_quantity'], ms, me)
+                                u_in = _sum_between(utilization_records, ['quantity'], ms, me)
+                                s_in = _sum_between(scrap_records, ['quantity'], ms, me)
+                                i_in = _sum_between(stock_issue_records, ['quantity_issued', 'quantity'], ms, me)
+                                app.logger.info(f"[DEBUGDETAIL] Mar2026 sums: purchases_in={p_in} utilization_in={u_in} scrap_in={s_in} issues_in={i_in}")
+                                break
+            except Exception:
+                pass
+        except Exception:
+            monthly_opening_stocks = []
+
+        # Determine current opening stock (opening for the most recent month)
+        try:
+            if monthly_opening_stocks and len(monthly_opening_stocks) > 0:
+                opening_stock_current = monthly_opening_stocks[-1].get('opening', 0.0)
+            else:
+                opening_stock_current = overall_stock_totals.get('total_current_qty', 0.0) if isinstance(overall_stock_totals, dict) else 0.0
+        except Exception:
+            opening_stock_current = 0.0
+
         return render_template('admin_analytics_dashboard.html',
                              daily_data=daily_data,
                              weekly_data=weekly_data,
@@ -3816,7 +3958,10 @@ def admin_analytics_dashboard():
                             registration_count=per_type_counts_all.get('Registration', 0),
                             driver_salary=round(driver_salary_total, 2),
                             rate_and_taxes=rate_and_taxes_today,
-                            overall_stock_totals=overall_stock_totals)
+                            overall_stock_totals=overall_stock_totals,
+                            opening_stock_monthly=monthly_opening_stocks,
+                            opening_stock=opening_stock_current,
+                            opening_stock_qty=opening_stock_current)
                             
     
     except Exception as e:
