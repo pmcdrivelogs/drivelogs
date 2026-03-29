@@ -1947,6 +1947,26 @@ def get_stock_totals():
                 parts[key]['current_qty'] += qty
                 total_current_qty += qty
 
+        # Debugging: print per-purchase quantities and key fields to help trace mismatches
+        try:
+            print("[STOCKDEBUG] Purchases rows and quantities:")
+            running = 0.0
+            if purchases.data:
+                for item in purchases.data:
+                    pid = item.get('id')
+                    pn = item.get('part_number') or item.get('part_no') or item.get('part') or ''
+                    qty_raw = item.get('quantity')
+                    qty_val = _safe_float(qty_raw)
+                    orig_qty_raw = item.get('original_quantity')
+                    orig_qty_val = _safe_float(orig_qty_raw)
+                    status = item.get('status')
+                    ca = item.get('created_at') or item.get('invoice_date')
+                    running += qty_val
+                    print(f"[STOCKDEBUG] id={pid} part={pn} qty_raw={qty_raw} qty_val={qty_val} original_qty={orig_qty_raw} status={status} created_at={ca}")
+            print(f"[STOCKDEBUG] summed_purchases_qty={running} computed_total_current_qty={total_current_qty}")
+        except Exception:
+            pass
+
         total_issued_qty = 0.0
         if issue_register.data:
             for r in issue_register.data:
