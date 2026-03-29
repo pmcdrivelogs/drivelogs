@@ -528,7 +528,7 @@
 
       <!-- Accidents and Incidents -->
       <div class="mb-6">
-        <h2 class="text-2xl font-bold text-gray-800 mb-4">⚠️ Accidents & Incidents</h2>
+        <h2 class="text-2xl font-bold text-gray-800 mb-4">⚠️ Accidents / Incidents</h2>
         <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
          
           <div class="stat-box" style="background:#fef3c7;color:#92400e;">
@@ -882,7 +882,7 @@
       if (document.getElementById('activeDrivers')) document.getElementById('activeDrivers').textContent = data.active_drivers || data.total_active_drivers || 0;
       if (document.getElementById('pastDrivers')) document.getElementById('pastDrivers').textContent = data.past_drivers || 0;
 
-      // Accidents & Incidents
+      // Accidents / Incidents
       if (document.getElementById('accidentsCount')) document.getElementById('accidentsCount').textContent = data.accidents_count || 0;
       if (document.getElementById('incidentsCount')) document.getElementById('incidentsCount').textContent = data.incidents_count || 0;
       if (document.getElementById('incidentsPayments')) document.getElementById('incidentsPayments').textContent = '₹' + ((data.incidents_payments_total || 0)).toFixed(2);
@@ -1418,7 +1418,7 @@
         // 6. ACCIDENTS & INCIDENTS
         // ══════════════════════════════════════════════════════════════════════
         checkPageBreak(12+SH+5);
-        y = secBar('Accidents & Incidents', y, [185,28,28], [220,60,60]);
+        y = secBar('Accidents / Incidents', y, [185,28,28], [220,60,60]);
 
         [
           { label:'No. of Accidents',           value:el('accidentsCount'),   bg:[185,28,28]   },
