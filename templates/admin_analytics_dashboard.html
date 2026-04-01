@@ -278,14 +278,14 @@
 
           <div class="stat-box" style="background:#8b5cf6;">
             <h3>Students</h3>
-            <div class="value" id="totalStudents">{{ total_students|default(0) }}</div>
-            <div class="change">Avg/day: <span id="avgStudentsPerDay">-</span><div class="avg-days-label" style="font-size:0.7rem;opacity:0.7;margin-top:2px;"></div></div>
+            <div class="value" id="avgStudentsPerDay" style="font-size:2rem;font-weight:700;">-</div>
+            <div class="change" style="font-size:0.78rem;opacity:0.85;margin-top:3px;">Avg/day &nbsp;|&nbsp; Total: <span id="totalStudents">{{ total_students|default(0) }}</span></div>
           </div>
 
           <div class="stat-box" style="background:#ec4899;">
             <h3>Faculty</h3>
-            <div class="value" id="totalFaculty">{{ total_faculty|default(0) }}</div>
-            <div class="change">Avg/day: <span id="avgFacultyPerDay">-</span><div class="avg-days-label" style="font-size:0.7rem;opacity:0.7;margin-top:2px;"></div></div>
+            <div class="value" id="avgFacultyPerDay" style="font-size:2rem;font-weight:700;">-</div>
+            <div class="change" style="font-size:0.78rem;opacity:0.85;margin-top:3px;">Avg/day &nbsp;|&nbsp; Total: <span id="totalFaculty">{{ total_faculty|default(0) }}</span></div>
           </div>
 
           <div class="stat-box" style="background:#64748b;">
@@ -419,7 +419,7 @@
           <div onclick="showStatutoryList('compliant')" role="button" tabindex="0" class="p-4 bg-green-50 border border-green-200 rounded-lg cursor-pointer">
             <div class="text-green-600 font-semibold text-sm mb-1">LIVE</div>
             <div class="text-2xl font-bold text-green-700" id="compliantCount">{{ compliant_count|default(0) }}</div>
-            <div class="text-xs text-green-600 mt-1">UP TO DATE</div>
+            <div class="text-xs text-green-600 mt-1">Vehicles — all docs up to date</div>
 
             <!-- Per-type live counters (FC / Insurance / Tax / Permit / PUCC) -->
             <div class="grid grid-cols-5 gap-2 mt-3">
@@ -529,7 +529,7 @@
       <!-- Accidents and Incidents -->
       <div class="mb-6">
         <h2 class="text-2xl font-bold text-gray-800 mb-4">⚠️ Accidents / Incidents</h2>
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-2xl">
          
           <div class="stat-box" style="background:#fef3c7;color:#92400e;">
             <h3 style="color:#92400e;">No. of Incidents</h3>
@@ -805,10 +805,12 @@
           facultyTotal += Number(r.faculty_count || r.faculty || r.passengers_faculty || 0) || 0;
         });
       }
-      document.getElementById('totalStudents').textContent = studentsTotal || 0;
+      // avgStudentsPerDay is now the BIG primary number; totalStudents is secondary
       document.getElementById('avgStudentsPerDay').textContent = days > 0 ? (studentsTotal / days).toFixed(2) : '0';
-      document.getElementById('totalFaculty').textContent = facultyTotal || 0;
+      document.getElementById('totalStudents').textContent = studentsTotal || 0;
+      // avgFacultyPerDay is now the BIG primary number; totalFaculty is secondary
       document.getElementById('avgFacultyPerDay').textContent = days > 0 ? (facultyTotal / days).toFixed(2) : '0';
+      document.getElementById('totalFaculty').textContent = facultyTotal || 0;
 
       // Average mileage: compute from total distance / total fuel when possible
       let avgM = '-';
@@ -837,9 +839,9 @@
       // Closing Stock = authoritative total_current_qty (same as In Stock on inventory page)
       const closingStockVal = overallStockTotals.total_current_qty !== undefined ? overallStockTotals.total_current_qty : (overallStockTotals.closing_stock_qty || data.closing_stock || 0);
       if (document.getElementById('closingStock')) document.getElementById('closingStock').textContent = closingStockVal;
-      // Total purchase value: handle numeric or preformatted values
+      // Total purchase value: always period-specific (from data, not overall stock)
       if (document.getElementById('totalPurchaseValue')) {
-        const tp = stockSource.total_purchase_value || data.total_purchase_value || 0;
+        const tp = data.total_purchase_value || 0;
         document.getElementById('totalPurchaseValue').textContent = '₹' + (typeof tp === 'number' ? tp.toFixed(2) : tp);
       }
       // In-stock value: authoritative from overallStockTotals when available
@@ -852,9 +854,9 @@
         const iq = stockSource.total_current_qty || stockSource.closing_stock_qty || data.total_current_qty || data.closing_stock_qty || 0;
         document.getElementById('instockQty').textContent = (typeof iq === 'number' ? iq.toFixed(2) : iq);
       }
-      // Populate total purchase items and qty — qty uses authoritative total_original_received_qty
+      // Populate total purchase items and qty — period-specific
       if (document.getElementById('totalPurchaseItems')) document.getElementById('totalPurchaseItems').textContent = (data.total_purchases || 0);
-      if (document.getElementById('totalPurchaseQty')) document.getElementById('totalPurchaseQty').textContent = (overallStockTotals.total_original_received_qty !== undefined ? overallStockTotals.total_original_received_qty : (data.purchases_qty || 0));
+      if (document.getElementById('totalPurchaseQty')) document.getElementById('totalPurchaseQty').textContent = (data.purchases_qty || data.total_original_received_qty || 0);
 
       // Expenditure breakdown (populate totals)
       if (document.getElementById('purchaseExpenditure')) document.getElementById('purchaseExpenditure').textContent = '₹' + ((data.purchase_expenditure || data.total_purchase_value) || 0).toFixed(2);
@@ -1224,13 +1226,18 @@
       };
 
       const drawFooter = (pageNum, total) => {
-        fill(M, pageHeight-13, CW, 10, 3, [235,241,252]);
-        doc.setDrawColor(...C.lgray); doc.setLineWidth(0.3); doc.roundedRect(M,pageHeight-13,CW,10,3,3,'S');
+        fill(M, pageHeight-16, CW, 13, 3, fmt===1 ? [235,241,252] : [245,247,250]);
+        doc.setDrawColor(...C.lgray); doc.setLineWidth(0.3); doc.roundedRect(M,pageHeight-16,CW,13,3,3,'S');
+        // Left: report title + period
         const period = sanitize(document.getElementById('currentPeriodDisplay').textContent);
-        txt('Drive Logs Analytics  |  Period: ' + period, M+5, pageHeight-6.5, 8, C.darkBlue, true);
-        txt('Page ' + pageNum + ' of ' + total, pageWidth-M-5, pageHeight-6.5, 8, C.gray, true, 'right');
+        txt('Drive Logs Analytics  |  Period: ' + period, M+5, pageHeight-10, 8, C.darkBlue, true);
+        // Center: date/time
         txt(new Date().toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'})+
-          '  '+new Date().toLocaleTimeString(), pageWidth/2, pageHeight-6.5, 7.5, C.gray, false, 'center');
+          '  '+new Date().toLocaleTimeString(), pageWidth/2, pageHeight-10, 7, C.gray, false, 'center');
+        // Right: page number
+        txt('Page ' + pageNum + ' of ' + total, pageWidth-M-5, pageHeight-10, 7.5, C.gray, true, 'right');
+        // Bottom strip: "Powered by ZEONY TECHNOLOGIES"
+        txt('Powered by ZEONY TECHNOLOGIES', pageWidth/2, pageHeight-4.5, 6.5, fmt===1 ? [100,60,200] : [130,130,150], false, 'center');
       };
 
       // ── Section heading pill (page 2, charts) ────────────────────────────────
@@ -1319,10 +1326,10 @@
         y += CH + 2;
 
         [
-          { label:'Fuel Expenditure', value:el('totalExpenditure'), sub:'Avg/day: '+el('avgExpPerDay'),      bg:[6,182,212]   },
-          { label:'Students',         value:el('totalStudents'),    sub:'Avg/day: '+el('avgStudentsPerDay'), bg:[139,92,246]  },
-          { label:'Faculty',          value:el('totalFaculty'),     sub:'Avg/day: '+el('avgFacultyPerDay'),  bg:[236,72,153]  },
-          { label:'Average Mileage',  value:el('avgMileage'),       sub:'Fleet avg',                         bg:[100,116,139] },
+          { label:'Fuel Expenditure', value:el('totalExpenditure'),   sub:'Avg/day: '+el('avgExpPerDay'),                  bg:[6,182,212]   },
+          { label:'Students (Avg/day)',value:el('avgStudentsPerDay'), sub:'Total: '+el('totalStudents'),                     bg:[139,92,246]  },
+          { label:'Faculty (Avg/day)',value:el('avgFacultyPerDay'),   sub:'Total: '+el('totalFaculty'),                      bg:[236,72,153]  },
+          { label:'Average Mileage',  value:el('avgMileage'),         sub:'Fleet avg',                                       bg:[100,116,139] },
         ].forEach((c,i) => sCard(M+i*(cW4+G), y, cW4, CH, c.label, c.value, c.sub, c.bg));
         y += CH + 5;
 
@@ -1369,9 +1376,9 @@
         y = secBar('Statutory Compliance Status', y, [20,100,60], [22,163,74]);
 
         [
-          { label:'LIVE',     value:el('compliantCount'), desc:'Up to date',     color:C.green },
-          { label:'Due Soon', value:el('dueSoonCount'),   desc:'Within 30 days', color:C.amber },
-          { label:'Overdue',  value:el('overdueCount'),   desc:'Needs attention',color:C.red   },
+          { label:'LIVE',     value:el('compliantCount'), desc:'Vehicles — all docs live', color:C.green },
+          { label:'Due Soon', value:el('dueSoonCount'),   desc:'Within 30 days',           color:C.amber },
+          { label:'Overdue',  value:el('overdueCount'),   desc:'Needs attention',           color:C.red   },
         ].forEach((c,i) => compBadgeSmall(M+i*(cW3+G), y, cW3, c.label, c.value, c.desc, c.color));
         y += 24;
 
@@ -1420,11 +1427,11 @@
         checkPageBreak(12+SH+5);
         y = secBar('Accidents / Incidents', y, [185,28,28], [220,60,60]);
 
+        const cW2acc = (CW - G) / 2;
         [
-          { label:'No. of Accidents',           value:el('accidentsCount'),   bg:[185,28,28]   },
-          { label:'No. of Incidents',           value:el('incidentsCount'),   bg:[146,64,14]   },
-          { label:'Total Payments (Incidents)', value:el('incidentsPayments'),bg:[30,58,138]   },
-        ].forEach((c,i) => sCard(M+i*(cW3+G), y, cW3, SH, c.label, c.value, null, c.bg));
+          { label:'No. of Incidents', value:el('incidentsCount'),   bg:[146,64,14]  },
+          { label:'Total Loss',       value:el('incidentsPayments'),bg:[30,58,138]  },
+        ].forEach((c,i) => sCard(M+i*(cW2acc+G), y, cW2acc, SH, c.label, c.value, null, c.bg));
         y += SH + 5;
 
         // ══════════════════════════════════════════════════════════════════════
@@ -1770,10 +1777,13 @@
       const data = await res.json();
       const records = data.records || [];
 
-      let compliant = 0, due_soon = 0, overdue = 0;
+      let due_soon = 0, overdue = 0;
       const perTypeLive    = { 'fc': 0, 'insurance': 0, 'tax': 0, 'permit': 0, 'pucc': 0 };
       const perTypeDue     = { 'fc': 0, 'insurance': 0, 'tax': 0, 'permit': 0, 'pucc': 0 };
       const perTypeOverdue = { 'fc': 0, 'insurance': 0, 'tax': 0, 'permit': 0, 'pucc': 0 };
+
+      // Map: vehicle_id -> worst status (overdue > due_soon > compliant)
+      const vehicleStatus = {};
 
       function normType(s) {
         if (!s) return '';
@@ -1787,12 +1797,19 @@
         return '';
       }
 
+      function statusRank(st) {
+        if (st === 'overdue') return 3;
+        if (st === 'due_soon') return 2;
+        if (st === 'compliant') return 1;
+        return 0;
+      }
+
       // Determine status from validity_date when statutory_status is absent
       const today = new Date(); today.setHours(0,0,0,0);
       records.forEach(r => {
         let st = (r.statutory_status || '').toLowerCase();
+        if (st === 'due soon') st = 'due_soon';
         if (!st || st === 'unknown') {
-          // Derive from due_date / validity_date
           const rawDate = r.due_date || r.validity_date || r.validity || r.valid_to || r.next_due_date;
           if (rawDate) {
             const d = new Date(String(rawDate).substring(0, 10));
@@ -1804,8 +1821,16 @@
             }
           }
         }
-        if (st === 'compliant') compliant += 1;
-        else if (st === 'due_soon' || st === 'due soon') due_soon += 1;
+
+        // Track per-vehicle worst status
+        const vid = r.vehicle_id || r.vehicle || r.reg_no || r.registration_number || '';
+        if (vid) {
+          const prev = vehicleStatus[vid] || 'compliant';
+          if (statusRank(st) > statusRank(prev)) vehicleStatus[vid] = st;
+          else if (!vehicleStatus[vid]) vehicleStatus[vid] = st;
+        }
+
+        if (st === 'due_soon') due_soon += 1;
         else if (st === 'overdue') overdue += 1;
 
         const raw = r.type_of_transaction || r.type || r.description || '';
@@ -1814,7 +1839,7 @@
           if (st === 'compliant') {
             if (perTypeLive.hasOwnProperty(t)) perTypeLive[t] += 1;
           }
-          if (st === 'due_soon' || st === 'due soon') {
+          if (st === 'due_soon') {
             if (perTypeDue.hasOwnProperty(t)) perTypeDue[t] += 1;
           }
           if (st === 'overdue') {
@@ -1823,8 +1848,11 @@
         }
       });
 
+      // LIVE vehicle count = vehicles whose worst-status across ALL docs is compliant
+      const liveVehicleCount = Object.values(vehicleStatus).filter(s => s === 'compliant').length;
+
       const setIf = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
-      setIf('compliantCount', compliant);
+      setIf('compliantCount', liveVehicleCount);  // vehicles with all docs live
       setIf('dueSoonCount', due_soon);
       setIf('overdueCount', overdue);
       // Live (up-to-date) per-type

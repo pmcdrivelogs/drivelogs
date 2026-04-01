@@ -3822,15 +3822,20 @@ def admin_analytics_dashboard():
                         if not rd:
                             continue
                         if rd >= start_dt and rd <= end_dt:
+                            # Use FIRST non-None field only (avoid double-counting multi-field records)
                             for fn in field_names:
                                 val = r.get(fn)
                                 if val is None:
                                     continue
                                 try:
-                                    s += float(val or 0)
+                                    v = float(val or 0)
+                                    s += v
+                                    break  # stop at first valid field
                                 except Exception:
                                     try:
-                                        s += float(str(val).replace(',',''))
+                                        v = float(str(val).replace(',', ''))
+                                        s += v
+                                        break
                                     except Exception:
                                         continue
                     except Exception:
@@ -3846,15 +3851,20 @@ def admin_analytics_dashboard():
                         if not rd:
                             continue
                         if rd < upto_date:
+                            # Use FIRST non-None field only (avoid double-counting multi-field records)
                             for fn in field_names:
                                 val = r.get(fn)
                                 if val is None:
                                     continue
                                 try:
-                                    s += float(val or 0)
+                                    v = float(val or 0)
+                                    s += v
+                                    break  # stop at first valid field
                                 except Exception:
                                     try:
-                                        s += float(str(val).replace(',',''))
+                                        v = float(str(val).replace(',', ''))
+                                        s += v
+                                        break
                                     except Exception:
                                         continue
                     except Exception:
