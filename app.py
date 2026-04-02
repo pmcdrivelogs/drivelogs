@@ -3334,7 +3334,40 @@ def admin_analytics_dashboard():
         stock_issue_records = get_all_stock_issues()
         utilization_records = get_all_utilization()
         scrap_records = get_all_scrap()
-        
+
+        # Build part_no -> unit_rate lookup for maintenance expenditure calculation
+        _part_rate_map = {}
+        for _item in purchase_records:
+            _pn = str(_item.get('part_number') or _item.get('part_no') or '').strip().lower()
+            if not _pn:
+                continue
+            try:
+                _qty = float(_item.get('quantity', 0) or 0)
+                _net = float(_item.get('net_payable', 0) or _item.get('total_payment', 0) or 0)
+                _r = float(_item.get('rate', 0) or 0)
+                if _qty > 0 and _net > 0:
+                    _r = _net / _qty
+            except Exception:
+                _r = 0.0
+            if _pn in _part_rate_map:
+                _part_rate_map[_pn] = (_part_rate_map[_pn] + _r) / 2.0
+            else:
+                _part_rate_map[_pn] = _r
+
+        def _maint_exp(util_list):
+            """Compute total monetary value of maintenance-linked utilizations (MU/ prefix)."""
+            _total = 0.0
+            for _rec in util_list:
+                if not str(_rec.get('entry_no') or '').startswith('MU/'):
+                    continue
+                _pn = str(_rec.get('part_no') or _rec.get('part_number') or '').strip().lower()
+                try:
+                    _q = float(_rec.get('quantity', 0) or 0)
+                except Exception:
+                    _q = 0.0
+                _total += _q * float(_part_rate_map.get(_pn, 0))
+            return round(_total, 2)
+
         # Get today's date
         today = datetime.now().date()
 
@@ -3526,6 +3559,7 @@ def admin_analytics_dashboard():
         }
         # Overwrite stock fields with accurate period-specific values
         daily_data.update(_compute_stock_metrics(today, today))
+        daily_data['maintenance_expenditure'] = _maint_exp(daily_utilization)
 
         # Compute statutory summary (latest record per identifier+type)
         try:
@@ -3688,6 +3722,7 @@ def admin_analytics_dashboard():
             'days_with_entries': len(set(parse_datetime(r['created_at']).isoformat() for r in weekly_trips if r.get('created_at') and parse_datetime(r['created_at'])))
         }
         weekly_data.update(_compute_stock_metrics(week_ago, today))
+        weekly_data['maintenance_expenditure'] = _maint_exp(weekly_utilization)
 
         # Calculate monthly data (last 30 days)
         monthly_trips = [r for r in trip_records if r.get('created_at') and parse_datetime(r['created_at']) and parse_datetime(r['created_at']) >= month_ago]
@@ -3750,6 +3785,7 @@ def admin_analytics_dashboard():
             'days_with_entries': len(set(parse_datetime(r['created_at']).isoformat() for r in monthly_trips if r.get('created_at') and parse_datetime(r['created_at'])))
         }
         monthly_data.update(_compute_stock_metrics(month_ago, today))
+        monthly_data['maintenance_expenditure'] = _maint_exp(monthly_utilization)
 
         # Calculate vehicle utilization
         vehicle_usage = defaultdict(int)
@@ -4527,16 +4563,30 @@ def api_analytics_custom():
                 q = 0
             issue_amount += q * float(cost_per_unit.get(key, 0))
 
+        # Compute maintenance expenditure: sum(qty × rate) for MU/-prefixed utilization entries
+        maintenance_amount = 0.0
+        for r in u:
+            if not str(r.get('entry_no') or '').startswith('MU/'):
+                continue
+            raw_part = str(r.get('part_no') or r.get('part_number') or '').strip().lower()
+            try:
+                q = float(r.get('quantity', 0) or 0)
+            except Exception:
+                q = 0.0
+            maintenance_amount += q * float(cost_per_unit.get(raw_part, 0))
+
         # Expose monetary totals (purchase_expenditure kept for compatibility)
         data['purchase_expenditure'] = data.get('total_purchase_value', 0)
         data['utilization_expenditure'] = round(util_amount, 2)
         data['scrap_expenditure'] = round(scrap_amount, 2)
         data['issue_expenditure'] = round(issue_amount, 2)
+        data['maintenance_expenditure'] = round(maintenance_amount, 2)
     except Exception:
         data['purchase_expenditure'] = data.get('total_purchase_value', 0)
         data['utilization_expenditure'] = 0
         data['scrap_expenditure'] = 0
         data['issue_expenditure'] = 0
+        data['maintenance_expenditure'] = 0
     # Compute student/faculty/guest/passenger totals for the custom range
     def safe_int(val):
         try:
