@@ -305,25 +305,25 @@
           </div>
           <div class="stat-box" style="background:#8b5cf6;">
             <h3>Purchase</h3>
-            <div class="value" id="purchasesCount">0</div>
-            <div class="change">Qty: <span id="purchasesQty">0</span></div>
+            <div class="value" id="purchasesQty">0</div>
+            <span id="purchasesCount" style="display:none;">0</span>
           </div>
           <div class="stat-box" style="background:#14b8a6;">
             <h3>Utilization</h3>
-            <div class="value" id="utilizationCount">0</div>
-            <div class="change">Qty: <span id="utilizationQty">0</span></div>
+            <div class="value" id="utilizationQty">0</div>
+            <span id="utilizationCount" style="display:none;">0</span>
           </div>
           <div class="stat-box" style="background:#64748b;">
             <h3>Scrap</h3>
-            <div class="value" id="scrapCount">0</div>
-            <div class="change">Qty: <span id="scrapQty">0</span></div>
+            <div class="value" id="scrapQty">0</div>
+            <span id="scrapCount" style="display:none;">0</span>
           </div>
         </div>
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mt-4">
           <div class="stat-box" style="background:#ec4899;">
             <h3>Purchase Return</h3>
-            <div class="value" id="purchaseReturnCount">0</div>
-            <div class="change">Qty: <span id="purchaseReturnQty">0</span></div>
+            <div class="value" id="purchaseReturnQty">0</div>
+            <span id="purchaseReturnCount" style="display:none;">0</span>
           </div>
           <div class="stat-box" style="background:#f59e0b;">
             <h3>Closing Stock</h3>
@@ -818,42 +818,43 @@
       }
       document.getElementById('avgMileage').textContent = avgM;
 
-      // Stock management fields (prefer authoritative overallStockTotals when provided)
-      const stockSource = (overallStockTotals && Object.keys(overallStockTotals).length) ? overallStockTotals : data;
-      if (document.getElementById('openingStock')) {
-        if (typeof stockSource.opening_stock !== 'undefined') document.getElementById('openingStock').textContent = stockSource.opening_stock;
-        else if (typeof data.opening_stock !== 'undefined') document.getElementById('openingStock').textContent = data.opening_stock;
-      }
+      // Stock management fields — all period-specific from data
       if (document.getElementById('purchasesCount')) document.getElementById('purchasesCount').textContent = data.total_purchases || 0;
-      // Use authoritative totals from get_stock_totals() — same source as inventory page
-      if (document.getElementById('purchasesQty')) document.getElementById('purchasesQty').textContent = (overallStockTotals.total_original_received_qty !== undefined ? overallStockTotals.total_original_received_qty : (data.purchases_qty || 0));
+      // All Stock Management qty/count fields use period-specific data only
+      if (document.getElementById('purchasesQty')) document.getElementById('purchasesQty').textContent = (data.purchases_qty || 0);
       if (document.getElementById('utilizationCount')) document.getElementById('utilizationCount').textContent = data.total_utilization || 0;
-      if (document.getElementById('utilizationQty')) document.getElementById('utilizationQty').textContent = (overallStockTotals.total_utilized_qty !== undefined ? overallStockTotals.total_utilized_qty : (data.utilization_qty || 0));
+      if (document.getElementById('utilizationQty')) document.getElementById('utilizationQty').textContent = (data.utilization_qty || 0);
       if (document.getElementById('scrapCount')) document.getElementById('scrapCount').textContent = data.total_scrap || 0;
-      if (document.getElementById('scrapQty')) document.getElementById('scrapQty').textContent = (overallStockTotals.total_scrapped_qty !== undefined ? overallStockTotals.total_scrapped_qty : (data.scrap_qty || 0));
+      if (document.getElementById('scrapQty')) document.getElementById('scrapQty').textContent = (data.scrap_qty || 0);
       if (document.getElementById('purchaseReturnCount')) document.getElementById('purchaseReturnCount').textContent = data.total_purchase_returns || 0;
       if (document.getElementById('purchaseReturnQty')) document.getElementById('purchaseReturnQty').textContent = (data.purchase_return_qty || 0);
-      // Closing Stock = authoritative total_current_qty (same as In Stock on inventory page)
-      const closingStockVal = overallStockTotals.total_current_qty !== undefined ? overallStockTotals.total_current_qty : (overallStockTotals.closing_stock_qty || data.closing_stock || 0);
+      // Opening Stock = balance before the selected period
+      if (document.getElementById('openingStock')) {
+        const os = (data.opening_stock !== undefined && data.opening_stock !== null) ? data.opening_stock
+                 : (data.opening_stock_qty !== undefined ? data.opening_stock_qty : 0);
+        document.getElementById('openingStock').textContent = os;
+      }
+      // Closing Stock = balance at end of selected period
+      const closingStockVal = (data.closing_stock_qty !== undefined && data.closing_stock_qty !== null) ? data.closing_stock_qty : (data.closing_stock || 0);
       if (document.getElementById('closingStock')) document.getElementById('closingStock').textContent = closingStockVal;
       // Total purchase value: always period-specific (from data, not overall stock)
       if (document.getElementById('totalPurchaseValue')) {
         const tp = data.total_purchase_value || 0;
         document.getElementById('totalPurchaseValue').textContent = '₹' + (typeof tp === 'number' ? tp.toFixed(2) : tp);
       }
-      // In-stock value: authoritative from overallStockTotals when available
+      // In-stock value: authoritative from overallStockTotals (real-time balance, not period-specific)
       if (document.getElementById('instockValue')) {
-        const iv = (stockSource.instock_value !== undefined) ? stockSource.instock_value : (data.instock_value || 0);
+        const iv = (overallStockTotals.instock_value !== undefined) ? overallStockTotals.instock_value : (data.instock_value || 0);
         document.getElementById('instockValue').textContent = '₹' + (typeof iv === 'number' ? iv.toFixed(2) : iv);
       }
-      // In-stock quantity (use authoritative total_current_qty or fallbacks)
+      // In-stock quantity: authoritative current balance from overallStockTotals
       if (document.getElementById('instockQty')) {
-        const iq = stockSource.total_current_qty || stockSource.closing_stock_qty || data.total_current_qty || data.closing_stock_qty || 0;
+        const iq = overallStockTotals.total_current_qty || overallStockTotals.closing_stock_qty || data.total_current_qty || closingStockVal || 0;
         document.getElementById('instockQty').textContent = (typeof iq === 'number' ? iq.toFixed(2) : iq);
       }
       // Populate total purchase items and qty — period-specific
       if (document.getElementById('totalPurchaseItems')) document.getElementById('totalPurchaseItems').textContent = (data.total_purchases || 0);
-      if (document.getElementById('totalPurchaseQty')) document.getElementById('totalPurchaseQty').textContent = (data.purchases_qty || data.total_original_received_qty || 0);
+      if (document.getElementById('totalPurchaseQty')) document.getElementById('totalPurchaseQty').textContent = (data.purchases_qty || 0);
 
       // Expenditure breakdown (populate totals)
       if (document.getElementById('purchaseExpenditure')) document.getElementById('purchaseExpenditure').textContent = '₹' + ((data.purchase_expenditure || data.total_purchase_value) || 0).toFixed(2);
@@ -1338,14 +1339,14 @@
 
         [
           { label:'Opening Stock',  value:el('openingStock'),    sub:null,                                          bg:[20,184,166]  },
-          { label:'Purchase',       value:el('purchasesCount'),  sub:'Qty: '+el('purchasesQty'),                    bg:[139,92,246]  },
-          { label:'Utilization',    value:el('utilizationCount'),sub:'Qty: '+el('utilizationQty'),                  bg:[13,148,136]  },
-          { label:'Scrap',          value:el('scrapCount'),      sub:'Qty: '+el('scrapQty'),                        bg:[100,116,139] },
+          { label:'Purchase',       value:el('purchasesQty'),    sub:null,                                          bg:[139,92,246]  },
+          { label:'Utilization',    value:el('utilizationQty'),  sub:null,                                          bg:[13,148,136]  },
+          { label:'Scrap',          value:el('scrapQty'),        sub:null,                                          bg:[100,116,139] },
         ].forEach((c,i) => sCard(M+i*(cW4+G), y, cW4, CH, c.label, c.value, c.sub, c.bg));
         y += CH + 2;
 
         [
-          { label:'Purchase Return',      value:el('purchaseReturnCount'), sub:'Qty: '+el('purchaseReturnQty'),                       bg:[236,72,153] },
+          { label:'Purchase Return',      value:el('purchaseReturnQty'),   sub:null,                                                   bg:[236,72,153] },
           { label:'Closing Stock',        value:el('closingStock'),        sub:null,                                                   bg:[245,158,11] },
           { label:'Total Purchase Value', value:el('totalPurchaseValue'),  sub:'Items: '+el('totalPurchaseItems')+'  Qty: '+el('totalPurchaseQty'), bg:[16,185,129] },
           { label:'In-stock Value',       value:el('instockValue'),        sub:'Qty: '+el('instockQty'),                               bg:[6,182,212]  },
@@ -1883,3 +1884,4 @@
     setInterval(refreshStatutoryCounts, 30000);
   });
 </script>
+
