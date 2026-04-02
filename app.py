@@ -3626,17 +3626,54 @@ def admin_analytics_dashboard():
             period_data['permit_count'] = per_type_counts.get('Permit', 0)
             period_data['pucc_count'] = per_type_counts.get('Pollution Certificate', 0)
             period_data['registration_count'] = per_type_counts.get('Registration', 0)
-        
+
+        # Compute period-specific avg mileage from mileage_per_liter (ignore < 0.5 or > 15)
+        def _avg_mpl(fuel_list):
+            vals = []
+            for r in fuel_list:
+                mpl = r.get('mileage_per_liter')
+                if mpl is not None:
+                    try:
+                        v = float(mpl)
+                        if 0.5 <= v <= 25:
+                            vals.append(v)
+                    except Exception:
+                        continue
+            return round(sum(vals) / len(vals), 2) if vals else 0
+
+        daily_data['avg_mileage'] = _avg_mpl(daily_fuel)
+        weekly_data['avg_mileage'] = _avg_mpl(weekly_fuel)
+        monthly_data['avg_mileage'] = _avg_mpl(monthly_fuel)
+
+        # Build a map: vehicle_id -> latest valid mileage_per_liter
+        # fuel_records is ordered DESC by created_at so the first matching record is the latest
+        vehicle_last_mpl = {}
+        for r in fuel_records:
+            vid = r.get('vehicle_id')
+            if not vid or vid in vehicle_last_mpl:
+                continue
+            mpl = r.get('mileage_per_liter')
+            if mpl is not None:
+                try:
+                    v = float(mpl)
+                    if 0.5 <= v <= 25:
+                        vehicle_last_mpl[vid] = v
+                except Exception:
+                    pass
+
         # All performing vehicles (no :5 cap)
         top_vehicles = []
         for vehicle_id, trip_count in all_vehicles_data:
             vehicle_trips = [r for r in trip_records if r.get('vehicle_id') == vehicle_id]
             vehicle_fuel = [r for r in fuel_records if r.get('vehicle_id') == vehicle_id]
-            
+
             total_distance = sum(float(r.get('trip_distance', 0) or 0) for r in vehicle_trips)
             total_fuel = sum(float(r.get('quantity', 0) or 0) for r in vehicle_fuel)
-            efficiency = round(total_distance / total_fuel, 2) if total_fuel > 0 else 0
-            
+
+            # Use the last recorded mileage_per_liter for this vehicle (filtered to valid range)
+            last_mpl = vehicle_last_mpl.get(vehicle_id)
+            efficiency = round(last_mpl, 2) if last_mpl is not None else None
+
             top_vehicles.append({
                 'vehicle_id': vehicle_id,
                 'trips': trip_count,
@@ -4262,6 +4299,18 @@ def api_analytics_custom():
         'stock_labels': ['Purchases', 'Issues', 'Utilization', 'Scrap'],
         'stock_values': [len(p), len(si), len(u), len(sc)]
     }
+    # Average mileage for the custom range (mileage_per_liter, ignore < 0.5 or > 15)
+    _mpl_custom = []
+    for r in f:
+        mpl = r.get('mileage_per_liter')
+        if mpl is not None:
+            try:
+                v = float(mpl)
+                if 0.5 <= v <= 15:
+                    _mpl_custom.append(v)
+            except Exception:
+                pass
+    data['avg_mileage'] = round(sum(_mpl_custom) / len(_mpl_custom), 2) if _mpl_custom else 0
     # Quantities for stock metrics (make opening/closing authoritative by using
     # cumulative records up to the date boundaries rather than mixing filtered
     # and unfiltered snapshots).
