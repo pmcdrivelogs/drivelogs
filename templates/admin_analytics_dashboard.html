@@ -602,9 +602,7 @@
                 <td class="px-4 py-2 text-right">{{ v.fuel|default(0) }}</td>
                 <td class="px-4 py-2 text-right">
                   {% if v.efficiency is not none %}
-                    {{ '%.2f'|format(v.efficiency) }}
-                  {% elif (v.fuel|float) > 0 %}
-                    {{ '%.2f'|format((v.distance|float) / (v.fuel|float)) }}
+                    {{ '%.2f'|format(v.efficiency) }} km/L
                   {% else %}
                     -
                   {% endif %}
@@ -812,12 +810,11 @@
       document.getElementById('avgFacultyPerDay').textContent = days > 0 ? (facultyTotal / days).toFixed(2) : '0';
       document.getElementById('totalFaculty').textContent = facultyTotal || 0;
 
-      // Average mileage: compute from total distance / total fuel when possible
+      // Average mileage: average of mileage_per_liter from fuel table (values 0.5–15 only)
       let avgM = '-';
-      if ((data.avg_mileage || data.avgMileage)) {
-        avgM = Number(data.avg_mileage || data.avgMileage).toFixed(2) + ' km/L';
-      } else if (fuel > 0) {
-        avgM = (dist / fuel).toFixed(2) + ' km/L';
+      const mplVal = (data.avg_mileage != null) ? data.avg_mileage : (data.avgMileage != null ? data.avgMileage : null);
+      if (mplVal !== null && mplVal !== undefined && Number(mplVal) > 0) {
+        avgM = Number(mplVal).toFixed(2) + ' km/L';
       }
       document.getElementById('avgMileage').textContent = avgM;
 
