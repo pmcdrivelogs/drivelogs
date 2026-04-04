@@ -448,7 +448,7 @@
           <div onclick="showStatutoryList('due_soon')" role="button" tabindex="0" class="p-4 bg-yellow-50 border border-yellow-200 rounded-lg cursor-pointer">
             <div class="text-yellow-600 font-semibold text-sm mb-1">Due Soon</div>
             <div class="text-2xl font-bold text-yellow-700" id="dueSoonCount">{{ due_soon_count|default(0) }}</div>
-            <div class="text-xs text-yellow-600 mt-1">Within 30 days</div>
+<div class="text-xs text-yellow-600 mt-1">Vehicles — 1+ doc due in 30 days</div>
 
             <div class="grid grid-cols-5 gap-2 mt-3">
               <div class="p-2 bg-blue-50 border border-blue-200 rounded text-center cursor-pointer">
@@ -476,7 +476,7 @@
           <div onclick="showStatutoryList('overdue')" role="button" tabindex="0" class="p-4 bg-red-50 border border-red-200 rounded-lg cursor-pointer">
             <div class="text-red-600 font-semibold text-sm mb-1">Overdue</div>
             <div class="text-2xl font-bold text-red-700" id="overdueCount">{{ overdue_count|default(0) }}</div>
-            <div class="text-xs text-red-600 mt-1">Needs attention</div>
+<div class="text-xs text-red-600 mt-1">Vehicles — 1+ doc expired</div>
 
             <div class="grid grid-cols-5 gap-2 mt-3">
               <div class="p-2 bg-blue-50 border border-blue-200 rounded text-center cursor-pointer">
@@ -600,7 +600,7 @@
                 <td class="px-4 py-2 text-right">{{ v.trips|default(0) }}</td>
                 <td class="px-4 py-2 text-right">{{ v.distance|default(0) }}</td>
                 <td class="px-4 py-2 text-right">{{ v.fuel|default(0) }}</td>
-                <td class="px-4 py-2 text-right">
+                <td class="px-4 py-2 text-right" style="color:#16a34a;font-weight:600;">
                   {% if v.efficiency is not none %}
                     {{ '%.2f'|format(v.efficiency) }} km/L
                   {% else %}
@@ -868,10 +868,8 @@
       if (document.getElementById('paymentFuel')) document.getElementById('paymentFuel').textContent = '₹' + ((data.payments && data.payments.fuel) || (data.total_expenditure || 0)).toFixed(2);
       if (document.getElementById('paymentMaintenance')) document.getElementById('paymentMaintenance').textContent = '₹' + ((data.payments && data.payments.maintenance) || (data.maintenance_expenditure || 0)).toFixed(2);
 
-      // Statutory counts
-      if (document.getElementById('compliantCount')) document.getElementById('compliantCount').textContent = data.compliant_count || 0;
-      if (document.getElementById('dueSoonCount')) document.getElementById('dueSoonCount').textContent = data.due_soon_count || 0;
-      if (document.getElementById('overdueCount')) document.getElementById('overdueCount').textContent = data.overdue_count || 0;
+      // Statutory counts — vehicle counts are owned by refreshStatutoryCounts(); skip overwriting here
+      // (compliantCount / dueSoonCount / overdueCount are set as vehicle counts, not paper counts)
       if (document.getElementById('fcCount')) document.getElementById('fcCount').textContent = data.fc_count || 0;
       if (document.getElementById('insuranceCount')) document.getElementById('insuranceCount').textContent = data.insurance_count || 0;
       if (document.getElementById('taxCount')) document.getElementById('taxCount').textContent = data.tax_count || 0;
@@ -1555,7 +1553,10 @@
     if (modal) modal.classList.remove('hidden');
 
     try {
-      const res = await fetch('/api/statutory-records?status=' + encodeURIComponent(status));
+      // For due_soon/overdue show vehicle-wise grouping (one row per vehicle),
+      // otherwise keep the existing paper-wise listing.
+      const fetchAllForVehicles = (status === 'due_soon' || status === 'overdue');
+      const res = await fetch('/api/statutory-records?status=' + (fetchAllForVehicles ? 'all' : encodeURIComponent(status)) );
       if (!res.ok) {
         tbody.innerHTML = '<tr><td colspan="7" class="p-4 text-center text-red-600">Failed to fetch records</td></tr>';
         return;
@@ -1567,92 +1568,190 @@
         return;
       }
 
-      tbody.innerHTML = '';
-      rows.forEach(r => {
-        const tr = document.createElement('tr');
-        tr.className = 'border-t hover:bg-gray-50';
+      const thead = document.querySelector('#statModal table thead');
+      const vehicleHead = '<tr><th class="px-4 py-2 text-left">Vehicle ID</th><th class="px-4 py-2 text-right">Papers</th><th class="px-4 py-2 text-left">Earliest Due</th><th class="px-4 py-2 text-left">Details</th></tr>';
+      const paperHead = '<tr>\n                  <th class="px-4 py-2 text-left text-sm font-semibold">Entry No</th>\n                  <th class="px-4 py-2 text-left text-sm font-semibold">Invoice No</th>\n                  <th class="px-4 py-2 text-left text-sm font-semibold">Statutory Body</th>\n                  <th class="px-4 py-2 text-left text-sm font-semibold">Type</th>\n                  <th class="px-4 py-2 text-left text-sm font-semibold">Due Date</th>\n                  <th class="px-4 py-2 text-left text-sm font-semibold">Amount</th>\n                  <th class="px-4 py-2 text-left text-sm font-semibold">Details</th>\n                </tr>';
 
-        const addTd = (txt) => {
-          const td = document.createElement('td');
-          td.className = 'px-4 py-3';
-          td.textContent = txt == null ? '' : txt;
-          return td;
+      if (fetchAllForVehicles) {
+        if (thead) thead.innerHTML = vehicleHead;
+        // derive status for each record (reuse logic from refreshStatutoryCounts)
+        const today = new Date(); today.setHours(0,0,0,0);
+        const deriveStatus = (r) => {
+          let st = (r.statutory_status || '').toLowerCase();
+          if (st === 'due soon') st = 'due_soon';
+          if (!st || st === 'unknown') {
+            const rawDate = r.due_date || r.validity_date || r.validity || r.valid_to || r.next_due_date || r.invoice_date;
+            if (rawDate) {
+              const d = new Date(String(rawDate).substring(0, 10));
+              if (!isNaN(d)) {
+                const diff = Math.floor((d - today) / 86400000);
+                if (diff < 0) return 'overdue';
+                else if (diff <= 30) return 'due_soon';
+                else return 'compliant';
+              }
+            }
+          }
+          return st || '';
         };
 
-        tr.appendChild(addTd(r.entry_no || r.entry_no || ''));
-        tr.appendChild(addTd(r.invoice_no || ''));
-        tr.appendChild(addTd(r.statutory_body_id || ''));
-        tr.appendChild(addTd(r.type_of_transaction || r.record_type || ''));
-        tr.appendChild(addTd(r.due_date || r.validity_date || r.invoice_date || ''));
-        tr.appendChild(addTd(r.total_amount || r.total_amount || ''));
-
-        const detailsTd = document.createElement('td');
-        detailsTd.className = 'px-4 py-3';
-        const details = document.createElement('details');
-        const summary = document.createElement('summary');
-        summary.textContent = 'Show details';
-        summary.className = 'cursor-pointer text-sm text-blue-600';
-        // Build a structured details view (label: value pairs)
-        const detailDiv = document.createElement('div');
-        detailDiv.className = 'p-3 bg-white rounded-md border border-gray-100 shadow-sm text-sm space-y-2';
-
-        function addRow(label, value) {
-          const row = document.createElement('div');
-          row.className = 'flex flex-wrap gap-2 items-start';
-          const lbl = document.createElement('div');
-          lbl.className = 'w-44 font-semibold text-gray-700';
-          lbl.textContent = label;
-          const val = document.createElement('div');
-          val.className = 'text-gray-900 break-words';
-          val.textContent = value == null ? '' : value;
-          row.appendChild(lbl);
-          row.appendChild(val);
-          return row;
+        // filter relevant records and group by vehicle
+        const filtered = rows.filter(r => deriveStatus(r) === status);
+        if (filtered.length === 0) {
+          tbody.innerHTML = '<tr><td colspan="7" class="p-4 text-center">No records found</td></tr>';
+          return;
         }
 
-        // Common fields shown first
-        detailDiv.appendChild(addRow('Entry No', r.entry_no || ''));
-        detailDiv.appendChild(addRow('Invoice No', r.invoice_no || ''));
-        detailDiv.appendChild(addRow('Statutory Body ID', r.statutory_body_id || ''));
-        detailDiv.appendChild(addRow('Registration No', r.registration_no || r.vehicle_no || ''));
-        detailDiv.appendChild(addRow('Type', r.type_of_transaction || r.record_type || ''));
-        detailDiv.appendChild(addRow('Validity / Due Date', r.due_date || r.validity_date || r.invoice_date || ''));
-        detailDiv.appendChild(addRow('Rate', r.rate || r.total_amount || ''));
-        detailDiv.appendChild(addRow('Taxable Amount', r.taxable_amount || ''));
+        const groups = {};
+        filtered.forEach(r => {
+          const vid = r.vehicle_id || r.vehicle || r.reg_no || r.registration_number || r.registration_no || r.vehicle_no || 'UNKNOWN';
+          if (!groups[vid]) groups[vid] = [];
+          groups[vid].push(r);
+        });
 
-        // GST breakdown, if present
-        const gstContainer = document.createElement('div');
-        gstContainer.className = 'mt-2 grid grid-cols-1 md:grid-cols-3 gap-2';
-        gstContainer.appendChild(addRow('SGST % / Amt', (r.sgst_percent || '') + ' / ' + (r.sgst_amount || '')));
-        gstContainer.appendChild(addRow('CGST % / Amt', (r.cgst_percent || '') + ' / ' + (r.cgst_amount || '')));
-        gstContainer.appendChild(addRow('IGST % / Amt', (r.igst_percent || '') + ' / ' + (r.igst_amount || '')));
-        detailDiv.appendChild(gstContainer);
+        // convert to sortable entries with earliest due date
+        const groupEntries = Object.keys(groups).map(vid => {
+          const list = groups[vid];
+          const parsedDates = list.map(r => {
+            const d = r.due_date || r.validity_date || r.valid_to || r.next_due_date || r.invoice_date;
+            const dt = d ? new Date(String(d).substring(0,10)) : null;
+            return (dt && !isNaN(dt)) ? dt : null;
+          }).filter(Boolean);
+          const earliestDt = parsedDates.length ? parsedDates.sort((a,b)=>a-b)[0] : null;
+          return { vid, list, earliestDt };
+        });
 
-        detailDiv.appendChild(addRow('Entered By', r.entered_by || ''));
-        detailDiv.appendChild(addRow('Approved By', r.approved_by || ''));
-        detailDiv.appendChild(addRow('Created At', r.created_at || ''));
+        // sort by earliest due (nulls last), then by number of papers desc
+        groupEntries.sort((a,b) => {
+          if (a.earliestDt && b.earliestDt) return a.earliestDt - b.earliestDt;
+          if (a.earliestDt) return -1;
+          if (b.earliestDt) return 1;
+          return b.list.length - a.list.length;
+        });
 
-        // Add a small collapsible raw JSON view toggle for debugging
-        const rawToggle = document.createElement('details');
-        rawToggle.className = 'mt-2';
-        const rawSummary = document.createElement('summary');
-        rawSummary.textContent = 'Show raw JSON';
-        rawSummary.className = 'cursor-pointer text-xs text-gray-600';
-        const rawPre = document.createElement('pre');
-        rawPre.style.whiteSpace = 'pre-wrap';
-        rawPre.style.fontSize = '0.75rem';
-        try { rawPre.textContent = JSON.stringify(r, null, 2); } catch (e) { rawPre.textContent = String(r); }
-        rawToggle.appendChild(rawSummary);
-        rawToggle.appendChild(rawPre);
+        tbody.innerHTML = '';
+        groupEntries.forEach(entry => {
+          const vid = entry.vid;
+          const list = entry.list;
+          const tr = document.createElement('tr');
+          tr.className = 'border-t hover:bg-gray-50';
+          const addTd = (txt, alignRight) => {
+            const td = document.createElement('td');
+            td.className = 'px-4 py-3' + (alignRight ? ' text-right' : '');
+            td.textContent = txt == null ? '' : txt;
+            return td;
+          };
 
-        details.appendChild(summary);
-        details.appendChild(detailDiv);
-        details.appendChild(rawToggle);
-        detailsTd.appendChild(details);
-        tr.appendChild(detailsTd);
+          tr.appendChild(addTd(vid));
+          tr.appendChild(addTd(list.length, true));
 
-        tbody.appendChild(tr);
-      });
+          const earliest = entry.earliestDt ? entry.earliestDt.toISOString().split('T')[0] : '';
+          tr.appendChild(addTd(earliest));
+
+          // Details cell: expandable list of papers for this vehicle
+          const detailsTd = document.createElement('td');
+          detailsTd.className = 'px-4 py-3';
+          const details = document.createElement('details');
+          const summary = document.createElement('summary');
+          summary.textContent = 'Show papers (' + list.length + ')';
+          summary.className = 'cursor-pointer text-sm text-blue-600';
+          const detailDiv = document.createElement('div');
+          detailDiv.className = 'p-3 bg-white rounded-md border border-gray-100 shadow-sm text-sm space-y-2';
+
+          list.forEach(r => {
+            const row = document.createElement('div');
+            row.className = 'border-b pb-2 mb-2';
+            const t1 = document.createElement('div'); t1.className = 'font-semibold'; t1.textContent = (r.type_of_transaction || r.type || r.description || 'Document');
+            const t2 = document.createElement('div'); t2.className = 'text-xs text-gray-700';
+            t2.textContent = 'Due: ' + (r.due_date || r.validity_date || r.valid_to || r.next_due_date || r.invoice_date || 'N/A') + ' — Entry: ' + (r.entry_no || '') + ' — Amt: ' + (r.total_amount || '');
+            row.appendChild(t1); row.appendChild(t2);
+            detailDiv.appendChild(row);
+          });
+
+            details.appendChild(summary);
+            details.appendChild(detailDiv);
+            detailsTd.appendChild(details);
+            tr.appendChild(detailsTd);
+
+            tbody.appendChild(tr);
+          });
+      } else {
+          // restore paper-wise table header
+          if (thead) thead.innerHTML = paperHead;
+          // keep original paper-wise rendering for other statuses
+          tbody.innerHTML = '';
+        rows.forEach(r => {
+          const tr = document.createElement('tr');
+          tr.className = 'border-t hover:bg-gray-50';
+
+          const addTd = (txt) => {
+            const td = document.createElement('td');
+            td.className = 'px-4 py-3';
+            td.textContent = txt == null ? '' : txt;
+            return td;
+          };
+
+          tr.appendChild(addTd(r.entry_no || r.entry_no || ''));
+          tr.appendChild(addTd(r.invoice_no || ''));
+          tr.appendChild(addTd(r.statutory_body_id || ''));
+          tr.appendChild(addTd(r.type_of_transaction || r.record_type || ''));
+          tr.appendChild(addTd(r.due_date || r.validity_date || r.invoice_date || ''));
+          tr.appendChild(addTd(r.total_amount || r.total_amount || ''));
+
+          const detailsTd = document.createElement('td');
+          detailsTd.className = 'px-4 py-3';
+          const details = document.createElement('details');
+          const summary = document.createElement('summary');
+          summary.textContent = 'Show details';
+          summary.className = 'cursor-pointer text-sm text-blue-600';
+          const detailDiv = document.createElement('div');
+          detailDiv.className = 'p-3 bg-white rounded-md border border-gray-100 shadow-sm text-sm space-y-2';
+
+          function addRow(label, value) {
+            const row = document.createElement('div');
+            row.className = 'flex flex-wrap gap-2 items-start';
+            const lbl = document.createElement('div');
+            lbl.className = 'w-44 font-semibold text-gray-700';
+            lbl.textContent = label;
+            const val = document.createElement('div');
+            val.className = 'text-gray-900 break-words';
+            val.textContent = value == null ? '' : value;
+            row.appendChild(lbl);
+            row.appendChild(val);
+            return row;
+          }
+
+          // Common fields shown first
+          detailDiv.appendChild(addRow('Entry No', r.entry_no || ''));
+          detailDiv.appendChild(addRow('Invoice No', r.invoice_no || ''));
+          detailDiv.appendChild(addRow('Statutory Body ID', r.statutory_body_id || ''));
+          detailDiv.appendChild(addRow('Registration No', r.registration_no || r.vehicle_no || ''));
+          detailDiv.appendChild(addRow('Type', r.type_of_transaction || r.record_type || ''));
+          detailDiv.appendChild(addRow('Validity / Due Date', r.due_date || r.validity_date || r.invoice_date || ''));
+          detailDiv.appendChild(addRow('Rate', r.rate || r.total_amount || ''));
+          detailDiv.appendChild(addRow('Taxable Amount', r.taxable_amount || ''));
+
+          // Add raw JSON toggle
+          const rawToggle = document.createElement('details');
+          rawToggle.className = 'mt-2';
+          const rawSummary = document.createElement('summary');
+          rawSummary.textContent = 'Show raw JSON';
+          rawSummary.className = 'cursor-pointer text-xs text-gray-600';
+          const rawPre = document.createElement('pre');
+          rawPre.style.whiteSpace = 'pre-wrap';
+          rawPre.style.fontSize = '0.75rem';
+          try { rawPre.textContent = JSON.stringify(r, null, 2); } catch (e) { rawPre.textContent = String(r); }
+          rawToggle.appendChild(rawSummary);
+          rawToggle.appendChild(rawPre);
+
+          details.appendChild(summary);
+          details.appendChild(detailDiv);
+          details.appendChild(rawToggle);
+          detailsTd.appendChild(details);
+          tr.appendChild(detailsTd);
+
+          tbody.appendChild(tr);
+        });
+      }
     } catch (err) {
       tbody.innerHTML = '<tr><td colspan="7" class="p-4 text-center text-red-600">Error: ' + (err && err.message ? err.message : String(err)) + '</td></tr>';
     }
@@ -1775,7 +1874,6 @@
       const data = await res.json();
       const records = data.records || [];
 
-      let due_soon = 0, overdue = 0;
       const perTypeLive    = { 'fc': 0, 'insurance': 0, 'tax': 0, 'permit': 0, 'pucc': 0 };
       const perTypeDue     = { 'fc': 0, 'insurance': 0, 'tax': 0, 'permit': 0, 'pucc': 0 };
       const perTypeOverdue = { 'fc': 0, 'insurance': 0, 'tax': 0, 'permit': 0, 'pucc': 0 };
@@ -1828,9 +1926,6 @@
           else if (!vehicleStatus[vid]) vehicleStatus[vid] = st;
         }
 
-        if (st === 'due_soon') due_soon += 1;
-        else if (st === 'overdue') overdue += 1;
-
         const raw = r.type_of_transaction || r.type || r.description || '';
         const t = normType(raw);
         if (t) {
@@ -1846,13 +1941,15 @@
         }
       });
 
-      // LIVE vehicle count = vehicles whose worst-status across ALL docs is compliant
-      const liveVehicleCount = Object.values(vehicleStatus).filter(s => s === 'compliant').length;
+      // Count vehicles by worst status
+      const liveVehicleCount    = Object.values(vehicleStatus).filter(s => s === 'compliant').length;
+      const dueSoonVehicleCount = Object.values(vehicleStatus).filter(s => s === 'due_soon').length;
+      const overdueVehicleCount = Object.values(vehicleStatus).filter(s => s === 'overdue').length;
 
       const setIf = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
-      setIf('compliantCount', liveVehicleCount);  // vehicles with all docs live
-      setIf('dueSoonCount', due_soon);
-      setIf('overdueCount', overdue);
+      setIf('compliantCount', liveVehicleCount);       // vehicles with all docs live
+      setIf('dueSoonCount',   dueSoonVehicleCount);    // vehicles whose worst doc is due soon
+      setIf('overdueCount',   overdueVehicleCount);   // vehicles whose worst doc is overdue
       // Live (up-to-date) per-type
       setIf('fcCount',          perTypeLive.fc);
       setIf('insuranceCount',   perTypeLive.insurance);
@@ -1884,4 +1981,3 @@
     setInterval(refreshStatutoryCounts, 30000);
   });
 </script>
-
