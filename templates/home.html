@@ -40,7 +40,7 @@
         <a href="{{ url_for('trip_opening_attention') }}" class="menu-btn py-3 md:py-4 px-4 md:px-8">2. TRIP OPENEING ATTENTION CHECK LIST</a>
         <a href="{{ url_for('utilization_record') }}" class="menu-btn py-3 md:py-4 px-4 md:px-8">3. UTILIZATION RECORD</a>
         <a href="{{ url_for('fuel_consumption') }}" class="menu-btn py-3 md:py-4 px-4 md:px-8">4. FUEL CONSUMPTION STATEMENT</a>
-        <a href="{{ url_for('daily_technical_remarks') }}" class="menu-btn py-3 md:py-4 px-4 md:px-8">5. DAILY TECHNICAL REMARKS</a>
+        <button id="openDtrModal" type="button" class="menu-btn py-3 md:py-4 px-4 md:px-8">5. DAILY TECHNICAL REMARKS</button>
         <a href="{{ url_for('weekly_attention') }}" class="menu-btn py-3 md:py-4 px-4 md:px-8">6. WEEKLY/FORTHNIGHT ATTENTION CHECKLIST</a>
         <a href="{{ url_for('job_card') }}" class="menu-btn py-3 md:py-4 px-4 md:px-8">7. JOB CARD</a>
         <a href="{{ url_for('monthly_maintenance') }}" class="menu-btn py-3 md:py-4 px-4 md:px-8">8. MONTHLY PERIODICAL MAINTENANCE</a>
@@ -54,5 +54,36 @@
   </div>
 
 <script src="{{ url_for('static', filename='js/uppercase.js') }}"></script>
+<!-- Daily Technical Remarks Modal -->
+<div id="dtrModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
+  <div class="bg-white rounded-lg shadow-lg w-full max-w-md p-6 mx-4">
+    <h2 class="text-xl font-bold mb-4">Daily Technical Remarks</h2>
+    <div class="flex flex-col gap-3">
+      <a href="{{ url_for('daily_technical_remarks') }}" class="bg-green-700 text-white text-center px-4 py-2 rounded">Daily Remarks Entry</a>
+      <a href="{{ url_for('daily_technical_remarks_history') }}" class="bg-red-700 text-white text-center px-4 py-2 rounded">Daily Remarks History</a>
+    </div>
+    <div class="flex justify-end mt-4">
+      <button id="closeDtrModal" class="px-4 py-2 rounded border">Close</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  (function(){
+    const openBtn = document.getElementById('openDtrModal');
+    const modal = document.getElementById('dtrModal');
+    const closeBtn = document.getElementById('closeDtrModal');
+    if (openBtn && modal) {
+      openBtn.addEventListener('click', () => { modal.classList.remove('hidden'); modal.classList.add('flex'); });
+    }
+    if (closeBtn && modal) {
+      closeBtn.addEventListener('click', () => { modal.classList.remove('flex'); modal.classList.add('hidden'); });
+    }
+    // Close modal on background click
+    if (modal) {
+      modal.addEventListener('click', (ev) => { if (ev.target === modal) { modal.classList.remove('flex'); modal.classList.add('hidden'); } });
+    }
+  })();
+</script>
 </body>
 </html>
