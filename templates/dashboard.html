@@ -337,7 +337,7 @@
     <div class="notification-modal">
       <div class="notification-header">
         <h2 class="text-2xl font-bold">⚠️ Statutory Records Alert</h2>
-        <p class="text-blue-100 text-sm mt-1">Records expiring within 7 days</p>
+        <p class="text-blue-100 text-sm mt-1">Records expiring within 30 days</p>
         <button class="notification-close" onclick="closeNotifications()">×</button>
       </div>
       <div class="notification-body">
@@ -345,8 +345,19 @@
           {% for alert in due_soon_alerts %}
             <div class="alert-item {{ alert.alert_type }}">
               <div class="flex justify-between items-start mb-2">
+                <div>
+                  <h3 class="font-bold text-gray-800">{{ alert.record_type|replace('_', ' ')|title }}</h3>
+                  <p class="text-sm text-gray-600">Vehicle ID: {{ alert.vehicle_id or alert.statutory_body_id }}</p>
+                  <p class="text-sm text-gray-600">Reg No: {{ alert.registration_no or 'N/A' }}</p>
+                </div>
                 <span class="px-3 py-1 rounded-full text-xs font-bold {% if alert.alert_type == 'overdue' %}bg-red-100 text-red-600{% else %}bg-yellow-100 text-yellow-800{% endif %}">
-                  {% if alert.days_remaining < 0 %}OVERDUE{% elif alert.days_remaining == 0 %}DUE TODAY{% else %}{{ alert.days_remaining }} days{% endif %}
+                  {% if alert.days_remaining < 0 %}
+                    OVERDUE
+                  {% elif alert.days_remaining == 0 %}
+                    DUE TODAY
+                  {% else %}
+                    {{ alert.days_remaining }} days
+                  {% endif %}
                 </span>
               </div>
               <div class="flex items-center gap-2 text-sm">
@@ -457,6 +468,7 @@
             <span class="subtitle">Generate Parts</span>
           </a>
           {% endif %}
+          
           
           <!-- Scrap -->
           {% if 'Scrap' in modules %}
