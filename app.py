@@ -302,6 +302,22 @@ def dashboard():
     try:
         today = datetime.now().date()
         statutory_records = get_all_statutory_records() or []
+        # Also include vehicle-level validity dates (insurance, fitness, PUC, etc.)
+        try:
+            vehicle_rows = get_all_vehicles() or []
+            for v in vehicle_rows:
+                vid = v.get('vehicle_id') or v.get('id') or ''
+                reg = v.get('registration_no') or v.get('registration') or ''
+                for field_key, label in VEHICLE_DATE_FIELDS.items():
+                    if v.get(field_key):
+                        statutory_records.append({
+                            'type_of_transaction': label,
+                            'vehicle_id': vid,
+                            'registration_no': reg,
+                            'validity_date': v.get(field_key),
+                        })
+        except Exception:
+            pass
         for record in statutory_records:
             raw_validity = record.get('validity_date')
             if not raw_validity:
@@ -314,7 +330,7 @@ def dashboard():
                     validity_date = datetime.strptime(validity_date_str.split(' ')[0], '%Y-%m-%d').date()
 
                 days_remaining = (validity_date - today).days
-                if days_remaining <= 7:
+                if days_remaining <= 30:
                     vehicle_id = record.get('vehicle_id') or record.get('statutory_body_id') or 'Unknown'
                     registration_no = record.get('registration_no') or 'N/A'
                     due_soon_alerts.append({
@@ -2860,7 +2876,23 @@ def admin_dashboard():
     vehicles_count = get_vehicles_count()
     
     # Get statutory records and check for upcoming due dates
-    statutory_records = get_all_statutory_records()
+    statutory_records = get_all_statutory_records() or []
+    # Also include vehicle-level validity dates (insurance, fitness, PUC, etc.)
+    try:
+        vehicle_rows = get_all_vehicles() or []
+        for v in vehicle_rows:
+            vid = v.get('vehicle_id') or v.get('id') or ''
+            reg = v.get('registration_no') or v.get('registration') or ''
+            for field_key, label in VEHICLE_DATE_FIELDS.items():
+                if v.get(field_key):
+                    statutory_records.append({
+                        'type_of_transaction': label,
+                        'vehicle_id': vid,
+                        'registration_no': reg,
+                        'validity_date': v.get(field_key),
+                    })
+    except Exception:
+        pass
     today = datetime.now().date()
     due_soon_alerts = []
     
@@ -2876,8 +2908,8 @@ def admin_dashboard():
                 
                 days_remaining = (validity_date - today).days
                 
-                # Alert if due within 7 days or overdue
-                if days_remaining <= 7:
+                # Alert if due within 30 days or overdue
+                if days_remaining <= 30:
                     alert_type = 'overdue' if days_remaining < 0 else 'warning'
                     vehicle_id = record.get('vehicle_id') or record.get('statutory_body_id') or 'Unknown'
                     registration_no = record.get('registration_no') or 'N/A'
