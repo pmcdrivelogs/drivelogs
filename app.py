@@ -51,6 +51,7 @@ from database import (
     get_all_scrap, get_stock_totals, save_maintenance_entry, update_maintenance_entry, supabase
 )
 from database import save_dc_entry, get_all_dc_entries, get_dc_entry, get_last_dc_save_error, _get_next_dc_number
+from database import get_all_daily_technical_remarks
 from database import save_material_utilization, consume_part_from_purchases
 from datetime import datetime
 import time
@@ -3334,40 +3335,7 @@ def admin_analytics_dashboard():
         stock_issue_records = get_all_stock_issues()
         utilization_records = get_all_utilization()
         scrap_records = get_all_scrap()
-
-        # Build part_no -> unit_rate lookup for maintenance expenditure calculation
-        _part_rate_map = {}
-        for _item in purchase_records:
-            _pn = str(_item.get('part_number') or _item.get('part_no') or '').strip().lower()
-            if not _pn:
-                continue
-            try:
-                _qty = float(_item.get('quantity', 0) or 0)
-                _net = float(_item.get('net_payable', 0) or _item.get('total_payment', 0) or 0)
-                _r = float(_item.get('rate', 0) or 0)
-                if _qty > 0 and _net > 0:
-                    _r = _net / _qty
-            except Exception:
-                _r = 0.0
-            if _pn in _part_rate_map:
-                _part_rate_map[_pn] = (_part_rate_map[_pn] + _r) / 2.0
-            else:
-                _part_rate_map[_pn] = _r
-
-        def _maint_exp(util_list):
-            """Compute total monetary value of maintenance-linked utilizations (MU/ prefix)."""
-            _total = 0.0
-            for _rec in util_list:
-                if not str(_rec.get('entry_no') or '').startswith('MU/'):
-                    continue
-                _pn = str(_rec.get('part_no') or _rec.get('part_number') or '').strip().lower()
-                try:
-                    _q = float(_rec.get('quantity', 0) or 0)
-                except Exception:
-                    _q = 0.0
-                _total += _q * float(_part_rate_map.get(_pn, 0))
-            return round(_total, 2)
-
+        
         # Get today's date
         today = datetime.now().date()
 
@@ -3559,7 +3527,6 @@ def admin_analytics_dashboard():
         }
         # Overwrite stock fields with accurate period-specific values
         daily_data.update(_compute_stock_metrics(today, today))
-        daily_data['maintenance_expenditure'] = _maint_exp(daily_utilization)
 
         # Compute statutory summary (latest record per identifier+type)
         try:
@@ -3722,7 +3689,6 @@ def admin_analytics_dashboard():
             'days_with_entries': len(set(parse_datetime(r['created_at']).isoformat() for r in weekly_trips if r.get('created_at') and parse_datetime(r['created_at'])))
         }
         weekly_data.update(_compute_stock_metrics(week_ago, today))
-        weekly_data['maintenance_expenditure'] = _maint_exp(weekly_utilization)
 
         # Calculate monthly data (last 30 days)
         monthly_trips = [r for r in trip_records if r.get('created_at') and parse_datetime(r['created_at']) and parse_datetime(r['created_at']) >= month_ago]
@@ -3785,7 +3751,6 @@ def admin_analytics_dashboard():
             'days_with_entries': len(set(parse_datetime(r['created_at']).isoformat() for r in monthly_trips if r.get('created_at') and parse_datetime(r['created_at'])))
         }
         monthly_data.update(_compute_stock_metrics(month_ago, today))
-        monthly_data['maintenance_expenditure'] = _maint_exp(monthly_utilization)
 
         # Calculate vehicle utilization
         vehicle_usage = defaultdict(int)
@@ -4563,30 +4528,16 @@ def api_analytics_custom():
                 q = 0
             issue_amount += q * float(cost_per_unit.get(key, 0))
 
-        # Compute maintenance expenditure: sum(qty × rate) for MU/-prefixed utilization entries
-        maintenance_amount = 0.0
-        for r in u:
-            if not str(r.get('entry_no') or '').startswith('MU/'):
-                continue
-            raw_part = str(r.get('part_no') or r.get('part_number') or '').strip().lower()
-            try:
-                q = float(r.get('quantity', 0) or 0)
-            except Exception:
-                q = 0.0
-            maintenance_amount += q * float(cost_per_unit.get(raw_part, 0))
-
         # Expose monetary totals (purchase_expenditure kept for compatibility)
         data['purchase_expenditure'] = data.get('total_purchase_value', 0)
         data['utilization_expenditure'] = round(util_amount, 2)
         data['scrap_expenditure'] = round(scrap_amount, 2)
         data['issue_expenditure'] = round(issue_amount, 2)
-        data['maintenance_expenditure'] = round(maintenance_amount, 2)
     except Exception:
         data['purchase_expenditure'] = data.get('total_purchase_value', 0)
         data['utilization_expenditure'] = 0
         data['scrap_expenditure'] = 0
         data['issue_expenditure'] = 0
-        data['maintenance_expenditure'] = 0
     # Compute student/faculty/guest/passenger totals for the custom range
     def safe_int(val):
         try:
@@ -5701,11 +5652,10 @@ def fuel_consumption():
 def daily_technical_remarks():
     if request.method == 'POST':
         try:
-            vehicle_id = request.form.get('vehicle_id', '')
-            registration_no = request.form.get('registration_no', '').upper()
-            
-            # Get arrays from form
-            dates = request.form.getlist('date[]')
+            # Get arrays from form (one row per vehicle)
+            vehicle_ids = request.form.getlist('vehicle_id[]')
+            registration_nos = request.form.getlist('registration_no[]')
+            daily_date = request.form.get('daily_date')
             kilometers = request.form.getlist('kilometer[]')
             drivers_voices = request.form.getlist('drivers_voice[]')
             technical_observations = request.form.getlist('technical_observation[]')
@@ -5713,21 +5663,24 @@ def daily_technical_remarks():
             materials_purchased_list = request.form.getlist('materials_purchased[]')
             supplier_bills = request.form.getlist('supplier_bill[]')
             amounts = request.form.getlist('amount[]')
-            
-            # Create list of entries
+
+            # Build entries by vehicle rows; use one common daily_date for all
             remarks_entries = []
-            for i in range(len(dates)):
+            rows = len(vehicle_ids)
+            for i in range(rows):
+                vid = vehicle_ids[i] if i < len(vehicle_ids) else ''
+                reg = (registration_nos[i] if i < len(registration_nos) else '')
                 entry = {
-                    'vehicle_id': vehicle_id,
-                    'registration_no': registration_no,
-                    'date': dates[i] if dates[i] else None,
-                    'kilometer': kilometers[i] if i < len(kilometers) else '',
-                    'drivers_voice': drivers_voices[i] if i < len(drivers_voices) else '',
-                    'technical_observation': technical_observations[i] if i < len(technical_observations) else '',
-                    'day_end_status': day_end_statuses[i] if i < len(day_end_statuses) else '',
-                    'materials_purchased': materials_purchased_list[i] if i < len(materials_purchased_list) else '',
-                    'supplier_bill': supplier_bills[i] if i < len(supplier_bills) else '',
-                    'amount': amounts[i] if i < len(amounts) else ''
+                    'vehicle_id': vid,
+                    'registration_no': reg.upper() if reg else '',
+                    'date': (daily_date if daily_date else None),
+                    'kilometer': (kilometers[i] if i < len(kilometers) else ''),
+                    'drivers_voice': (drivers_voices[i] if i < len(drivers_voices) else ''),
+                    'technical_observation': (technical_observations[i] if i < len(technical_observations) else ''),
+                    'day_end_status': (day_end_statuses[i] if i < len(day_end_statuses) else ''),
+                    'materials_purchased': (materials_purchased_list[i] if i < len(materials_purchased_list) else ''),
+                    'supplier_bill': (supplier_bills[i] if i < len(supplier_bills) else ''),
+                    'amount': (amounts[i] if i < len(amounts) else '')
                 }
                 remarks_entries.append(entry)
             
@@ -5736,8 +5689,14 @@ def daily_technical_remarks():
             
             if saved_count > 0:
                 flash(f'Successfully saved {saved_count} technical remark(s)!', 'success')
+                return redirect(url_for('daily_technical_remarks_history'))
             else:
-                flash('Error saving technical remarks. Please try again.', 'danger')
+                try:
+                    import json
+                    current_app.logger.error('Failed to save daily technical remarks. Sample payload: %s', json.dumps(remarks_entries[:5], default=str))
+                except Exception:
+                    current_app.logger.exception('Failed to log failed daily technical remarks payload')
+                flash('Error saving technical remarks. Please check server logs and try again.', 'danger')
         except Exception as e:
             print(f"Error in daily_technical_remarks: {e}")
             import traceback
@@ -5746,7 +5705,50 @@ def daily_technical_remarks():
         
         return redirect(url_for('daily_technical_remarks'))
     
-    return render_template('daily_technical_remarks.html')
+    # Pass current vehicles so registration numbers populate automatically
+    vehicles = get_all_vehicles() or []
+
+    # Build mapping vehicle_id -> latest trip closing kilometer
+    latest_kms = {}
+    try:
+        trip_records = get_all_trip_sheets() or []
+        for r in trip_records:
+            vid = r.get('vehicle_id')
+            if not vid:
+                continue
+            # first occurrence is the most recent due to ordering in get_all_trip_sheets()
+            if vid not in latest_kms:
+                # trip_close_km may be numeric; convert to string for template
+                val = r.get('trip_close_km')
+                latest_kms[vid] = (str(val) if val is not None else '')
+    except Exception:
+        latest_kms = {}
+
+    return render_template('daily_technical_remarks.html', vehicles=vehicles, latest_kms=latest_kms)
+
+
+@app.route('/daily-technical-remarks/history', methods=['GET'])
+@login_required
+def daily_technical_remarks_history():
+    try:
+        records = get_all_daily_technical_remarks() or []
+    except Exception:
+        records = []
+    try:
+        current_app.logger.info('Fetched %d daily technical remark records for history', len(records))
+    except Exception:
+        pass
+    return render_template('daily_technical_remarks_history.html', records=records)
+
+
+@app.route('/api/daily-technical-remarks/recent', methods=['GET'])
+def api_daily_technical_remarks_recent():
+    """Temporary JSON endpoint to inspect recent saved daily technical remarks."""
+    try:
+        records = get_all_daily_technical_remarks(100)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    return jsonify({'count': len(records), 'records': records})
 
 @app.route('/weekly-attention', methods=['GET', 'POST'])
 @login_required
