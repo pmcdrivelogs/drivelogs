@@ -462,19 +462,55 @@ def save_daily_technical_remarks(remarks_entries):
     try:
         saved_count = 0
         for entry in remarks_entries:
-            # Convert None to empty string for TEXT fields
-            for key, value in entry.items():
-                if value is None and key not in ['date', 'created_at', 'updated_at']:
-                    entry[key] = ''
-            
-            # Add timestamps
-            entry['created_at'] = datetime.now().isoformat()
-            entry['updated_at'] = datetime.now().isoformat()
-            
-            # Insert the entry
-            result = supabase.table('daily_technical_remarks').insert(entry).execute()
-            if result.data:
+            # Only save rows that have at least one meaningful field filled in
+            meaningful = any(
+                str(entry.get(f, '') or '').strip()
+                for f in ['drivers_voice', 'technical_observation', 'day_end_status',
+                          'materials_purchased', 'supplier_bill', 'amount']
+            )
+            if not meaningful:
+                continue
+
+            # Build a clean payload matching the DB schema exactly
+            # Schema: vehicle_id TEXT, registration_no TEXT, date DATE,
+            #         kilometer TEXT, drivers_voice TEXT, technical_observation TEXT,
+            #         day_end_status TEXT, materials_purchased TEXT,
+            #         supplier_bill TEXT, amount NUMERIC(12,2)
+            clean = {
+                'vehicle_id':         str(entry.get('vehicle_id') or ''),
+                'registration_no':    str(entry.get('registration_no') or ''),
+                'date':               entry.get('date') or None,
+                'kilometer':          str(entry.get('kilometer') or ''),
+                'drivers_voice':      str(entry.get('drivers_voice') or ''),
+                'technical_observation': str(entry.get('technical_observation') or ''),
+                'day_end_status':     str(entry.get('day_end_status') or ''),
+                'materials_purchased': str(entry.get('materials_purchased') or ''),
+                'supplier_bill':      str(entry.get('supplier_bill') or ''),
+            }
+            # amount: numeric or NULL
+            raw_amount = str(entry.get('amount') or '').strip()
+            try:
+                clean['amount'] = float(raw_amount) if raw_amount else None
+            except ValueError:
+                clean['amount'] = None
+            # Let DB default handle created_at / updated_at – do NOT send them
+
+            # Insert using the clean payload
+            try:
+                print('Inserting daily_technical_remarks clean payload:', clean)
+                result = supabase.table('daily_technical_remarks').insert(clean).execute()
+                print('Supabase insert data:', getattr(result, 'data', None))
+                print('Supabase insert error:', getattr(result, 'error', None))
+            except Exception as exc:
+                print('Supabase insert raised exception:', exc)
+                import traceback
+                traceback.print_exc()
+                continue
+
+            if getattr(result, 'data', None):
                 saved_count += 1
+            else:
+                print('Insert returned no data for payload:', clean)
         
         return saved_count
     except Exception as e:
@@ -482,6 +518,20 @@ def save_daily_technical_remarks(remarks_entries):
         import traceback
         traceback.print_exc()
         return 0
+
+
+def get_all_daily_technical_remarks(limit=1000):
+    """Return recent daily technical remarks records (most recent first)."""
+    try:
+        cols = 'id, vehicle_id, registration_no, date, kilometer, drivers_voice, technical_observation, day_end_status, materials_purchased, supplier_bill, amount, created_at'
+        response = supabase.table('daily_technical_remarks').select(cols).order('created_at', desc=True).range(0, limit - 1).execute()
+        print(f'get_all_daily_technical_remarks: fetched {len(response.data or [])} records')
+        return response.data if response.data else []
+    except Exception as e:
+        print(f'Error getting daily technical remarks: {e}')
+        import traceback
+        traceback.print_exc()
+        return []
 
 
 def save_maintenance_entry(entry_data):
