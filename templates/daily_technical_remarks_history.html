@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Daily Technical Remarks History</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body class="bg-[#fcfcfc] min-h-screen flex flex-col pt-20">
+  <div class="logo-bar w-full flex items-center justify-between px-2 py-1 fixed top-0 left-0 z-50">
+    <img src="{{ url_for('static', filename='img/drive-logs.png') }}" alt="Drive Logs Logo" class="h-12 md:h-14 w-auto ml-2">
+    <div class="flex items-center gap-4">
+      <a href="{{ url_for('home') }}" class="bg-yellow-500 hover:bg-yellow-600 text-gray-900 px-4 py-2 rounded-full text-sm font-semibold transition-colors">← Back</a>
+    </div>
+  </div>
+
+  <div class="flex-1 py-6 px-4">
+    <div class="bg-white rounded-2xl shadow-lg w-full max-w-5xl mx-auto p-6 md:p-8 border-2 border-gray-200">
+      <h1 class="text-2xl font-bold mb-4">Daily Technical Remarks History</h1>
+      <!-- Flash Messages (hidden container for JS toast) -->
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          <div id="flashContainer" style="display:none;">
+          {% for category, message in messages %}
+            <div class="flash-message mb-4 p-4 rounded-lg {% if category == 'success' %}bg-green-100 text-green-800 border border-green-300{% elif category == 'danger' %}bg-red-100 text-red-800 border border-red-300{% else %}bg-blue-100 text-blue-800 border border-blue-300{% endif %}" data-category="{{ category }}">{{ message }}</div>
+          {% endfor %}
+          </div>
+        {% endif %}
+      {% endwith %}
+      <div class="overflow-x-auto">
+        <div class="mb-4 flex flex-wrap gap-3 items-center">
+          <input id="hist_search" type="search" placeholder="Search vehicle id, registration, remarks" class="border rounded px-3 py-2 text-sm" style="min-width:260px;">
+          <label class="text-sm">From</label>
+          <input id="hist_from" type="date" class="border rounded px-3 py-2 text-sm">
+          <label class="text-sm">To</label>
+          <input id="hist_to" type="date" class="border rounded px-3 py-2 text-sm">
+          <input id="hist_status" type="search" placeholder="Filter by status (e.g. Arrested)" class="border rounded px-3 py-2 text-sm" style="min-width:160px;">
+          <button id="hist_clear" class="px-3 py-2 bg-gray-200 rounded text-sm">Clear</button>
+        </div>
+        <table class="min-w-full divide-y divide-gray-200 table-auto text-sm">
+          <thead class="bg-gray-50">
+            <tr>
+              <th class="px-3 py-2 text-left">Date</th>
+              <th class="px-3 py-2 text-left">Vehicle ID</th>
+              <th class="px-3 py-2 text-left">Registration No</th>
+              <th class="px-3 py-2 text-left">Current Kilometer</th>
+              <th class="px-3 py-2 text-left">Driver's Voice</th>
+              <th class="px-3 py-2 text-left">Technical Advisor's Observation & Action</th>
+              <th class="px-3 py-2 text-left">Day-end Status</th>
+              <th class="px-3 py-2 text-left">Materials Purchased</th>
+              <th class="px-3 py-2 text-left">Supplier / Bill No. / Dt.</th>
+              <th class="px-3 py-2 text-left">Amount</th>
+            </tr>
+          </thead>
+          <tbody class="bg-white divide-y divide-gray-200">
+            {% for r in records %}
+            <tr>
+              <td class="px-3 py-2">{{ r.date or r.created_at or '' }}</td>
+              <td class="px-3 py-2">{{ r.vehicle_id }}</td>
+              <td class="px-3 py-2">{{ r.registration_no }}</td>
+              <td class="px-3 py-2">{{ r.kilometer }}</td>
+              <td class="px-3 py-2">{{ r.drivers_voice }}</td>
+              <td class="px-3 py-2">{{ r.technical_observation }}</td>
+              <td class="px-3 py-2">{{ r.day_end_status }}</td>
+              <td class="px-3 py-2">{{ r.materials_purchased }}</td>
+              <td class="px-3 py-2">{{ r.supplier_bill }}</td>
+              <td class="px-3 py-2">{% if r.amount is not none %}{{ "%.2f"|format(r.amount|float) }}{% else %}{% endif %}</td>
+            </tr>
+            {% else %}
+            <tr>
+              <td class="px-3 py-6 text-center" colspan="10">No records found</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+<script src="{{ url_for('static', filename='js/uppercase.js') }}"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function(){
+  const fc = document.getElementById('flashContainer');
+  if (!fc) return;
+  Array.from(fc.querySelectorAll('.flash-message')).forEach(m => {
+    const cat = m.dataset.category || 'info';
+    const text = m.innerText.trim();
+    if (!text) return;
+    const toast = document.createElement('div');
+    Object.assign(toast.style, {
+      position:'fixed', right:'20px', top:'80px', zIndex:'9999',
+      padding:'14px 20px', borderRadius:'8px', color:'#fff', fontSize:'14px',
+      boxShadow:'0 6px 18px rgba(0,0,0,0.15)',
+      background: cat==='success' ? '#16a34a' : cat==='danger' ? '#dc2626' : '#2563eb'
+    });
+    toast.textContent = text;
+    document.body.appendChild(toast);
+    setTimeout(()=>{ toast.style.transition='opacity 0.4s'; toast.style.opacity='0'; setTimeout(()=>toast.remove(),400); }, 3500);
+  });
+});
+</script>
+<script>
+// Client-side filtering for history table
+document.addEventListener('DOMContentLoaded', function(){
+  const search = document.getElementById('hist_search');
+  const from = document.getElementById('hist_from');
+  const to = document.getElementById('hist_to');
+  const status = document.getElementById('hist_status');
+  const clearBtn = document.getElementById('hist_clear');
+  const tbody = document.querySelector('tbody');
+  if (!tbody) return;
+
+  function parseCellDate(text){
+    if (!text) return null;
+    const m = text.match(/(\d{4}-\d{2}-\d{2})/);
+    if (m) return new Date(m[1]);
+    const d = new Date(text);
+    return isNaN(d.getTime()) ? null : d;
+  }
+
+  function matchesRow(row){
+    const txt = row.innerText.toLowerCase();
+    const q = (search && search.value || '').trim().toLowerCase();
+    if (q && txt.indexOf(q) === -1) return false;
+
+    const statusQ = (status && status.value || '').trim().toLowerCase();
+    if (statusQ){
+      const st = (row.cells[6] && row.cells[6].innerText || '').toLowerCase();
+      if (st.indexOf(statusQ) === -1) return false;
+    }
+
+    const fromVal = from && from.value;
+    const toVal = to && to.value;
+    if (fromVal || toVal){
+      const dateText = row.cells[0] && row.cells[0].innerText || '';
+      const dt = parseCellDate(dateText);
+      if (!dt) return false;
+      if (fromVal){
+        const f = new Date(fromVal + 'T00:00:00');
+        if (dt < f) return false;
+      }
+      if (toVal){
+        const t = new Date(toVal + 'T23:59:59');
+        if (dt > t) return false;
+      }
+    }
+
+    return true;
+  }
+
+  function applyFilter(){
+    const rows = Array.from(tbody.querySelectorAll('tr'));
+    rows.forEach(r => {
+      if (r.querySelectorAll('td').length === 0) return;
+      r.style.display = matchesRow(r) ? '' : 'none';
+    });
+  }
+
+  [search, from, to, status].forEach(el => { if (el) el.addEventListener('input', applyFilter); });
+  if (clearBtn) clearBtn.addEventListener('click', function(){ if (search) search.value=''; if (from) from.value=''; if (to) to.value=''; if (status) status.value=''; applyFilter(); });
+});
+</script>
+</body>
+</html>
+</html>
