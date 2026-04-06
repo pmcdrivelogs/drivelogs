@@ -615,6 +615,42 @@ def get_daily_technical_remarks_page(page=1, per_page=10):
         return {'records': [], 'page': page, 'per_page': per_page, 'has_more': False}
 
 
+def get_daily_technical_remarks_by_vehicle_date(vehicle_id, date_str):
+    """Return all daily technical remarks rows matching vehicle_id and date.
+
+    date_str should be 'YYYY-MM-DD'.  The query filters on the `date` column;
+    if no rows match we also try matching on the date portion of `created_at`
+    so older records saved without an explicit date are still found.
+    """
+    try:
+        cols = 'id, vehicle_id, registration_no, date, kilometer, drivers_voice, technical_observation, day_end_status, materials_purchased, supplier_bill, amount, created_at'
+        vehicle_id_str = str(vehicle_id)
+        # Primary: match on the date column
+        res = supabase.table('daily_technical_remarks').select(cols) \
+            .eq('vehicle_id', vehicle_id_str) \
+            .eq('date', date_str) \
+            .order('created_at', desc=True) \
+            .execute()
+        data = res.data or []
+        # Fallback: if not found, match created_at date portion
+        if not data:
+            day_start = date_str + 'T00:00:00'
+            day_end   = date_str + 'T23:59:59'
+            res2 = supabase.table('daily_technical_remarks').select(cols) \
+                .eq('vehicle_id', vehicle_id_str) \
+                .gte('created_at', day_start) \
+                .lte('created_at', day_end) \
+                .order('created_at', desc=True) \
+                .execute()
+            data = res2.data or []
+        return data
+    except Exception as e:
+        print(f'Error fetching daily technical remarks by vehicle/date: {e}')
+        import traceback
+        traceback.print_exc()
+        return []
+
+
 def save_maintenance_entry(entry_data):
     """Save a single maintenance job card entry to `maintenance_entry` table."""
     try:
