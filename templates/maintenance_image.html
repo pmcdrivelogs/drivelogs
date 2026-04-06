@@ -69,7 +69,37 @@
             </select>
           </div>
 
+          <div class="form-row">
+            <label class="form-label">Remarks Lookup Date</label><span class="colon">:</span>
+            <div class="flex items-center gap-2 flex-1">
+              <input id="remarksLookupDate" type="date" class="form-input" style="max-width:200px;" title="Pick the date to look up daily technical remarks for the selected vehicle">
+              <button type="button" id="fetchRemarksBtn" class="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-xl text-sm font-semibold">Fetch Remarks</button>
+              <span id="remarksLookupStatus" class="text-xs text-gray-400"></span>
+            </div>
+          </div>
+
           <div class="form-row"><label class="form-label">Registration Number</label><span class="colon">:</span><input id="registrationInput" type="text" name="registration_no" class="form-input" placeholder="Auto Fetch Registration Number Using Vehicle ID" readonly></div>
+
+          <!-- Daily Remarks Info Panel — shown when vehicle+date match a history record -->
+          <div id="dailyRemarksPanel" style="display:none;" class="mb-4 p-4 rounded-xl border-2 border-teal-300 bg-teal-50">
+            <div class="flex items-center justify-between mb-2">
+              <span class="font-bold text-teal-800 text-sm">Daily Technical Remarks found for this vehicle &amp; date</span>
+              <div class="flex gap-2">
+                <button type="button" id="fillRemarksBtn" class="px-3 py-1 bg-teal-600 hover:bg-teal-700 text-white rounded text-xs font-semibold">Fill into form</button>
+                <button type="button" id="dismissRemarksBtn" class="px-3 py-1 bg-gray-300 hover:bg-gray-400 text-gray-800 rounded text-xs">Dismiss</button>
+              </div>
+            </div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
+              <div><span class="font-semibold text-gray-600">Kilometer:</span> <span id="dr_km" class="text-gray-800"></span></div>
+              <div><span class="font-semibold text-gray-600">Day-end Status:</span> <span id="dr_status" class="text-gray-800"></span></div>
+              <div class="md:col-span-2"><span class="font-semibold text-gray-600">Driver's Voice:</span> <span id="dr_drivers_voice" class="text-gray-800 whitespace-pre-wrap"></span></div>
+              <div class="md:col-span-2"><span class="font-semibold text-gray-600">Technical Observation:</span> <span id="dr_observation" class="text-gray-800 whitespace-pre-wrap"></span></div>
+              <div><span class="font-semibold text-gray-600">Materials Purchased:</span> <span id="dr_materials" class="text-gray-800"></span></div>
+              <div><span class="font-semibold text-gray-600">Supplier / Bill:</span> <span id="dr_supplier" class="text-gray-800"></span></div>
+              <div><span class="font-semibold text-gray-600">Amount:</span> <span id="dr_amount" class="text-gray-800"></span></div>
+            </div>
+            <p class="text-xs text-teal-700 mt-2">* Click <strong>Fill into form</strong> to copy Driver's Voice &amp; Technical Observation into the job card fields.</p>
+          </div>
 
           <div class="form-row"><label class="form-label">Current Kilometer</label><span class="colon">:</span><input id="currentKmInput" type="number" name="current_km" class="form-input" placeholder="Enter current odometer reading" step="1"></div>
           <div class="form-row"><label class="form-label">Driver Incharge</label><span class="colon">:</span><textarea name="driver_incharge" class="form-textarea"></textarea></div>
@@ -377,6 +407,108 @@
       })();
     </script>
     <script src="{{ url_for('static', filename='js/uppercase.js') }}"></script>
+    <script>
+    // ── Daily Remarks auto-fetch ──────────────────────────────────────────────
+    // Uses the dedicated "Remarks Lookup Date" picker + Vehicle ID select.
+    // Triggers automatically on vehicle/date change, or on "Fetch Remarks" click.
+    (function(){
+      const panel       = document.getElementById('dailyRemarksPanel');
+      const fillBtn     = document.getElementById('fillRemarksBtn');
+      const dismissBtn  = document.getElementById('dismissRemarksBtn');
+      const fetchBtn    = document.getElementById('fetchRemarksBtn');
+      const statusEl    = document.getElementById('remarksLookupStatus');
+      const vehicleSel  = document.getElementById('vehicleSelect');
+      const lookupDate  = document.getElementById('remarksLookupDate');
+
+      const drKm        = document.getElementById('dr_km');
+      const drStatus    = document.getElementById('dr_status');
+      const drVoice     = document.getElementById('dr_drivers_voice');
+      const drObs       = document.getElementById('dr_observation');
+      const drMaterials = document.getElementById('dr_materials');
+      const drSupplier  = document.getElementById('dr_supplier');
+      const drAmount    = document.getElementById('dr_amount');
+
+      let currentRemark = null;
+
+      // Default lookup date to today on page load
+      document.addEventListener('DOMContentLoaded', function(){
+        if(lookupDate && !lookupDate.value)
+          lookupDate.value = new Date().toISOString().split('T')[0];
+        // auto-fetch when editing an existing entry
+        if(vehicleSel && vehicleSel.value && lookupDate && lookupDate.value) fetchRemarks();
+      });
+
+      function setStatus(msg, color){
+        if(!statusEl) return;
+        statusEl.textContent = msg;
+        statusEl.style.color = color || '#6b7280';
+      }
+
+      function showPanel(r){
+        currentRemark = r;
+        drKm.textContent        = r.kilometer             || '';
+        drStatus.textContent    = r.day_end_status        || '';
+        drVoice.textContent     = r.drivers_voice         || '';
+        drObs.textContent       = r.technical_observation || '';
+        drMaterials.textContent = r.materials_purchased   || '';
+        drSupplier.textContent  = r.supplier_bill         || '';
+        drAmount.textContent    = r.amount != null ? parseFloat(r.amount).toFixed(2) : '';
+        panel.style.display     = '';
+        panel.style.borderColor = '#5eead4';
+        setStatus('Record found', '#0f766e');
+      }
+
+      function hidePanel(){
+        panel.style.display = 'none';
+        currentRemark = null;
+      }
+
+      function fetchRemarks(){
+        const vid  = vehicleSel && vehicleSel.value;
+        const date = lookupDate && lookupDate.value;
+        if(!vid)  { setStatus('Select a vehicle first', '#dc2626'); hidePanel(); return; }
+        if(!date) { setStatus('Pick a date first',      '#dc2626'); hidePanel(); return; }
+        setStatus('Searching...', '#6b7280');
+
+        fetch('/api/daily-technical-remarks/by-vehicle-date?vehicle_id=' + encodeURIComponent(vid) + '&date=' + encodeURIComponent(date), {
+          credentials: 'same-origin'
+        })
+        .then(r => r.json())
+        .then(data => {
+          if(data && data.records && data.records.length > 0){
+            showPanel(data.records[0]);
+          } else {
+            hidePanel();
+            setStatus('No remarks found for this vehicle & date', '#b45309');
+          }
+        })
+        .catch(()=>{ hidePanel(); setStatus('Error fetching remarks', '#dc2626'); });
+      }
+
+      if(vehicleSel)  vehicleSel.addEventListener('change', fetchRemarks);
+      if(lookupDate)  lookupDate.addEventListener('change', fetchRemarks);
+      if(fetchBtn)    fetchBtn.addEventListener('click', fetchRemarks);
+
+      if(fillBtn){
+        fillBtn.addEventListener('click', function(){
+          if(!currentRemark) return;
+          const voiceTA = document.querySelector('textarea[name="drivers_voice"]');
+          const obsTA   = document.querySelector('textarea[name="technician_observation"]');
+          if(voiceTA && currentRemark.drivers_voice)
+            voiceTA.value = String(currentRemark.drivers_voice).toUpperCase();
+          if(obsTA && currentRemark.technical_observation)
+            obsTA.value = String(currentRemark.technical_observation).toUpperCase();
+          if(currentRemark.kilometer){
+            const kmInput = document.getElementById('currentKmInput');
+            if(kmInput && !kmInput.value) kmInput.value = currentRemark.kilometer;
+          }
+          panel.style.borderColor = '#16a34a';
+        });
+      }
+
+      if(dismissBtn) dismissBtn.addEventListener('click', function(){ hidePanel(); setStatus('', ''); });
+    })();
+    </script>
 {% include 'footer.html' %}
 </body>
 </html>
