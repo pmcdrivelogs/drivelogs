@@ -51,6 +51,7 @@
               <th class="px-3 py-2 text-left">Materials Purchased</th>
               <th class="px-3 py-2 text-left">Supplier / Bill No. / Dt.</th>
               <th class="px-3 py-2 text-left">Amount</th>
+              <th class="px-3 py-2 text-left">Actions</th>
             </tr>
           </thead>
           <tbody class="bg-white divide-y divide-gray-200">
@@ -66,6 +67,9 @@
               <td class="px-3 py-2">{{ r.materials_purchased }}</td>
               <td class="px-3 py-2">{{ r.supplier_bill }}</td>
               <td class="px-3 py-2">{% if r.amount is not none %}{{ "%.2f"|format(r.amount|float) }}{% else %}{% endif %}</td>
+              <td class="px-3 py-2">
+                <a href="{{ url_for('edit_daily_technical_remark', remark_id=r.id) }}" class="px-3 py-1 bg-blue-500 text-white rounded text-sm">Edit</a>
+              </td>
             </tr>
             {% else %}
             <tr>
@@ -74,6 +78,22 @@
             {% endfor %}
           </tbody>
         </table>
+        <!-- Pagination controls -->
+        <div class="mt-4 flex items-center justify-between">
+          <div>
+            {% if page and page > 1 %}
+              <a href="{{ url_for('daily_technical_remarks_history') }}?page={{ page-1 }}" class="px-3 py-2 bg-gray-200 rounded">&larr; Previous</a>
+            {% endif %}
+          </div>
+          <div class="text-sm text-gray-600">
+            Page {{ page or 1 }}
+          </div>
+          <div>
+            {% if has_more %}
+              <a href="{{ url_for('daily_technical_remarks_history') }}?page={{ (page or 1) + 1 }}" class="px-3 py-2 bg-gray-200 rounded">Next &rarr;</a>
+            {% endif %}
+          </div>
+        </div>
       </div>
     </div>
   </div>
