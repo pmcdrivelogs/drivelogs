@@ -52,7 +52,7 @@ from database import (
 )
 from database import save_dc_entry, get_all_dc_entries, get_dc_entry, get_last_dc_save_error, _get_next_dc_number
 from database import get_all_daily_technical_remarks
-from database import get_daily_technical_remark_by_id, update_daily_technical_remark, get_daily_technical_remarks_page
+from database import get_daily_technical_remark_by_id, update_daily_technical_remark, get_daily_technical_remarks_page, get_daily_technical_remarks_by_vehicle_date
 from database import save_material_utilization, consume_part_from_purchases
 from datetime import datetime
 import time
@@ -5807,6 +5807,21 @@ def edit_daily_technical_remark(remark_id):
         flash('An error occurred while updating the record', 'danger')
 
     return redirect(url_for('daily_technical_remarks_history'))
+
+
+@app.route('/api/daily-technical-remarks/by-vehicle-date', methods=['GET'])
+@login_required
+def api_daily_technical_remarks_by_vehicle_date():
+    """Return daily technical remarks matching a vehicle_id and date (YYYY-MM-DD)."""
+    vehicle_id = request.args.get('vehicle_id', '').strip()
+    date_str   = request.args.get('date', '').strip()
+    if not vehicle_id or not date_str:
+        return jsonify({'error': 'vehicle_id and date are required'}), 400
+    try:
+        records = get_daily_technical_remarks_by_vehicle_date(vehicle_id, date_str)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+    return jsonify({'count': len(records), 'records': records})
 
 
 @app.route('/api/daily-technical-remarks/recent', methods=['GET'])
