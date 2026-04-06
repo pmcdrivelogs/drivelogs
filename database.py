@@ -534,6 +534,87 @@ def get_all_daily_technical_remarks(limit=1000):
         return []
 
 
+def get_daily_technical_remark_by_id(rem_id):
+    """Return a single daily technical remark by id or None."""
+    try:
+        cols = 'id, vehicle_id, registration_no, date, kilometer, drivers_voice, technical_observation, day_end_status, materials_purchased, supplier_bill, amount, created_at'
+        response = supabase.table('daily_technical_remarks').select(cols).eq('id', rem_id).execute()
+        if getattr(response, 'data', None):
+            return response.data[0]
+        return None
+    except Exception as e:
+        print(f'Error fetching daily technical remark {rem_id}: {e}')
+        import traceback
+        traceback.print_exc()
+        return None
+
+
+def update_daily_technical_remark(rem_id, update_data):
+    """Update a daily_technical_remarks row by id. Returns updated row or None."""
+    try:
+        allowed = {'date', 'vehicle_id', 'registration_no', 'kilometer', 'drivers_voice', 'technical_observation', 'day_end_status', 'materials_purchased', 'supplier_bill', 'amount'}
+        clean = {}
+        for k, v in update_data.items():
+            if k in allowed:
+                # keep values as-is except normalize empty strings
+                if v is None:
+                    clean[k] = None
+                else:
+                    clean[k] = v
+
+        # Normalize amount
+        if 'amount' in clean:
+            raw_amount = str(clean.get('amount') or '').strip()
+            try:
+                clean['amount'] = float(raw_amount) if raw_amount != '' else None
+            except ValueError:
+                clean['amount'] = None
+
+        # Set updated_at if DB uses it (safe to include)
+        try:
+            from datetime import datetime
+            clean['updated_at'] = datetime.now().isoformat()
+        except Exception:
+            pass
+
+        res = supabase.table('daily_technical_remarks').update(clean).eq('id', rem_id).execute()
+        return res.data[0] if getattr(res, 'data', None) else None
+    except Exception as e:
+        print(f'Error updating daily technical remark {rem_id}: {e}')
+        import traceback
+        traceback.print_exc()
+        return None
+
+def get_daily_technical_remarks_page(page=1, per_page=10):
+    """Return a page of daily technical remarks and a has_more flag.
+
+    Uses Supabase range query to fetch (per_page+1) records so we can
+    determine whether there is a next page without an extra count query.
+    """
+    try:
+        if page < 1:
+            page = 1
+        start = (page - 1) * per_page
+        end = start + per_page  # fetch one extra to detect more
+        cols = 'id, vehicle_id, registration_no, date, kilometer, drivers_voice, technical_observation, day_end_status, materials_purchased, supplier_bill, amount, created_at'
+        response = supabase.table('daily_technical_remarks').select(cols).order('created_at', desc=True).range(start, end).execute()
+        data = response.data or []
+        has_more = len(data) > per_page
+        if has_more:
+            data = data[:per_page]
+        return {
+            'records': data,
+            'page': page,
+            'per_page': per_page,
+            'has_more': has_more
+        }
+    except Exception as e:
+        print(f'Error paginating daily technical remarks: {e}')
+        import traceback
+        traceback.print_exc()
+        return {'records': [], 'page': page, 'per_page': per_page, 'has_more': False}
+
+
 def save_maintenance_entry(entry_data):
     """Save a single maintenance job card entry to `maintenance_entry` table."""
     try:
