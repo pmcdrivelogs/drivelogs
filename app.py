@@ -52,6 +52,7 @@ from database import (
 )
 from database import save_dc_entry, get_all_dc_entries, get_dc_entry, get_last_dc_save_error, _get_next_dc_number
 from database import get_all_daily_technical_remarks
+from database import get_daily_technical_remark_by_id, update_daily_technical_remark, get_daily_technical_remarks_page
 from database import save_material_utilization, consume_part_from_purchases
 from datetime import datetime
 import time
@@ -5763,14 +5764,49 @@ def daily_technical_remarks():
 @login_required
 def daily_technical_remarks_history():
     try:
-        records = get_all_daily_technical_remarks() or []
+        # Pagination: page number from query params
+        page = int(request.args.get('page', '1') or 1)
+        per_page = 10
+        page_data = get_daily_technical_remarks_page(page=page, per_page=per_page)
+        records = page_data.get('records', [])
+        has_more = page_data.get('has_more', False)
     except Exception:
         records = []
+        has_more = False
     try:
         current_app.logger.info('Fetched %d daily technical remark records for history', len(records))
     except Exception:
         pass
-    return render_template('daily_technical_remarks_history.html', records=records)
+    return render_template('daily_technical_remarks_history.html', records=records, page=page, per_page=per_page, has_more=has_more)
+
+
+@app.route('/daily-technical-remarks/edit/<int:remark_id>', methods=['GET', 'POST'])
+@login_required
+def edit_daily_technical_remark(remark_id):
+    try:
+        if request.method == 'GET':
+            record = get_daily_technical_remark_by_id(remark_id)
+            if not record:
+                flash('Record not found', 'danger')
+                return redirect(url_for('daily_technical_remarks_history'))
+            return render_template('daily_technical_remarks_edit.html', record=record)
+
+        # POST: update
+        fields = ['date', 'vehicle_id', 'registration_no', 'kilometer', 'drivers_voice', 'technical_observation', 'day_end_status', 'materials_purchased', 'supplier_bill', 'amount']
+        payload = {f: request.form.get(f) for f in fields}
+        updated = update_daily_technical_remark(remark_id, payload)
+        if updated:
+            flash('Daily technical remark updated', 'success')
+        else:
+            flash('Failed to update daily technical remark', 'danger')
+    except Exception as e:
+        try:
+            current_app.logger.exception('Error editing daily technical remark')
+        except Exception:
+            print('Error editing daily technical remark', e)
+        flash('An error occurred while updating the record', 'danger')
+
+    return redirect(url_for('daily_technical_remarks_history'))
 
 
 @app.route('/api/daily-technical-remarks/recent', methods=['GET'])
