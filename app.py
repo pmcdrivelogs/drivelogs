@@ -2784,7 +2784,18 @@ def statutory():
         vehicles = get_all_vehicles() or []
     except Exception:
         vehicles = []
-    return render_template('statutory.html', entry_no=next_entry_no, vehicles=vehicles)
+    # Prefill from URL params (used when arriving from admin dashboard "Pay Now")
+    prefill_vehicle_id = request.args.get('prefill_vehicle_id', '')
+    prefill_reg_no = request.args.get('prefill_reg_no', '')
+    prefill_transaction = request.args.get('prefill_transaction', '')
+    return render_template(
+        'statutory.html',
+        entry_no=next_entry_no,
+        vehicles=vehicles,
+        prefill_vehicle_id=prefill_vehicle_id,
+        prefill_reg_no=prefill_reg_no,
+        prefill_transaction=prefill_transaction,
+    )
 
 @app.route('/trip-sheet', methods=['GET', 'POST'])
 @login_required

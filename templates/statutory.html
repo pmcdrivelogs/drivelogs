@@ -117,6 +117,22 @@
           regInput.value = reg || '';
         });
       })();
+
+      // Prefill from Pay Now URL params: if vehicle is pre-selected, set reg from its data-reg
+      (function() {
+        const prefillVid = '{{ prefill_vehicle_id | default("") | e }}';
+        const prefillReg = '{{ prefill_reg_no | default("") | e }}';
+        if (!prefillVid) return;
+        const vidSelect = document.getElementById('vehicle_id_select');
+        const regInput = document.querySelector('input[name="registration_no"]');
+        if (!vidSelect || !regInput) return;
+        // Find the matching option and get its data-reg if prefill_reg_no was not set
+        if (!prefillReg) {
+          const opts = Array.from(vidSelect.options);
+          const match = opts.find(o => o.value === prefillVid);
+          if (match) regInput.value = match.getAttribute('data-reg') || '';
+        }
+      })();
     });
     
     // Show success modal
@@ -404,7 +420,9 @@
               <option value="">Select Vehicle</option>
               {% if vehicles %}
                 {% for v in vehicles %}
-                  <option value="{{ v.vehicle_id or v.id }}" data-reg="{{ v.registration_no or '' }}">{{ v.vehicle_id or v.id }}{% if v.registration_no %} — {{ v.registration_no }}{% endif %}</option>
+                  <option value="{{ v.vehicle_id or v.id }}" data-reg="{{ v.registration_no or '' }}"
+                    {% if prefill_vehicle_id and (prefill_vehicle_id | string) == (v.vehicle_id or v.id | string) %}selected{% endif %}
+                  >{{ v.vehicle_id or v.id }}{% if v.registration_no %} — {{ v.registration_no }}{% endif %}</option>
                 {% endfor %}
               {% endif %}
             </select>
@@ -414,7 +432,7 @@
           <div class="flex items-center gap-4">
             <label class="form-label w-52">REGISTRATION NO</label>
             <span class="text-gray-600 font-bold">:</span>
-            <input type="text" name="registration_no" class="form-input" value="{{ registration_no or '' }}" placeholder="e.g., TN01AB1234">
+            <input type="text" name="registration_no" class="form-input" value="{{ prefill_reg_no or registration_no or '' }}" placeholder="e.g., TN01AB1234">
           </div>
 
           <!-- Invoice No -->
@@ -444,12 +462,13 @@
             <span class="text-gray-600 font-bold">:</span>
             <select name="type_of_transaction" class="form-input">
               <option value="">Select</option>
-              <option value="Road Tax">Road Tax</option>
-              <option value="Insurance">Insurance</option>
-              <option value="Permit">Permit</option>
-              <option value="Fitness Certificate">Fitness Certificate</option>
-              <option value="Pollution Certificate">Pollution Certificate</option>
-              <option value="Registration">Registration</option>
+              {% set _tx = prefill_transaction | default('') %}
+              <option value="Road Tax" {% if _tx == 'Road Tax' %}selected{% endif %}>Road Tax</option>
+              <option value="Insurance" {% if _tx == 'Insurance' %}selected{% endif %}>Insurance</option>
+              <option value="Permit" {% if _tx == 'Permit' %}selected{% endif %}>Permit</option>
+              <option value="Fitness Certificate" {% if _tx == 'Fitness Certificate' %}selected{% endif %}>Fitness Certificate</option>
+              <option value="Pollution Certificate" {% if _tx == 'Pollution Certificate' %}selected{% endif %}>Pollution Certificate</option>
+              <option value="Registration" {% if _tx == 'Registration' %}selected{% endif %}>Registration</option>
               <option value="Other">Other</option>
             </select>
           </div>

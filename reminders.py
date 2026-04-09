@@ -5,7 +5,7 @@ from dateutil import parser as date_parser
 import logging
 
 from email_helper import send_email, format_vehicle_reminder
-from database import get_all_vehicles
+from database import get_all_vehicles, get_all_statutory_records
 
 logger = logging.getLogger(__name__)
 
@@ -17,6 +17,16 @@ VEHICLE_DATE_FIELDS = {
     'permit_validity': 'Permit Validity',
     'pucc_validity': 'PUCC Validity',
     'tax_validity': 'Tax Validity'
+}
+
+# Human-readable labels for vehicle validity fields used in statutory alerts
+_STATUTORY_FIELD_LABELS = {
+    'fitness_validity': 'Fitness Certificate',
+    'insurance_validity': 'Insurance',
+    'registration_validity': 'Registration',
+    'permit_validity': 'Permit',
+    'pucc_validity': 'Pollution Certificate',
+    'tax_validity': 'Road Tax',
 }
 
 LOG_FILE = os.path.join(os.path.dirname(__file__), 'email_sent_log.json')
@@ -176,6 +186,158 @@ def check_and_send_validity_reminders(reminder_days=None):
     logger.info('Validity reminders run complete — emails sent: %d', sends)
 
 
+def _collect_statutory_alerts(reminder_days=30):
+    """Return a list of alert dicts for all statutory/vehicle records expiring within reminder_days (or overdue)."""
+    today = date.today()
+    alerts = []
+
+    # 1. Statutory table records
+    try:
+        records = get_all_statutory_records() or []
+    except Exception:
+        records = []
+
+    for rec in records:
+        raw = rec.get('validity_date')
+        if not raw:
+            continue
+        parsed = _parse_date(raw)
+        if not parsed:
+            continue
+        days_left = (parsed - today).days
+        if days_left <= reminder_days:
+            alerts.append({
+                'record_type': rec.get('type_of_transaction', 'Statutory'),
+                'vehicle_id': rec.get('vehicle_id') or rec.get('statutory_body_id') or 'Unknown',
+                'registration_no': rec.get('registration_no') or 'N/A',
+                'next_due': parsed.strftime('%d-%m-%Y'),
+                'days_remaining': days_left,
+                'status': 'OVERDUE' if days_left < 0 else 'DUE SOON',
+            })
+
+    # 2. Vehicle-level validity date fields
+    try:
+        vehicles = get_all_vehicles() or []
+    except Exception:
+        vehicles = []
+
+    for v in vehicles:
+        vid = v.get('vehicle_id') or v.get('id') or 'Unknown'
+        reg = v.get('registration_no') or v.get('registration') or 'N/A'
+        for field_key, label in _STATUTORY_FIELD_LABELS.items():
+            raw = v.get(field_key)
+            if not raw:
+                continue
+            parsed = _parse_date(raw)
+            if not parsed:
+                continue
+            days_left = (parsed - today).days
+            if days_left <= reminder_days:
+                alerts.append({
+                    'record_type': label,
+                    'vehicle_id': vid,
+                    'registration_no': reg,
+                    'next_due': parsed.strftime('%d-%m-%Y'),
+                    'days_remaining': days_left,
+                    'status': 'OVERDUE' if days_left < 0 else 'DUE SOON',
+                })
+
+    alerts.sort(key=lambda x: x['days_remaining'])
+    return alerts
+
+
+def send_statutory_alerts_email(reminder_days=None):
+    """Collect all statutory/vehicle expiry alerts and send a single summary email."""
+    settings = get_settings() or {}
+    if not settings.get('enabled', True):
+        logger.info('Reminders disabled by settings — skipping statutory alert email')
+        return
+
+    try:
+        reminder_days = int(reminder_days or settings.get('reminder_days') or os.getenv('REMINDER_DAYS', '30'))
+    except Exception:
+        reminder_days = 30
+
+    recipients = settings.get('recipients') or os.getenv('EMAIL_TO') or os.getenv('ADMIN_EMAIL')
+    if not recipients:
+        logger.warning('No recipients configured — skipping statutory alert email')
+        return
+
+    alerts = _collect_statutory_alerts(reminder_days)
+    if not alerts:
+        logger.info('No statutory alerts to send today')
+        return
+
+    today_str = date.today().strftime('%d-%m-%Y')
+    subject = f'Statutory Records Alert — {today_str} ({len(alerts)} item(s))'
+
+    # Plain-text body
+    lines = [
+        f'Statutory Records Alert — {today_str}',
+        f'Records expiring within {reminder_days} days (or already overdue)',
+        '',
+        f'{"Type":<28} {"Vehicle ID":<12} {"Reg No":<16} {"Next Due":<14} {"Status"}',
+        '-' * 90,
+    ]
+    for a in alerts:
+        lines.append(
+            f'{a["record_type"]:<28} {str(a["vehicle_id"]):<12} {a["registration_no"]:<16} '
+            f'{a["next_due"]:<14} {a["status"]}'
+        )
+    lines += ['', f'Total: {len(alerts)} record(s)', '-- Drive Logs Reminder System']
+    plain_body = '\n'.join(lines)
+
+    # HTML body with a styled table matching the dashboard popup look
+    rows_html = ''
+    for a in alerts:
+        badge_class = 'background:#e53e3e;color:#fff;' if a['status'] == 'OVERDUE' else 'background:#dd6b20;color:#fff;'
+        rows_html += (
+            f'<tr>'
+            f'<td style="padding:8px 12px;border-bottom:1px solid #e2e8f0;">{a["record_type"]}</td>'
+            f'<td style="padding:8px 12px;border-bottom:1px solid #e2e8f0;">{a["vehicle_id"]}</td>'
+            f'<td style="padding:8px 12px;border-bottom:1px solid #e2e8f0;">{a["registration_no"]}</td>'
+            f'<td style="padding:8px 12px;border-bottom:1px solid #e2e8f0;">{a["next_due"]}</td>'
+            f'<td style="padding:8px 12px;border-bottom:1px solid #e2e8f0;">'
+            f'<span style="padding:2px 8px;border-radius:4px;font-size:12px;font-weight:bold;{badge_class}">'
+            f'{a["status"]}</span></td>'
+            f'</tr>'
+        )
+
+    html_body = f"""
+<html><body style="font-family:Arial,sans-serif;background:#f7fafc;padding:24px;">
+  <div style="max-width:700px;margin:0 auto;background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.1);">
+    <div style="background:#3730a3;color:#fff;padding:20px 24px;">
+      <h2 style="margin:0;font-size:20px;">&#9888; Statutory Records Alert</h2>
+      <p style="margin:4px 0 0;font-size:14px;">Records expiring within {reminder_days} days &mdash; {today_str}</p>
+    </div>
+    <div style="padding:20px 24px;">
+      <table style="width:100%;border-collapse:collapse;font-size:14px;">
+        <thead>
+          <tr style="background:#edf2f7;">
+            <th style="padding:8px 12px;text-align:left;border-bottom:2px solid #e2e8f0;">Type</th>
+            <th style="padding:8px 12px;text-align:left;border-bottom:2px solid #e2e8f0;">Vehicle ID</th>
+            <th style="padding:8px 12px;text-align:left;border-bottom:2px solid #e2e8f0;">Reg No</th>
+            <th style="padding:8px 12px;text-align:left;border-bottom:2px solid #e2e8f0;">Next Due</th>
+            <th style="padding:8px 12px;text-align:left;border-bottom:2px solid #e2e8f0;">Status</th>
+          </tr>
+        </thead>
+        <tbody>{rows_html}</tbody>
+      </table>
+      <p style="margin-top:16px;font-size:13px;color:#718096;">Total: {len(alerts)} record(s) &mdash; Drive Logs Reminder System</p>
+    </div>
+  </div>
+</body></html>
+"""
+
+    ok = send_email(subject, html_body, to_addrs=recipients, html=True)
+    if ok:
+        logger.info('Statutory alert email sent to %s (%d alerts)', recipients, len(alerts))
+    else:
+        # fallback to plain text
+        ok = send_email(subject, plain_body, to_addrs=recipients, html=False)
+        logger.info('Statutory alert email (plain) sent: %s', ok)
+
+
 def start_scheduler(app=None):
     """Start a background scheduler to run the reminders daily.
 
@@ -195,8 +357,9 @@ def start_scheduler(app=None):
     scheduler = BackgroundScheduler()
     try:
         scheduler.add_job(lambda: check_and_send_validity_reminders(), 'cron', hour=hour, minute=minute)
+        scheduler.add_job(lambda: send_statutory_alerts_email(), 'cron', hour=hour, minute=minute, id='statutory_alerts_daily')
         scheduler.start()
-        logger.info('Started reminders scheduler (daily at %s:%s)', hour, minute)
+        logger.info('Started reminders scheduler (daily at %s:%s) — validity + statutory alerts', hour, minute)
         if app is not None:
             try:
                 app.extensions = getattr(app, 'extensions', {})
@@ -212,3 +375,4 @@ def start_scheduler(app=None):
 if __name__ == '__main__':
     # allow running ad-hoc
     check_and_send_validity_reminders()
+    send_statutory_alerts_email()
