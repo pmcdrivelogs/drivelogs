@@ -5775,12 +5775,24 @@ def daily_technical_remarks():
 @login_required
 def daily_technical_remarks_history():
     try:
-        # Pagination: page number from query params
-        page = int(request.args.get('page', '1') or 1)
-        per_page = 10
-        page_data = get_daily_technical_remarks_page(page=page, per_page=per_page)
-        records = page_data.get('records', [])
-        has_more = page_data.get('has_more', False)
+        # Allow showing all records via ?per_page=all or a numeric per_page query
+        per_page_arg = request.args.get('per_page')
+        if per_page_arg == 'all':
+            # Fetch all (bounded by database-side limit)
+            records = get_all_daily_technical_remarks()
+            page = 1
+            per_page = len(records) if records is not None else 0
+            has_more = False
+        else:
+            # Pagination: page number from query params
+            page = int(request.args.get('page', '1') or 1)
+            try:
+                per_page = int(per_page_arg) if per_page_arg and str(per_page_arg).isdigit() else 10
+            except Exception:
+                per_page = 10
+            page_data = get_daily_technical_remarks_page(page=page, per_page=per_page)
+            records = page_data.get('records', [])
+            has_more = page_data.get('has_more', False)
     except Exception:
         records = []
         has_more = False
