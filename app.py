@@ -5699,29 +5699,30 @@ def daily_technical_remarks():
             # Get arrays from form (one row per vehicle)
             vehicle_ids = request.form.getlist('vehicle_id[]')
             registration_nos = request.form.getlist('registration_no[]')
-            daily_date = request.form.get('daily_date')
+            daily_date = request.form.get('daily_date')  # fallback header date
+            row_dates = request.form.getlist('row_date[]')  # per-row date inputs
             kilometers = request.form.getlist('kilometer[]')
             drivers_voices = request.form.getlist('drivers_voice[]')
             technical_observations = request.form.getlist('technical_observation[]')
-            day_end_statuses = request.form.getlist('day_end_status[]')
             materials_purchased_list = request.form.getlist('materials_purchased[]')
             supplier_bills = request.form.getlist('supplier_bill[]')
             amounts = request.form.getlist('amount[]')
 
-            # Build entries by vehicle rows; use one common daily_date for all
+            # Build entries by vehicle rows; status always defaults to Pending
             remarks_entries = []
             rows = len(vehicle_ids)
             for i in range(rows):
                 vid = vehicle_ids[i] if i < len(vehicle_ids) else ''
                 reg = (registration_nos[i] if i < len(registration_nos) else '')
+                row_date = (row_dates[i] if i < len(row_dates) and row_dates[i] else None)
                 entry = {
                     'vehicle_id': vid,
                     'registration_no': reg.upper() if reg else '',
-                    'date': (daily_date if daily_date else None),
+                    'date': row_date or (daily_date if daily_date else None),
                     'kilometer': (kilometers[i] if i < len(kilometers) else ''),
                     'drivers_voice': (drivers_voices[i] if i < len(drivers_voices) else ''),
                     'technical_observation': (technical_observations[i] if i < len(technical_observations) else ''),
-                    'day_end_status': (day_end_statuses[i] if i < len(day_end_statuses) else ''),
+                    'day_end_status': 'Pending',
                     'materials_purchased': (materials_purchased_list[i] if i < len(materials_purchased_list) else ''),
                     'supplier_bill': (supplier_bills[i] if i < len(supplier_bills) else ''),
                     'amount': (amounts[i] if i < len(amounts) else '')
@@ -5752,6 +5753,15 @@ def daily_technical_remarks():
     # Pass current vehicles so registration numbers populate automatically
     vehicles = get_all_vehicles() or []
 
+    # Fetch all DTR history and group by vehicle_id (string key)
+    all_dtr_history = get_all_daily_technical_remarks() or []
+    vehicle_history = {}
+    for rec in all_dtr_history:
+        vid = str(rec.get('vehicle_id', ''))
+        if vid not in vehicle_history:
+            vehicle_history[vid] = []
+        vehicle_history[vid].append(rec)
+
     # Build mapping vehicle_id -> latest trip closing kilometer
     latest_kms = {}
     try:
@@ -5768,7 +5778,8 @@ def daily_technical_remarks():
     except Exception:
         latest_kms = {}
 
-    return render_template('daily_technical_remarks.html', vehicles=vehicles, latest_kms=latest_kms)
+    # All vehicles always show; arrested entries are filtered per-entry in the template
+    return render_template('daily_technical_remarks.html', vehicles=vehicles, latest_kms=latest_kms, vehicle_history=vehicle_history)
 
 
 @app.route('/daily-technical-remarks/history', methods=['GET'])
@@ -5800,7 +5811,11 @@ def daily_technical_remarks_history():
         current_app.logger.info('Fetched %d daily technical remark records for history', len(records))
     except Exception:
         pass
-    return render_template('daily_technical_remarks_history.html', records=records, page=page, per_page=per_page, has_more=has_more)
+    pending_records  = [r for r in (records or []) if 'arrest' not in (r.get('day_end_status') or '').lower()]
+    arrested_records = [r for r in (records or []) if 'arrest' in (r.get('day_end_status') or '').lower()]
+    return render_template('daily_technical_remarks_history.html',
+                           records=records, pending_records=pending_records, arrested_records=arrested_records,
+                           page=page, per_page=per_page, has_more=has_more)
 
 
 @app.route('/daily-technical-remarks/edit/<int:remark_id>', methods=['GET', 'POST'])
@@ -5830,6 +5845,25 @@ def edit_daily_technical_remark(remark_id):
         flash('An error occurred while updating the record', 'danger')
 
     return redirect(url_for('daily_technical_remarks_history'))
+
+
+@app.route('/daily-technical-remarks/arrest/<int:remark_id>', methods=['POST'])
+@login_required
+def arrest_daily_technical_remark(remark_id):
+    """Mark a DTR entry as Arrested. Vehicle will be hidden from the entry form."""
+    try:
+        updated = update_daily_technical_remark(remark_id, {'day_end_status': 'Arrested'})
+        if updated:
+            flash('Vehicle status updated to Arrested.', 'success')
+        else:
+            flash('Failed to update status to Arrested.', 'danger')
+    except Exception as e:
+        try:
+            current_app.logger.exception('Error arresting daily technical remark')
+        except Exception:
+            print('Error arresting daily technical remark', e)
+        flash('An error occurred while updating the record.', 'danger')
+    return redirect(request.referrer or url_for('daily_technical_remarks_history'))
 
 
 @app.route('/api/daily-technical-remarks/by-vehicle-date', methods=['GET'])
