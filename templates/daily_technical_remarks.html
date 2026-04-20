@@ -48,10 +48,33 @@
       vertical-align: top;
     }
     .remarks-table input,
-    .remarks-table textarea {
-      min-width: 100px;
+    .remarks-table textarea,
+    .remarks-table select {
+      min-width: 80px;
     }
-    /* registration numbers are server-populated and shown as text */
+
+    /* Vehicle toggle header row */
+    .vehicle-toggle-row {
+      background: #eff6ff;
+      cursor: pointer;
+      user-select: none;
+      transition: background 0.15s;
+    }
+    .vehicle-toggle-row:hover { background: #dbeafe; }
+    .vehicle-toggle-row td { border-top: 2px solid #3b82f6 !important; }
+
+    /* History sub-rows */
+    .history-sub-row td { background: #f8fafc; border-bottom: 1px solid #e2e8f0; }
+    .history-sub-row:last-child td { border-bottom: 2px solid #3b82f6; }
+
+    /* Entry input row */
+    .entry-input-row td { background: #fffbeb; }
+
+    /* Status badges */
+    .badge-arrested { display:inline-block; background:#fee2e2; color:#b91c1c; padding:2px 8px; border-radius:999px; font-size:0.68rem; font-weight:700; }
+    .badge-pending  { display:inline-block; background:#fef3c7; color:#b45309; padding:2px 8px; border-radius:999px; font-size:0.68rem; font-weight:700; }
+    .badge-running  { display:inline-block; background:#dcfce7; color:#15803d; padding:2px 8px; border-radius:999px; font-size:0.68rem; font-weight:700; }
+    .badge-other    { display:inline-block; background:#e0e7ff; color:#4338ca; padding:2px 8px; border-radius:999px; font-size:0.68rem; font-weight:700; }
   </style>
 </head>
 <body class="bg-[#fcfcfc] min-h-screen flex flex-col pt-20">
@@ -109,10 +132,10 @@
               <tr>
                 <th>VEHICLE ID</th>
                 <th>REGISTRATION NO</th>
+                <th>DATE</th>
                 <th>CURRENT KILOMETER</th>
                 <th>DRIVERS VOICE<br>(Write Nature of complaints if any or write No work)</th>
-                <th>TECHNICAL ADVISOR'S OBSERVATION<br>& ACTION TAKEN DETAILS</th>
-                <th>DAY-END STATUS<br>ARRESTED/PENDING</th>
+                <th>TECHNICAL ADVISOR'S OBSERVATION<br>&amp; ACTION TAKEN DETAILS</th>
                 <th>MATERIALS<br>PURCHASED</th>
                 <th>SUPPLIER/<br>BILL NO./Dt.</th>
                 <th>AMOUNT</th>
@@ -121,32 +144,104 @@
             <tbody id="remarksBody">
               {% if vehicles and vehicles|length %}
                 {% for vehicle in vehicles %}
-                <tr class="remarks-row">
-                  <td class="text-center font-semibold">{{ vehicle.vehicle_id }}<input type="hidden" name="vehicle_id[]" value="{{ vehicle.vehicle_id }}"></td>
-                  <td class="text-center">{{ vehicle.registration_no or '-' }}<input type="hidden" name="registration_no[]" value="{{ vehicle.registration_no or '' }}"></td>
-                  <td><input type="text" name="kilometer[]" value="{{ latest_kms[vehicle.vehicle_id]|default('') }}" class="w-full px-2 py-1 border border-gray-300 rounded text-sm"></td>
-                  <td><textarea name="drivers_voice[]" rows="2" class="w-full px-2 py-1 border border-gray-300 rounded text-sm"></textarea></td>
-                  <td><textarea name="technical_observation[]" rows="2" class="w-full px-2 py-1 border border-gray-300 rounded text-sm"></textarea></td>
-                  <td><textarea name="day_end_status[]" rows="2" class="w-full px-2 py-1 border border-gray-300 rounded text-sm"></textarea></td>
-                  <td><textarea name="materials_purchased[]" rows="2" class="w-full px-2 py-1 border border-gray-300 rounded text-sm"></textarea></td>
-                  <td><input type="text" name="supplier_bill[]" class="w-full px-2 py-1 border border-gray-300 rounded text-sm"></td>
-                  <td><input type="text" name="amount[]" class="w-full px-2 py-1 border border-gray-300 rounded text-sm"></td>
+                {% set vid_str = vehicle.vehicle_id|string %}
+                {% set vid_key = vid_str|replace(' ', '_') %}
+                {% set hist = vehicle_history.get(vid_str, []) if vehicle_history is defined else [] %}
+
+                <!-- ── Vehicle toggle row ───────────────────────────── -->
+                <tr class="vehicle-toggle-row remarks-row" onclick="toggleVehicleHistory('{{ vid_key }}')">
+                  <td class="font-bold text-blue-900 whitespace-nowrap">
+                    {{ vehicle.vehicle_id }}
+                    <input type="hidden" name="vehicle_id[]" value="{{ vehicle.vehicle_id }}">
+                  </td>
+                  <td class="text-gray-700 font-medium whitespace-nowrap">
+                    {{ vehicle.registration_no or '—' }}
+                    <input type="hidden" name="registration_no[]" value="{{ vehicle.registration_no or '' }}">
+                  </td>
+                  <td class="text-xs text-gray-500 whitespace-nowrap">
+                    {% if hist %}{{ (hist[0].date or (hist[0].created_at or '')[:10]) or '—' }}{% else %}—{% endif %}
+                  </td>
+                  <td colspan="5" class="text-left text-xs text-blue-700 px-3 py-2">
+                    <span id="icon_{{ vid_key }}" class="mr-1 font-bold">▼</span>
+                    {% if hist %}
+                      <span class="font-semibold">{{ hist|length }} previous entr{{ 'y' if hist|length == 1 else 'ies' }}</span>
+                      &mdash; click to expand
+                    {% else %}
+                      <span class="text-gray-400">No previous entries</span>
+                    {% endif %}
+                  </td>
+                  <td class="text-xs text-gray-400 whitespace-nowrap">&#8597; expand</td>
                 </tr>
+
+                <!-- ── Nested history table (collapsed by default) ──── -->
+                <tr id="hist_{{ vid_key }}" style="display:none;">
+                  <td colspan="9" style="padding:0; border-top:none;">
+                    <table style="width:100%; border-collapse:collapse; font-size:0.72rem;">
+                      <thead>
+                        <tr style="background:#e2e8f0;">
+                          <th style="padding:4px 8px; border:1px solid #cbd5e1; text-align:center;">Date</th>
+                          <th style="padding:4px 8px; border:1px solid #cbd5e1; text-align:center;">Kilometer</th>
+                          <th style="padding:4px 8px; border:1px solid #cbd5e1; text-align:left;">Driver's Voice</th>
+                          <th style="padding:4px 8px; border:1px solid #cbd5e1; text-align:left;">Technical Observation</th>
+                          <th style="padding:4px 8px; border:1px solid #cbd5e1; text-align:center;">Status</th>
+                          <th style="padding:4px 8px; border:1px solid #cbd5e1; text-align:left;">Materials</th>
+                          <th style="padding:4px 8px; border:1px solid #cbd5e1; text-align:center;">Supplier/Bill</th>
+                          <th style="padding:4px 8px; border:1px solid #cbd5e1; text-align:center;">Amount</th>
+                          <th style="padding:4px 8px; border:1px solid #cbd5e1; text-align:center;">Action</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {% if hist %}
+                          {% for entry in hist %}
+                          {% if 'arrest' not in (entry.day_end_status or '')|lower %}
+                          <tr style="background:#f8fafc;">
+                            <td style="padding:4px 8px; border:1px solid #e2e8f0; white-space:nowrap;">{{ entry.date or (entry.created_at or '')[:10] or '—' }}</td>
+                            <td style="padding:4px 8px; border:1px solid #e2e8f0; text-align:center;">{{ entry.kilometer or '—' }}</td>
+                            <td style="padding:4px 8px; border:1px solid #e2e8f0; max-width:160px; white-space:pre-wrap;">{{ entry.drivers_voice or '—' }}</td>
+                            <td style="padding:4px 8px; border:1px solid #e2e8f0; max-width:180px; white-space:pre-wrap;">{{ entry.technical_observation or '—' }}</td>
+                            <td style="padding:4px 8px; border:1px solid #e2e8f0; text-align:center;">
+                              {% set st = (entry.day_end_status or '')|lower %}
+                              {% if 'arrest' in st %}<span class="badge-arrested">{{ entry.day_end_status }}</span>
+                              {% elif 'pend' in st %}<span class="badge-pending">{{ entry.day_end_status }}</span>
+                              {% elif 'run' in st %}<span class="badge-running">{{ entry.day_end_status }}</span>
+                              {% elif entry.day_end_status %}<span class="badge-other">{{ entry.day_end_status }}</span>
+                              {% else %}<span style="color:#9ca3af;">—</span>{% endif %}
+                            </td>
+                            <td style="padding:4px 8px; border:1px solid #e2e8f0;">{{ entry.materials_purchased or '—' }}</td>
+                            <td style="padding:4px 8px; border:1px solid #e2e8f0; text-align:center;">{{ entry.supplier_bill or '—' }}</td>
+                            <td style="padding:4px 8px; border:1px solid #e2e8f0; text-align:center; font-weight:600;">
+                              {% if entry.amount is not none %}&#8377;{{ "%.2f"|format(entry.amount|float) }}{% else %}—{% endif %}
+                            </td>
+                            <td style="padding:4px 8px; border:1px solid #e2e8f0; text-align:center; white-space:nowrap;">
+                              <span class="badge-pending" style="font-size:0.65rem;">Pending</span>
+                            </td>
+                          </tr>
+                          {% endif %}
+                          {% endfor %}
+                        {% else %}
+                          <tr><td colspan="9" style="text-align:center; padding:10px; color:#9ca3af;">No previous entries for this vehicle</td></tr>
+                        {% endif %}
+                      </tbody>
+                    </table>
+                  </td>
+                </tr>
+
+                <!-- ── Today's entry row (always visible, editable) ── -->
+                <tr class="entry-input-row">
+                  <td class="text-xs text-blue-400 italic whitespace-nowrap">&#8593; today's entry</td>
+                  <td></td>
+                  <td><input type="date" name="row_date[]" class="w-full px-2 py-1 border border-gray-300 rounded text-sm"></td>
+                  <td><input type="text" name="kilometer[]" value="{{ latest_kms[vehicle.vehicle_id]|default('') }}" class="w-full px-2 py-1 border border-gray-300 rounded text-sm" placeholder="KM"></td>
+                  <td><textarea name="drivers_voice[]" rows="2" class="w-full px-2 py-1 border border-gray-300 rounded text-sm" placeholder="Complaints / No work"></textarea></td>
+                  <td><textarea name="technical_observation[]" rows="2" class="w-full px-2 py-1 border border-gray-300 rounded text-sm" placeholder="Observation &amp; action taken"></textarea></td>
+                  <td><textarea name="materials_purchased[]" rows="2" class="w-full px-2 py-1 border border-gray-300 rounded text-sm" placeholder="Materials"></textarea></td>
+                  <td><input type="text" name="supplier_bill[]" class="w-full px-2 py-1 border border-gray-300 rounded text-sm" placeholder="Supplier/Bill/Dt."></td>
+                  <td><input type="text" name="amount[]" class="w-full px-2 py-1 border border-gray-300 rounded text-sm" placeholder="0.00"></td>
+                </tr>
+
                 {% endfor %}
               {% else %}
-                {% for i in range(1, 101) %}
-                <tr class="remarks-row">
-                  <td class="text-center font-semibold">{{ i }}<input type="hidden" name="vehicle_id[]" value="{{ i }}"></td>
-                  <td class="text-center">-<input type="hidden" name="registration_no[]" value=""></td>
-                  <td><input type="text" name="kilometer[]" class="w-full px-2 py-1 border border-gray-300 rounded text-sm"></td>
-                  <td><textarea name="drivers_voice[]" rows="2" class="w-full px-2 py-1 border border-gray-300 rounded text-sm"></textarea></td>
-                  <td><textarea name="technical_observation[]" rows="2" class="w-full px-2 py-1 border border-gray-300 rounded text-sm"></textarea></td>
-                  <td><textarea name="day_end_status[]" rows="2" class="w-full px-2 py-1 border border-gray-300 rounded text-sm"></textarea></td>
-                  <td><textarea name="materials_purchased[]" rows="2" class="w-full px-2 py-1 border border-gray-300 rounded text-sm"></textarea></td>
-                  <td><input type="text" name="supplier_bill[]" class="w-full px-2 py-1 border border-gray-300 rounded text-sm"></td>
-                  <td><input type="text" name="amount[]" class="w-full px-2 py-1 border border-gray-300 rounded text-sm"></td>
-                </tr>
-                {% endfor %}
+                <tr><td colspan="9" class="text-center py-8 text-gray-400">No pending vehicles found. All vehicles may be in Arrested status.</td></tr>
               {% endif %}
             </tbody>
           </table>
@@ -165,28 +260,56 @@
 
 <script src="{{ url_for('static', filename='js/uppercase.js') }}"></script>
 <script>
-  // set today's date in the header date picker and implement search filter
+  // Set today's date in each row's date input and wire up search filter
   document.addEventListener('DOMContentLoaded', function() {
     const today = new Date().toISOString().split('T')[0];
+    // Header date
     const dailyDate = document.getElementById('daily_date');
     if (dailyDate && !dailyDate.value) dailyDate.value = today;
+    // Per-row date inputs
+    document.querySelectorAll('input[name="row_date[]"]').forEach(function(inp) {
+      if (!inp.value) inp.value = today;
+    });
 
+    // Search filter — shows/hides entire vehicle groups
     const search = document.getElementById('remarks_search');
     const tbody = document.getElementById('remarksBody');
     if (search && tbody) {
       search.addEventListener('input', function() {
         const term = this.value.trim().toLowerCase();
-        const rows = Array.from(tbody.querySelectorAll('tr'));
-        rows.forEach(r => {
-          const vid = (r.querySelector('td:nth-child(1)') && r.querySelector('td:nth-child(1)').innerText) || '';
-          const reg = (r.querySelector('td:nth-child(2)') && r.querySelector('td:nth-child(2)').innerText) || '';
-          const hay = (vid + ' ' + reg).toLowerCase();
-          if (!term || hay.indexOf(term) !== -1) r.style.display = '';
-          else r.style.display = 'none';
+        // Each vehicle has 3 rows: toggle, hist container, entry
+        // We identify groups by .vehicle-toggle-row
+        let inGroup = false;
+        let groupVisible = true;
+        Array.from(tbody.querySelectorAll('tr')).forEach(r => {
+          if (r.classList.contains('vehicle-toggle-row')) {
+            const text = r.innerText.toLowerCase();
+            groupVisible = !term || text.includes(term);
+            inGroup = true;
+          }
+          if (inGroup) {
+            // Never hide the nested history container when it was already open
+            if (!r.classList.contains('vehicle-toggle-row') && !r.classList.contains('entry-input-row')) {
+              // This is a history container row — only hide if filtering
+              if (!groupVisible) r.style.display = 'none';
+            } else {
+              r.style.display = groupVisible ? '' : 'none';
+            }
+          }
         });
       });
     }
   });
+
+  // Toggle the single nested-history row
+  function toggleVehicleHistory(vid) {
+    const row  = document.getElementById('hist_' + vid);
+    const icon = document.getElementById('icon_' + vid);
+    if (!row) return;
+    const isHidden = row.style.display === 'none' || row.style.display === '';
+    row.style.display = isHidden ? '' : 'none';
+    if (icon) icon.textContent = isHidden ? '\u25b2' : '\u25bc';
+  }
 </script>
 <script>
 // Show a small toast popup for flash messages (auto-dismiss)
@@ -201,23 +324,25 @@ document.addEventListener('DOMContentLoaded', function(){
     const toast = document.createElement('div');
     toast.style.position = 'fixed';
     toast.style.right = '20px';
-    toast.style.top = '20px';
+    toast.style.top = '80px';
     toast.style.zIndex = '9999';
-    toast.style.padding = '12px 16px';
-    toast.style.borderRadius = '8px';
-    toast.style.boxShadow = '0 6px 18px rgba(0,0,0,0.12)';
+    toast.style.padding = '14px 20px';
+    toast.style.borderRadius = '10px';
+    toast.style.boxShadow = '0 6px 20px rgba(0,0,0,0.18)';
     toast.style.color = '#fff';
     toast.style.fontSize = '14px';
-    if (category === 'success') { toast.style.background = '#16a34a'; }
-    else if (category === 'danger') { toast.style.background = '#dc2626'; }
-    else { toast.style.background = '#2563eb'; }
-    toast.textContent = text;
+    toast.style.display = 'flex';
+    toast.style.alignItems = 'center';
+    toast.style.gap = '8px';
+    if (category === 'success') { toast.style.background = '#16a34a'; toast.innerHTML = '✅ ' + text; }
+    else if (category === 'danger') { toast.style.background = '#dc2626'; toast.innerHTML = '❌ ' + text; }
+    else { toast.style.background = '#2563eb'; toast.innerHTML = 'ℹ️ ' + text; }
     document.body.appendChild(toast);
     setTimeout(()=>{
-      toast.style.transition = 'opacity 0.3s ease';
+      toast.style.transition = 'opacity 0.4s ease';
       toast.style.opacity = '0';
-      setTimeout(()=> toast.remove(), 300);
-    }, 3000);
+      setTimeout(()=> toast.remove(), 400);
+    }, 3500);
   });
 });
 </script>
