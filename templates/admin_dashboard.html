@@ -434,7 +434,7 @@
         
         <div class="stat-card">
           <div class="flex items-center justify-between mb-2">
-            <span class="text-sm font-semibold text-gray-600 uppercase">Inventory Items</span>
+            <span class="text-sm font-semibold text-gray-600 uppercase">Stock In-Hand (Qty)</span>
             <div class="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center">
               <svg class="w-5 h-5 text-green-600" fill="currentColor" viewBox="0 0 24 24">
                 <path d="M20 2H4c-1 0-2 .9-2 2v3.01c0 .72.43 1.34 1 1.69V20c0 1.1 1.1 2 2 2h14c.9 0 2-.9 2-2V8.7c.57-.35 1-.97 1-1.69V4c0-1.1-1-2-2-2zm-5 12H9v-2h6v2zm5-7H4V4h16v3z"/>
@@ -442,6 +442,10 @@
             </div>
           </div>
           <div class="stat-number">{{ reports_count|default(0) }}</div>
+          <div class="text-xs text-gray-500 mt-1">
+            Received: {{ total_original_qty|default(0)|int }} &nbsp;|&nbsp;
+            Used: {{ total_utilized_qty|default(0)|int }}
+          </div>
         </div>
       </div>
 
@@ -595,6 +599,19 @@
             </div>
             <span class="title">Daily Remarks</span>
             <span class="subtitle">Technical History</span>
+          </a>
+
+          <!-- Vehicle History -->
+          <a href="{{ url_for('admin_vehicle_history') }}" class="menu-card" style="--accent-start: #7c3aed; --accent-end: #5b21b6; --shadow-color: rgba(124, 58, 237, 0.30);">
+            <div class="icon-wrapper">
+              <svg fill="currentColor" viewBox="0 0 24 24">
+                <path d="M18.92 6.01C18.72 5.42 18.16 5 17.5 5h-11c-.66 0-1.21.42-1.42 1.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99zM6.5 16c-.83 0-1.5-.67-1.5-1.5S5.67 13 6.5 13s1.5.67 1.5 1.5S7.33 16 6.5 16zm11 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zM5 11l1.5-4.5h11L19 11H5z"/>
+                <circle cx="12" cy="3.5" r="1.5" fill="white" opacity="0.5"/>
+                <path d="M11 7h2v5l3 3-1.4 1.4L11 13V7z" fill="white" opacity="0.7"/>
+              </svg>
+            </div>
+            <span class="title">Vehicle History</span>
+            <span class="subtitle">All modules per vehicle</span>
           </a>
           
         </div>
