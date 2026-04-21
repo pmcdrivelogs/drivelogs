@@ -82,7 +82,7 @@
   <div class="logo-bar w-full flex items-center justify-between px-4 py-3 fixed top-0 left-0 z-50">
     <img src="{{ url_for('static', filename='img/drive-logs.png') }}" alt="Drive Logs Logo" class="h-12 md:h-14 w-auto ml-2">
     <div class="flex items-center gap-4">
-      <a href="{{ url_for('home') }}" class="bg-yellow-500 hover:bg-yellow-600 text-gray-900 px-4 py-2 rounded-full text-sm font-semibold transition-colors">
+      <a href="{{ url_for('dashboard') }}" class="bg-yellow-500 hover:bg-yellow-600 text-gray-900 px-4 py-2 rounded-full text-sm font-semibold transition-colors">
         ← Back to Home
       </a>
       <a href="{{ url_for('logout') }}" class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-full text-sm font-semibold transition-colors">
@@ -139,6 +139,7 @@
                 <th>MATERIALS<br>PURCHASED</th>
                 <th>SUPPLIER/<br>BILL NO./Dt.</th>
                 <th>AMOUNT</th>
+                <th>STATUS /<br>ACTION</th>
               </tr>
             </thead>
             <tbody id="remarksBody">
@@ -147,6 +148,13 @@
                 {% set vid_str = vehicle.vehicle_id|string %}
                 {% set vid_key = vid_str|replace(' ', '_') %}
                 {% set hist = vehicle_history.get(vid_str, []) if vehicle_history is defined else [] %}
+                {% set hist_pending = [] %}
+                {% for e in hist %}
+                  {% set _st = (e.day_end_status or '')|lower %}
+                  {% if 'arrest' not in _st and 'no issue' not in _st %}
+                    {% if hist_pending.append(e) %}{% endif %}
+                  {% endif %}
+                {% endfor %}
 
                 <!-- ── Vehicle toggle row ───────────────────────────── -->
                 <tr class="vehicle-toggle-row remarks-row" onclick="toggleVehicleHistory('{{ vid_key }}')">
@@ -159,13 +167,15 @@
                     <input type="hidden" name="registration_no[]" value="{{ vehicle.registration_no or '' }}">
                   </td>
                   <td class="text-xs text-gray-500 whitespace-nowrap">
-                    {% if hist %}{{ (hist[0].date or (hist[0].created_at or '')[:10]) or '—' }}{% else %}—{% endif %}
+                    {% if hist_pending %}{{ (hist_pending[0].date or (hist_pending[0].created_at or '')[:10]) or '—' }}{% else %}—{% endif %}
                   </td>
-                  <td colspan="5" class="text-left text-xs text-blue-700 px-3 py-2">
+                  <td colspan="6" class="text-left text-xs text-blue-700 px-3 py-2">
                     <span id="icon_{{ vid_key }}" class="mr-1 font-bold">▼</span>
-                    {% if hist %}
-                      <span class="font-semibold">{{ hist|length }} previous entr{{ 'y' if hist|length == 1 else 'ies' }}</span>
+                    {% if hist_pending %}
+                      <span class="font-semibold">{{ hist_pending|length }} pending entr{{ 'y' if hist_pending|length == 1 else 'ies' }}</span>
                       &mdash; click to expand
+                    {% elif hist %}
+                      <span class="text-green-600 font-semibold">All entries actioned</span>
                     {% else %}
                       <span class="text-gray-400">No previous entries</span>
                     {% endif %}
@@ -175,7 +185,7 @@
 
                 <!-- ── Nested history table (collapsed by default) ──── -->
                 <tr id="hist_{{ vid_key }}" style="display:none;">
-                  <td colspan="9" style="padding:0; border-top:none;">
+                  <td colspan="10" style="padding:0; border-top:none;">
                     <table style="width:100%; border-collapse:collapse; font-size:0.72rem;">
                       <thead>
                         <tr style="background:#e2e8f0;">
@@ -191,9 +201,15 @@
                         </tr>
                       </thead>
                       <tbody>
-                        {% if hist %}
-                          {% for entry in hist %}
-                          {% if 'arrest' not in (entry.day_end_status or '')|lower %}
+                        {% set pending_entries = [] %}
+                        {% for entry in hist %}
+                          {% set st = (entry.day_end_status or '')|lower %}
+                          {% if 'arrest' not in st and 'no issue' not in st %}
+                            {% if pending_entries.append(entry) %}{% endif %}
+                          {% endif %}
+                        {% endfor %}
+                        {% if pending_entries %}
+                          {% for entry in pending_entries %}
                           <tr style="background:#f8fafc;">
                             <td style="padding:4px 8px; border:1px solid #e2e8f0; white-space:nowrap;">{{ entry.date or (entry.created_at or '')[:10] or '—' }}</td>
                             <td style="padding:4px 8px; border:1px solid #e2e8f0; text-align:center;">{{ entry.kilometer or '—' }}</td>
@@ -202,6 +218,7 @@
                             <td style="padding:4px 8px; border:1px solid #e2e8f0; text-align:center;">
                               {% set st = (entry.day_end_status or '')|lower %}
                               {% if 'arrest' in st %}<span class="badge-arrested">{{ entry.day_end_status }}</span>
+                              {% elif 'no issue' in st %}<span class="badge-running">{{ entry.day_end_status }}</span>
                               {% elif 'pend' in st %}<span class="badge-pending">{{ entry.day_end_status }}</span>
                               {% elif 'run' in st %}<span class="badge-running">{{ entry.day_end_status }}</span>
                               {% elif entry.day_end_status %}<span class="badge-other">{{ entry.day_end_status }}</span>
@@ -212,14 +229,20 @@
                             <td style="padding:4px 8px; border:1px solid #e2e8f0; text-align:center; font-weight:600;">
                               {% if entry.amount is not none %}&#8377;{{ "%.2f"|format(entry.amount|float) }}{% else %}—{% endif %}
                             </td>
-                            <td style="padding:4px 8px; border:1px solid #e2e8f0; text-align:center; white-space:nowrap;">
-                              <span class="badge-pending" style="font-size:0.65rem;">Pending</span>
+                            <td style="padding:4px 8px; border:1px solid #e2e8f0; text-align:center; white-space:nowrap; min-width:130px;">
+                              <form method="POST" action="{{ url_for('set_dtr_status', remark_id=entry.id) }}" style="display:flex; gap:3px; align-items:center; justify-content:center;">
+                                <select name="status" style="border:1px solid #cbd5e1; border-radius:4px; font-size:0.65rem; padding:2px 4px;">
+                                  <option value="Pending" {% if not entry.day_end_status or entry.day_end_status == 'Pending' %}selected{% endif %}>Pending</option>
+                                  <option value="No Issue" {% if entry.day_end_status == 'No Issue' %}selected{% endif %}>No Issue</option>
+                                  <option value="Arrested" {% if entry.day_end_status == 'Arrested' %}selected{% endif %}>Arrested</option>
+                                </select>
+                                <button type="submit" style="background:#2563eb; color:white; border:none; border-radius:4px; font-size:0.65rem; padding:2px 6px; cursor:pointer;">OK</button>
+                              </form>
                             </td>
                           </tr>
-                          {% endif %}
                           {% endfor %}
                         {% else %}
-                          <tr><td colspan="9" style="text-align:center; padding:10px; color:#9ca3af;">No previous entries for this vehicle</td></tr>
+                          <tr><td colspan="9" style="text-align:center; padding:10px; color:#9ca3af;">No pending entries — all entries have been actioned.</td></tr>
                         {% endif %}
                       </tbody>
                     </table>
@@ -237,11 +260,18 @@
                   <td><textarea name="materials_purchased[]" rows="2" class="w-full px-2 py-1 border border-gray-300 rounded text-sm" placeholder="Materials"></textarea></td>
                   <td><input type="text" name="supplier_bill[]" class="w-full px-2 py-1 border border-gray-300 rounded text-sm" placeholder="Supplier/Bill/Dt."></td>
                   <td><input type="text" name="amount[]" class="w-full px-2 py-1 border border-gray-300 rounded text-sm" placeholder="0.00"></td>
+                  <td>
+                    <select name="day_end_status[]" class="w-full px-2 py-1 border border-gray-300 rounded text-sm">
+                      <option value="Pending">Pending</option>
+                      <option value="No Issue">No Issue</option>
+                      <option value="Arrested">Arrested</option>
+                    </select>
+                  </td>
                 </tr>
 
                 {% endfor %}
               {% else %}
-                <tr><td colspan="9" class="text-center py-8 text-gray-400">No pending vehicles found. All vehicles may be in Arrested status.</td></tr>
+                <tr><td colspan="10" class="text-center py-8 text-gray-400">No pending vehicles found. All vehicles may be in Arrested status.</td></tr>
               {% endif %}
             </tbody>
           </table>
