@@ -2412,3 +2412,198 @@ def get_all_scrap():
     except Exception as e:
         print(f"Error getting scrap records: {e}")
         return []
+
+
+def get_vehicle_history_data(vehicle_id_str, registration_no):
+    """Fetch all module records for a specific vehicle.
+
+    Args:
+        vehicle_id_str: The vehicle_id field value (e.g. "VH001").
+        registration_no: The vehicle registration number (e.g. "TN01AB1234").
+
+    Returns a dict with keys for each module, each containing a list of records.
+    """
+    result = {
+        'trip_sheets': [],
+        'fuel': [],
+        'maintenance': [],
+        'utilization': [],
+        'scrap': [],
+        'statutory': [],
+        'accidents': [],
+        'daily_remarks': [],
+    }
+
+    vid = str(vehicle_id_str).strip() if vehicle_id_str else ''
+    reg = str(registration_no).strip() if registration_no else ''
+
+    # ----- Trip Sheets -----
+    try:
+        seen_ids = set()
+        rows = []
+        if vid:
+            resp = supabase.table('trip_sheet').select('*').eq('vehicle_id', vid).order('date_time', desc=True).execute()
+            for r in (resp.data or []):
+                if r.get('id') not in seen_ids:
+                    seen_ids.add(r.get('id'))
+                    rows.append(r)
+        if reg:
+            resp2 = supabase.table('trip_sheet').select('*').eq('vehicle_no', reg).order('date_time', desc=True).execute()
+            for r in (resp2.data or []):
+                if r.get('id') not in seen_ids:
+                    seen_ids.add(r.get('id'))
+                    rows.append(r)
+        rows.sort(key=lambda r: r.get('date_time') or r.get('created_at') or '', reverse=True)
+        result['trip_sheets'] = rows
+    except Exception as e:
+        print(f"[VehicleHistory] trip_sheet error: {e}")
+
+    # ----- Fuel (query BOTH vehicle_reg_no AND vehicle_id, merge deduped) -----
+    try:
+        seen_ids = set()
+        rows = []
+        if reg:
+            resp = supabase.table('fuel').select('*').eq('vehicle_reg_no', reg).order('created_at', desc=True).execute()
+            for r in (resp.data or []):
+                if r.get('id') not in seen_ids:
+                    seen_ids.add(r.get('id'))
+                    rows.append(r)
+        if vid:
+            resp2 = supabase.table('fuel').select('*').eq('vehicle_id', vid).order('created_at', desc=True).execute()
+            for r in (resp2.data or []):
+                if r.get('id') not in seen_ids:
+                    seen_ids.add(r.get('id'))
+                    rows.append(r)
+        # Sort merged results by date descending
+        rows.sort(key=lambda r: r.get('date') or r.get('created_at') or '', reverse=True)
+        result['fuel'] = rows
+    except Exception as e:
+        print(f"[VehicleHistory] fuel error: {e}")
+
+    # ----- Maintenance Entry -----
+    try:
+        seen_ids = set()
+        rows = []
+        if vid:
+            resp = supabase.table('maintenance_entry').select('*').eq('vehicle_id', vid).order('created_at', desc=True).execute()
+            for r in (resp.data or []):
+                if r.get('id') not in seen_ids:
+                    seen_ids.add(r.get('id'))
+                    rows.append(r)
+        if reg:
+            resp2 = supabase.table('maintenance_entry').select('*').eq('registration_no', reg).order('created_at', desc=True).execute()
+            for r in (resp2.data or []):
+                if r.get('id') not in seen_ids:
+                    seen_ids.add(r.get('id'))
+                    rows.append(r)
+        rows.sort(key=lambda r: r.get('date_time') or r.get('created_at') or '', reverse=True)
+        result['maintenance'] = rows
+    except Exception as e:
+        print(f"[VehicleHistory] maintenance_entry error: {e}")
+
+    # ----- Material Utilization -----
+    try:
+        seen_ids = set()
+        rows = []
+        if vid:
+            resp = supabase.table('material_utilization').select('*').eq('vehicle_id', vid).order('created_at', desc=True).execute()
+            for r in (resp.data or []):
+                if r.get('id') not in seen_ids:
+                    seen_ids.add(r.get('id'))
+                    rows.append(r)
+        if reg:
+            resp2 = supabase.table('material_utilization').select('*').eq('vehicle_registration_no', reg).order('created_at', desc=True).execute()
+            for r in (resp2.data or []):
+                if r.get('id') not in seen_ids:
+                    seen_ids.add(r.get('id'))
+                    rows.append(r)
+        rows.sort(key=lambda r: r.get('date_time') or r.get('created_at') or '', reverse=True)
+        result['utilization'] = rows
+    except Exception as e:
+        print(f"[VehicleHistory] material_utilization error: {e}")
+
+    # ----- Scrap -----
+    try:
+        seen_ids = set()
+        rows = []
+        if vid:
+            resp = supabase.table('scrap').select('*').eq('vehicle_id', vid).order('created_at', desc=True).execute()
+            for r in (resp.data or []):
+                if r.get('id') not in seen_ids:
+                    seen_ids.add(r.get('id'))
+                    rows.append(r)
+        if reg:
+            resp2 = supabase.table('scrap').select('*').eq('vehicle_registration_no', reg).order('created_at', desc=True).execute()
+            for r in (resp2.data or []):
+                if r.get('id') not in seen_ids:
+                    seen_ids.add(r.get('id'))
+                    rows.append(r)
+        rows.sort(key=lambda r: r.get('date_time') or r.get('created_at') or '', reverse=True)
+        result['scrap'] = rows
+    except Exception as e:
+        print(f"[VehicleHistory] scrap error: {e}")
+
+    # ----- Statutory (vehicle_id and registration_no columns) -----
+    try:
+        seen_ids = set()
+        rows = []
+        if vid:
+            resp = supabase.table('statutory').select('*').eq('vehicle_id', vid).order('created_at', desc=True).execute()
+            for r in (resp.data or []):
+                if r.get('id') not in seen_ids:
+                    seen_ids.add(r.get('id'))
+                    rows.append(r)
+        if reg:
+            resp2 = supabase.table('statutory').select('*').eq('registration_no', reg).order('created_at', desc=True).execute()
+            for r in (resp2.data or []):
+                if r.get('id') not in seen_ids:
+                    seen_ids.add(r.get('id'))
+                    rows.append(r)
+        rows.sort(key=lambda r: r.get('date') or r.get('created_at') or '', reverse=True)
+        result['statutory'] = rows
+    except Exception as e:
+        print(f"[VehicleHistory] statutory error: {e}")
+
+    # ----- Accidents / Incidents -----
+    try:
+        seen_ids = set()
+        rows = []
+        if vid:
+            resp = supabase.table('accidents_incidents').select('*').eq('vehicle_id', vid).order('created_at', desc=True).execute()
+            for r in (resp.data or []):
+                if r.get('id') not in seen_ids:
+                    seen_ids.add(r.get('id'))
+                    rows.append(r)
+        if reg:
+            resp2 = supabase.table('accidents_incidents').select('*').eq('registration_no', reg).order('created_at', desc=True).execute()
+            for r in (resp2.data or []):
+                if r.get('id') not in seen_ids:
+                    seen_ids.add(r.get('id'))
+                    rows.append(r)
+        rows.sort(key=lambda r: r.get('date_time') or r.get('created_at') or '', reverse=True)
+        result['accidents'] = rows
+    except Exception as e:
+        print(f"[VehicleHistory] accidents_incidents error: {e}")
+
+    # ----- Daily Technical Remarks -----
+    try:
+        seen_ids = set()
+        rows = []
+        if vid:
+            resp = supabase.table('daily_technical_remarks').select('*').eq('vehicle_id', vid).order('created_at', desc=True).execute()
+            for r in (resp.data or []):
+                if r.get('id') not in seen_ids:
+                    seen_ids.add(r.get('id'))
+                    rows.append(r)
+        if reg:
+            resp2 = supabase.table('daily_technical_remarks').select('*').eq('registration_no', reg).order('created_at', desc=True).execute()
+            for r in (resp2.data or []):
+                if r.get('id') not in seen_ids:
+                    seen_ids.add(r.get('id'))
+                    rows.append(r)
+        rows.sort(key=lambda r: r.get('date') or r.get('created_at') or '', reverse=True)
+        result['daily_remarks'] = rows
+    except Exception as e:
+        print(f"[VehicleHistory] daily_technical_remarks error: {e}")
+
+    return result
