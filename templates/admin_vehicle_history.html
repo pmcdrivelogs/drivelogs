@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Vehicle History - Drive Logs Admin</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    * { font-family: 'Inter', sans-serif; }
+    body { background: #fefce8; }
+
+    .vehicle-card {
+      background: #ffffff;
+      border-radius: 20px;
+      padding: 24px 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.07), 0 1px 3px rgba(0,0,0,0.04);
+      border: 1px solid rgba(234,179,8,0.25);
+      transition: all 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      cursor: pointer;
+      position: relative;
+      overflow: hidden;
+      text-decoration: none;
+      color: inherit;
+    }
+    .vehicle-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0;
+      height: 4px;
+      background: linear-gradient(90deg, #eab308, #ca8a04);
+      transform: scaleX(0);
+      transition: transform 0.35s ease;
+    }
+    .vehicle-card:hover::before { transform: scaleX(1); }
+    .vehicle-card:hover {
+      transform: translateY(-6px) scale(1.01);
+      box-shadow: 0 16px 36px rgba(234,179,8,0.18), 0 6px 12px rgba(0,0,0,0.08);
+      border-color: #eab308;
+    }
+    .badge-dot {
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+
+    .search-input:focus { outline: none; box-shadow: 0 0 0 3px rgba(234,179,8,0.3); }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col pt-20">
+
+  <!-- Logo Bar -->
+  <div class="logo-bar w-full flex items-center justify-between px-4 py-3 fixed top-0 left-0 z-50" style="background: #eab308;">
+    <img src="{{ url_for('static', filename='img/drive-logs.png') }}" alt="Drive Logs Logo" class="h-12 md:h-14 w-auto ml-2">
+    <div class="flex items-center gap-4">
+      <span class="text-white text-sm font-medium hidden md:block">Admin: {{ admin }}</span>
+      <a href="{{ url_for('admin_dashboard') }}" class="bg-white text-yellow-700 px-4 py-2 rounded-full text-sm font-semibold hover:bg-gray-100 transition-colors">
+        ← Dashboard
+      </a>
+      <a href="{{ url_for('logout') }}" class="bg-white text-yellow-700 px-4 py-2 rounded-full text-sm font-semibold hover:bg-gray-100 transition-colors">
+        Logout
+      </a>
+    </div>
+  </div>
+
+  <!-- College Header -->
+  <div class="w-full flex justify-center items-center border-b border-gray-300 bg-white">
+    <img src="{{ url_for('static', filename='img/pmc-logo.png') }}" alt="College Header" class="w-full max-w-5xl h-auto p-2 md:p-4">
+  </div>
+
+  <div class="flex-1 py-8 px-4">
+    <div class="max-w-7xl mx-auto">
+
+      <!-- Flash Messages -->
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          {% for category, message in messages %}
+            <div class="mb-4 p-4 rounded-xl {% if category == 'success' %}bg-green-50 text-green-800 border border-green-200{% elif category == 'danger' %}bg-red-50 text-red-800 border border-red-200{% else %}bg-blue-50 text-blue-800 border border-blue-200{% endif %}">{{ message }}</div>
+          {% endfor %}
+        {% endif %}
+      {% endwith %}
+
+      <!-- Page Header -->
+      <div class="mb-8 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div>
+          <h1 class="text-3xl font-bold text-gray-800">🚌 Vehicle History</h1>
+          <p class="text-gray-500 mt-1 text-sm">Select a vehicle to view its complete history across all modules.</p>
+        </div>
+        <div class="flex items-center gap-3">
+          <div class="bg-white rounded-xl px-5 py-3 shadow-sm border border-yellow-200">
+            <span class="text-2xl font-bold text-yellow-600">{{ vehicles|length }}</span>
+            <span class="text-sm text-gray-500 ml-2">Vehicles</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Search Bar -->
+      <div class="mb-6">
+        <input id="vehicleSearch" type="search" placeholder="Search by Vehicle ID, Registration No, Make or Model…"
+               class="search-input w-full max-w-xl bg-white border border-yellow-300 rounded-xl px-5 py-3 text-sm shadow-sm transition-all"
+               oninput="filterCards()">
+      </div>
+
+      <!-- Vehicle Cards Grid -->
+      {% if vehicles %}
+      <div id="vehicleGrid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
+        {% for v in vehicles %}
+        <a href="{{ url_for('admin_vehicle_detail', vehicle_id_str=v.vehicle_id) if v.vehicle_id else '#' }}"
+           class="vehicle-card{% if not v.vehicle_id %} opacity-60 cursor-not-allowed{% endif %}"
+           data-search="{{ ((v.vehicle_id or '') ~ ' ' ~ (v.registration_no or '') ~ ' ' ~ (v.make or '') ~ ' ' ~ (v.model or ''))|lower }}">
+
+          <!-- Vehicle Icon + ID -->
+          <div class="flex items-center gap-3">
+            <div class="w-12 h-12 rounded-xl bg-yellow-100 flex items-center justify-center flex-shrink-0">
+              <svg class="w-7 h-7 text-yellow-600" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M18.92 6.01C18.72 5.42 18.16 5 17.5 5h-11c-.66 0-1.21.42-1.42 1.01L3 12v8c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-1h12v1c0 .55.45 1 1 1h1c.55 0 1-.45 1-1v-8l-2.08-5.99zM6.5 16c-.83 0-1.5-.67-1.5-1.5S5.67 13 6.5 13s1.5.67 1.5 1.5S7.33 16 6.5 16zm11 0c-.83 0-1.5-.67-1.5-1.5s.67-1.5 1.5-1.5 1.5.67 1.5 1.5-.67 1.5-1.5 1.5zM5 11l1.5-4.5h11L19 11H5z"/>
+              </svg>
+            </div>
+            <div class="min-w-0">
+              <div class="font-bold text-gray-800 text-base truncate">{{ v.vehicle_id or ('VEH-' ~ loop.index) }}</div>
+              <div class="text-xs text-gray-500 font-medium truncate">{{ v.registration_no or 'N/A' }}</div>
+            </div>
+          </div>
+
+          <!-- Make / Model -->
+          <div class="flex items-center gap-2 text-sm text-gray-700">
+            <svg class="w-4 h-4 text-gray-400 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
+            </svg>
+            <span class="truncate">{{ (v.make or '–') }} {{ (v.model or '') }}</span>
+          </div>
+
+          <!-- Seating / Fuel Type -->
+          <div class="flex items-center gap-3 text-xs text-gray-500">
+            {% if v.seating_capacity %}
+            <span class="bg-blue-50 text-blue-700 px-2.5 py-1 rounded-full font-medium">{{ v.seating_capacity }} Seats</span>
+            {% endif %}
+            {% if v.fuel_type %}
+            <span class="bg-green-50 text-green-700 px-2.5 py-1 rounded-full font-medium">{{ v.fuel_type }}</span>
+            {% endif %}
+          </div>
+
+          <!-- Validity Status Indicators -->
+          <div class="pt-1 border-t border-gray-100">
+            <div class="flex flex-wrap gap-1.5">
+              {% set today_str = '' %}
+              {% for label, field in [('INS', 'insurance_validity'), ('FIT', 'fitness_validity'), ('PUC', 'pucc_validity'), ('TAX', 'tax_validity'), ('PRM', 'permit_validity')] %}
+                {% set val = v[field] if v[field] is defined else None %}
+                {% if val %}
+                  <span class="px-2 py-0.5 rounded text-xs font-semibold bg-green-100 text-green-700" title="{{ label }}: {{ val }}">{{ label }}</span>
+                {% else %}
+                  <span class="px-2 py-0.5 rounded text-xs font-semibold bg-gray-100 text-gray-400" title="{{ label }}: Not set">{{ label }}</span>
+                {% endif %}
+              {% endfor %}
+            </div>
+          </div>
+
+          <!-- View History Arrow -->
+          <div class="flex items-center justify-end gap-1 text-xs text-yellow-600 font-semibold mt-1">
+            View Full History
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
+            </svg>
+          </div>
+        </a>
+        {% endfor %}
+      </div>
+
+      <!-- No results message -->
+      <div id="noResults" class="hidden text-center py-16 text-gray-400">
+        <div class="text-5xl mb-3">🔍</div>
+        <p class="font-semibold">No vehicles match your search.</p>
+      </div>
+
+      {% else %}
+      <div class="text-center py-16 text-gray-400">
+        <div class="text-5xl mb-3">🚌</div>
+        <p class="font-semibold text-lg">No vehicles found.</p>
+        <p class="text-sm mt-1">Add vehicles via Vehicle Management.</p>
+        <a href="{{ url_for('admin_vehicles') }}" class="mt-4 inline-block bg-yellow-500 text-white px-6 py-2 rounded-full font-semibold hover:bg-yellow-600 transition-colors">
+          Manage Vehicles
+        </a>
+      </div>
+      {% endif %}
+
+    </div>
+  </div>
+
+  <script>
+    function filterCards() {
+      const q = document.getElementById('vehicleSearch').value.toLowerCase().trim();
+      const cards = document.querySelectorAll('#vehicleGrid .vehicle-card');
+      let visible = 0;
+      cards.forEach(card => {
+        const text = card.dataset.search || '';
+        if (!q || text.includes(q)) {
+          card.style.display = '';
+          visible++;
+        } else {
+          card.style.display = 'none';
+        }
+      });
+      const noResults = document.getElementById('noResults');
+      if (noResults) noResults.classList.toggle('hidden', visible > 0 || !q);
+    }
+  </script>
+
+  <script src="{{ url_for('static', filename='js/uppercase.js') }}"></script>
+  {% include 'footer.html' %}
+</body>
+</html>
