@@ -48,7 +48,8 @@ from database import (
     admin_delete_user, admin_toggle_user_status, admin_add_vehicle, admin_update_vehicle,
     admin_delete_vehicle, get_all_fuel_records, get_all_statutory_records, 
     get_all_trip_sheets, get_all_purchases, get_all_stock_issues, get_all_utilization, 
-    get_all_scrap, get_stock_totals, save_maintenance_entry, update_maintenance_entry, supabase
+    get_all_scrap, get_stock_totals, save_maintenance_entry, update_maintenance_entry, supabase,
+    get_vehicle_history_data
 )
 from database import save_dc_entry, get_all_dc_entries, get_dc_entry, get_last_dc_save_error, _get_next_dc_number
 from database import get_all_daily_technical_remarks
@@ -2941,19 +2942,148 @@ def admin_dashboard():
     # Sort by days remaining (most urgent first)
     due_soon_alerts.sort(key=lambda x: x['days_remaining'])
     
-    # Get inventory items count from purchases
+    # Get correct inventory count from the authoritative stock totals helper
     try:
-        purchases_response = supabase.table('purchases').select('id').eq('status', 'active').execute()
-        inventory_count = len(purchases_response.data) if purchases_response.data else 0
-    except:
+        stock_totals = get_stock_totals()
+        inventory_count = int(stock_totals.get('closing_stock_qty', 0))
+        total_purchase_value = stock_totals.get('total_purchase_value', 0)
+        total_utilized_qty  = stock_totals.get('total_utilized_qty', 0)
+        total_original_qty  = stock_totals.get('total_original_received_qty', 0)
+    except Exception:
         inventory_count = 0
+        total_purchase_value = 0
+        total_utilized_qty  = 0
+        total_original_qty  = 0
     
     return render_template('admin_dashboard.html', 
                            admin=session.get('admin'),
                            users_count=users_count,
                            vehicles_count=vehicles_count,
                            reports_count=inventory_count,
+                           total_purchase_value=total_purchase_value,
+                           total_utilized_qty=total_utilized_qty,
+                           total_original_qty=total_original_qty,
                            due_soon_alerts=due_soon_alerts)
+
+
+@app.route('/admin/vehicle-history')
+@admin_required
+def admin_vehicle_history():
+    """Admin: list all vehicles as cards for vehicle history."""
+    vehicles = get_all_vehicles() or []
+    return render_template('admin_vehicle_history.html',
+                           admin=session.get('admin'),
+                           vehicles=vehicles)
+
+
+@app.route('/admin/vehicle-history/<vehicle_id_str>')
+@admin_required
+def admin_vehicle_detail(vehicle_id_str):
+    """Admin: full history for a single vehicle across all modules."""
+    vehicle = get_vehicle_by_vehicle_id(vehicle_id_str)
+    if not vehicle:
+        flash('Vehicle not found.', 'danger')
+        return redirect(url_for('admin_vehicle_history'))
+
+    reg_no = vehicle.get('registration_no') or ''
+    history = get_vehicle_history_data(vehicle_id_str, reg_no)
+
+    # Compute quick summary stats
+    total_fuel_amount = sum(
+        float(r.get('amount') or 0) for r in history['fuel']
+    )
+    total_fuel_qty = sum(
+        float(r.get('quantity') or 0) for r in history['fuel']
+    )
+    total_util_qty = sum(
+        float(r.get('quantity') or 0) for r in history['utilization']
+    )
+    # Compute utilization value: qty × unit rate fetched from purchases (latest rate per part_no)
+    util_part_nos = list({r.get('part_no') for r in history['utilization'] if r.get('part_no')})
+    part_rate_map = {}
+    if util_part_nos:
+        try:
+            pr = supabase.table('purchases').select('part_number,rate').in_('part_number', util_part_nos).execute()
+            for row in (pr.data or []):
+                pn = row.get('part_number')
+                rt = row.get('rate')
+                if pn and rt is not None:
+                    # keep the highest rate (most recent purchase may have higher rate)
+                    try:
+                        part_rate_map[pn] = max(part_rate_map.get(pn, 0), float(rt))
+                    except Exception:
+                        pass
+        except Exception as e:
+            print(f"[VehicleHistory] parts rate lookup error: {e}")
+    total_util_amount = sum(
+        float(r.get('quantity') or 0) * part_rate_map.get(r.get('part_no'), 0)
+        for r in history['utilization']
+    )
+    total_scrap_qty = sum(
+        float(r.get('quantity') or 0) for r in history['scrap']
+    )
+    total_statutory_amount = sum(
+        float(r.get('total_amount') or r.get('rate') or 0) for r in history['statutory']
+    )
+    # Accident total loss (uses stored total_loss, falls back to treatment_expenditure)
+    accident_total_loss = sum(
+        float(r.get('total_loss') or r.get('treatment_expenditure') or 0)
+        for r in history['accidents']
+    )
+    # Trip passenger totals (summed across all trip sheets)
+    total_students  = sum(int(r.get('student_total')  or 0) for r in history['trip_sheets'])
+    total_faculty   = sum(int(r.get('faculty_total')   or 0) for r in history['trip_sheets'])
+    total_guests    = sum(int(r.get('guest_total')     or 0) for r in history['trip_sheets'])
+    total_passengers = sum(int(r.get('cumulative_strength') or 0) for r in history['trip_sheets'])
+    # Overall expenditure = all monetary values that have been recorded
+    overall_expenditure = total_fuel_amount + total_statutory_amount + accident_total_loss + total_util_amount
+
+    # Average mileage per litre from fuel records (filter out zero/invalid values)
+    mpl_values = []
+    for r in history['fuel']:
+        try:
+            raw = r.get('mileage_per_liter')
+            if raw is None or raw == '' or raw == 0:
+                continue
+            v = float(raw)
+            if 0.5 <= v <= 100:   # widened upper bound for diesel buses
+                mpl_values.append(v)
+        except Exception:
+            pass
+    avg_mileage = round(sum(mpl_values) / len(mpl_values), 2) if mpl_values else None
+
+    stats = {
+        'trip_count': len(history['trip_sheets']),
+        'fuel_count': len(history['fuel']),
+        'fuel_amount': round(total_fuel_amount, 2),
+        'fuel_qty': round(total_fuel_qty, 2),
+        'avg_mileage': avg_mileage,
+        'maintenance_count': len(history['maintenance']),
+        'utilization_count': len(history['utilization']),
+        'util_qty': round(total_util_qty, 2),
+        'util_amount': round(total_util_amount, 2),
+        'scrap_count': len(history['scrap']),
+        'scrap_qty': round(total_scrap_qty, 2),
+        'statutory_count': len(history['statutory']),
+        'statutory_amount': round(total_statutory_amount, 2),
+        'accident_count': len(history['accidents']),
+        'accident_total_loss': round(accident_total_loss, 2),
+        'daily_remarks_count': len(history['daily_remarks']),
+        # Passenger totals
+        'total_students': total_students,
+        'total_faculty': total_faculty,
+        'total_guests': total_guests,
+        'total_passengers': total_passengers,
+        # Overall monetary expenditure
+        'overall_expenditure': round(overall_expenditure, 2),
+    }
+
+    return render_template('admin_vehicle_detail.html',
+                           admin=session.get('admin'),
+                           vehicle=vehicle,
+                           history=history,
+                           stats=stats)
+
 
 @app.route('/admin/reports')
 @admin_required
@@ -5707,8 +5837,9 @@ def daily_technical_remarks():
             materials_purchased_list = request.form.getlist('materials_purchased[]')
             supplier_bills = request.form.getlist('supplier_bill[]')
             amounts = request.form.getlist('amount[]')
+            day_end_statuses = request.form.getlist('day_end_status[]')
 
-            # Build entries by vehicle rows; status always defaults to Pending
+            # Build entries by vehicle rows
             remarks_entries = []
             rows = len(vehicle_ids)
             for i in range(rows):
@@ -5722,7 +5853,7 @@ def daily_technical_remarks():
                     'kilometer': (kilometers[i] if i < len(kilometers) else ''),
                     'drivers_voice': (drivers_voices[i] if i < len(drivers_voices) else ''),
                     'technical_observation': (technical_observations[i] if i < len(technical_observations) else ''),
-                    'day_end_status': 'Pending',
+                    'day_end_status': (day_end_statuses[i] if i < len(day_end_statuses) and day_end_statuses[i] else 'Pending'),
                     'materials_purchased': (materials_purchased_list[i] if i < len(materials_purchased_list) else ''),
                     'supplier_bill': (supplier_bills[i] if i < len(supplier_bills) else ''),
                     'amount': (amounts[i] if i < len(amounts) else '')
@@ -5778,7 +5909,17 @@ def daily_technical_remarks():
     except Exception:
         latest_kms = {}
 
-    # All vehicles always show; arrested entries are filtered per-entry in the template
+    # Hide vehicles whose latest DTR status is Arrested
+    def _latest_dtr_status(v):
+        try:
+            vid = str(v.get('vehicle_id') if hasattr(v, 'get') else getattr(v, 'vehicle_id', '') or '')
+        except Exception:
+            vid = ''
+        entries = vehicle_history.get(vid, [])
+        return (entries[0].get('day_end_status') or '') if entries else ''
+
+    vehicles = [v for v in vehicles if 'arrest' not in _latest_dtr_status(v).lower()]
+
     return render_template('daily_technical_remarks.html', vehicles=vehicles, latest_kms=latest_kms, vehicle_history=vehicle_history)
 
 
@@ -5864,6 +6005,22 @@ def arrest_daily_technical_remark(remark_id):
             print('Error arresting daily technical remark', e)
         flash('An error occurred while updating the record.', 'danger')
     return redirect(request.referrer or url_for('daily_technical_remarks_history'))
+
+
+@app.route('/daily-technical-remarks/set-status/<int:remark_id>', methods=['POST'])
+@login_required
+def set_dtr_status(remark_id):
+    """Update the day_end_status of an existing DTR entry (No Issue / Arrested / Pending)."""
+    status = request.form.get('status', 'Pending')
+    allowed = {'Pending', 'No Issue', 'Arrested', 'Running'}
+    if status not in allowed:
+        status = 'Pending'
+    try:
+        update_daily_technical_remark(remark_id, {'day_end_status': status})
+        flash(f'Status updated to {status}.', 'success')
+    except Exception as e:
+        flash('Failed to update status.', 'danger')
+    return redirect(request.referrer or url_for('daily_technical_remarks'))
 
 
 @app.route('/api/daily-technical-remarks/by-vehicle-date', methods=['GET'])
