@@ -197,9 +197,10 @@
           <div class="text-3xl font-bold text-green-600">{{ active_count }}</div>
           <div class="text-sm text-gray-600 font-semibold uppercase">Active Employees</div>
         </div>
-        <div class="bg-white p-6 rounded-xl shadow-lg border-l-4 border-orange-500">
+        <div class="bg-white p-6 rounded-xl shadow-lg border-l-4 border-orange-500 cursor-pointer hover:shadow-xl transition-shadow" onclick="document.getElementById('inactiveModal').classList.remove('hidden')" title="Click to view inactive employees">
           <div class="text-3xl font-bold text-orange-600">{{ inactive_count }}</div>
           <div class="text-sm text-gray-600 font-semibold uppercase">Inactive</div>
+          <div class="text-xs text-orange-400 mt-1">Click to view ›</div>
         </div>
         <div class="bg-white p-6 rounded-xl shadow-lg border-l-4 border-blue-500">
           <div class="text-3xl font-bold text-blue-600">{{ total_count }}</div>
@@ -239,7 +240,10 @@
                 <td>{{ emp.basic_salary | default('-') }}</td>
                 <td>
                   {% if emp.status == 'active' %}
-                  <span class="badge badge-active">Active</span>
+                  <button type="button"
+                    class="badge badge-active cursor-pointer hover:opacity-80 transition-opacity"
+                    onclick="openMarkInactive('{{ emp.employee_id }}', '{{ emp.name }}')"
+                    title="Click to mark as Inactive">Active</button>
                   {% elif emp.status == 'inactive' %}
                   <span class="badge badge-inactive">Inactive</span>
                   {% else %}
@@ -396,6 +400,95 @@
         }
       });
     });
+  </script>
+
+  <!-- Mark Inactive Confirmation Modal -->
+  <div id="markInactiveModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40 no-print">
+    <div class="bg-white rounded-2xl shadow-2xl p-8 max-w-sm w-full mx-4">
+      <div class="text-center mb-6">
+        <div class="text-5xl mb-3">⚠️</div>
+        <h2 class="text-xl font-bold text-gray-800 mb-1">Mark as Inactive?</h2>
+        <p class="text-gray-500 text-sm">Employee <strong id="markInactiveName"></strong> will be moved to the Inactive list.</p>
+      </div>
+      <form id="markInactiveForm" method="POST">
+        <input type="hidden" name="status" value="inactive">
+        <div class="flex gap-3 justify-center">
+          <button type="button" onclick="document.getElementById('markInactiveModal').classList.add('hidden')"
+            class="px-6 py-2 rounded-xl border border-gray-300 text-gray-600 font-semibold hover:bg-gray-100 transition">Cancel</button>
+          <button type="submit"
+            class="px-6 py-2 rounded-xl bg-orange-500 text-white font-semibold hover:bg-orange-600 transition">Mark Inactive</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Inactive Employees History Modal -->
+  <div id="inactiveModal" class="hidden fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40 no-print">
+    <div class="bg-white rounded-2xl shadow-2xl w-full max-w-4xl mx-4 flex flex-col max-h-[85vh]">
+      <div class="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+        <h2 class="text-xl font-bold text-gray-800">Inactive Employees</h2>
+        <button onclick="document.getElementById('inactiveModal').classList.add('hidden')"
+          class="text-gray-400 hover:text-gray-600 transition text-2xl leading-none">&times;</button>
+      </div>
+      <div class="overflow-auto flex-1 p-4">
+        {% if inactive_employees %}
+        <table class="w-full border-collapse text-sm">
+          <thead>
+            <tr style="background:#f59e0b;color:white;">
+              <th class="px-3 py-2 text-left font-bold uppercase text-xs">Employee ID</th>
+              <th class="px-3 py-2 text-left font-bold uppercase text-xs">Name</th>
+              <th class="px-3 py-2 text-left font-bold uppercase text-xs">Phone</th>
+              <th class="px-3 py-2 text-left font-bold uppercase text-xs">Nativity</th>
+              <th class="px-3 py-2 text-left font-bold uppercase text-xs">Status</th>
+              <th class="px-3 py-2 text-left font-bold uppercase text-xs">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for emp in inactive_employees %}
+            <tr class="border-b border-gray-100 hover:bg-orange-50">
+              <td class="px-3 py-2 font-semibold">{{ emp.employee_id }}</td>
+              <td class="px-3 py-2 font-semibold">{{ emp.name }}</td>
+              <td class="px-3 py-2">{{ emp.phone_no or '-' }}</td>
+              <td class="px-3 py-2">{{ emp.nativity or '-' }}</td>
+              <td class="px-3 py-2">
+                <span class="badge badge-{% if emp.status == 'inactive' %}inactive{% else %}terminated{% endif %}">
+                  {{ emp.status | upper }}
+                </span>
+              </td>
+              <td class="px-3 py-2">
+                <div class="flex gap-2 items-center">
+                  <a href="{{ url_for('hr_employee_profile', employee_id=emp.employee_id) }}" class="action-icon-btn" title="View Profile">
+                    <svg class="w-4 h-4 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
+                      <path d="M10 12a2 2 0 100-4 2 2 0 000 4z"/>
+                      <path fill-rule="evenodd" d="M.458 10C1.732 5.943 5.522 3 10 3s8.268 2.943 9.542 7c-1.274 4.057-5.064 7-9.542 7S1.732 14.057.458 10zM14 10a4 4 0 11-8 0 4 4 0 018 0z" clip-rule="evenodd"/>
+                    </svg>
+                  </a>
+                  <form method="POST" action="{{ url_for('hr_set_employee_status', employee_id=emp.employee_id) }}" style="display:inline;">
+                    <input type="hidden" name="status" value="active">
+                    <button type="submit" class="px-3 py-1 text-xs rounded-lg bg-green-500 text-white font-semibold hover:bg-green-600 transition" title="Restore to Active">Restore Active</button>
+                  </form>
+                </div>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+        <div class="text-center py-12 text-gray-400">
+          <div class="text-4xl mb-2">✅</div>
+          <p class="font-semibold">No inactive employees.</p>
+        </div>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function openMarkInactive(employeeId, employeeName) {
+      document.getElementById('markInactiveName').textContent = employeeName;
+      document.getElementById('markInactiveForm').action = '/hr/employee/set-status/' + encodeURIComponent(employeeId);
+      document.getElementById('markInactiveModal').classList.remove('hidden');
+    }
   </script>
 
 {% include 'footer.html' %}
