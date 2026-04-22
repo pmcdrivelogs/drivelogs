@@ -26,19 +26,66 @@
       return Math.floor((now - d) / msPerYear);
     }
 
+    function parseDateSafe(dateStr) {
+      if (!dateStr) return null;
+      const d = new Date(dateStr);
+      if (!Number.isNaN(d.getTime())) return d;
+      // Try YYYY-MM-DD
+      const parts = ('' + dateStr).trim().split(/[-/]/);
+      if (parts.length >= 3) {
+        const y = parseInt(parts[0], 10);
+        const m = parseInt(parts[1], 10) - 1;
+        const day = parseInt(parts[2], 10);
+        const dd = new Date(y, m, day);
+        if (!Number.isNaN(dd.getTime())) return dd;
+      }
+      return null;
+    }
+
+    function computeExperienceFromEntries(exps) {
+      if (!exps || !exps.length) return null;
+      const msPerYear = 365.25 * 24 * 60 * 60 * 1000;
+      const msPerMonth = 30.4375 * 24 * 60 * 60 * 1000;
+      let totalMs = 0;
+      for (let i = 0; i < exps.length; i++) {
+        const e = exps[i] || {};
+        const from = parseDateSafe(e.from_date || e.from || e.fromDate);
+        let to = parseDateSafe(e.to_date || e.to || e.toDate);
+        if (!from) continue;
+        if (!to) to = new Date();
+        const diff = to - from;
+        if (diff > 0) totalMs += diff;
+      }
+      if (totalMs <= 0) return null;
+      const years = Math.floor(totalMs / msPerYear);
+      const months = Math.floor((totalMs % msPerYear) / msPerMonth);
+      return { years, months };
+    }
+
     // Populate profile experience in header after DOM ready
     document.addEventListener('DOMContentLoaded', function() {
       try {
         const emp = getProfileEmployee();
-        const doj = emp.date_of_joining || emp.expected_date_of_joining || null;
         const el = document.getElementById('profile-experience');
         if (el) {
-          if (doj) {
-            const yrs = computeYearsSince(doj);
-            if (yrs === null) el.textContent = '';
-            else el.textContent = `Experience: ${yrs} yr${yrs === 1 ? '' : 's'}`;
+          // Prefer computing from experience entries
+          const calc = computeExperienceFromEntries(emp.experience);
+          if (calc) {
+            const yrs = calc.years;
+            const mos = calc.months;
+            let txt = 'Experience: ' + yrs + ' yr' + (yrs === 1 ? '' : 's');
+            if (mos) txt += ' ' + mos + ' mo' + (mos === 1 ? '' : 's');
+            el.textContent = txt;
           } else {
-            el.textContent = '';
+            // fallback to date_of_joining
+            const doj = emp.date_of_joining || emp.expected_date_of_joining || null;
+            if (doj) {
+              const yrs = computeYearsSince(doj);
+              if (yrs === null) el.textContent = '';
+              else el.textContent = `Experience: ${yrs} yr${yrs === 1 ? '' : 's'}`;
+            } else {
+              el.textContent = '';
+            }
           }
         }
       } catch (e) {
@@ -366,7 +413,7 @@
       .info-grid {
         gap: 6px;
         margin-bottom: 6px;
-        grid-template-columns: repeat(3, 1fr);
+        grid-template-columns: repeat(2, 1fr);
       }
 
       .info-item {
@@ -386,16 +433,16 @@
 
       table {
         margin-bottom: 6px;
-        font-size: 0.7rem;
-      }
-
-      table th {
-        padding: 4px 6px;
         font-size: 0.65rem;
       }
 
+      table th {
+        padding: 3px 5px;
+        font-size: 0.62rem;
+      }
+
       table td {
-        padding: 3px 6px;
+        padding: 2px 5px;
       }
 
       .bg-white {
@@ -415,8 +462,9 @@
       }
 
       .declaration-section {
-        padding: 15px;
+        padding: 12px;
         margin: 0;
+        page-break-inside: avoid;
       }
 
       .declaration-title {
@@ -456,12 +504,12 @@
       }
 
       h1 {
-        font-size: 1.2rem;
-        margin-bottom: 4px;
+        font-size: 1.05rem;
+        margin-bottom: 2px;
       }
 
       .flex-col {
-        gap: 3px;
+        gap: 2px;
       }
 
       .mt-8 {
@@ -815,7 +863,6 @@
         </div>
 
         <!-- EXPERIENCE -->
-        {% if employee.experience and employee.experience|length > 0 %}
         <div class="profile-section">EXPERIENCE</div>
         <table>
           <thead>
@@ -828,18 +875,23 @@
             </tr>
           </thead>
           <tbody>
-            {% for exp in employee.experience %}
-            <tr>
-              <td>{{ exp.from_date or '-' }}</td>
-              <td>{{ exp.to_date or '-' }}</td>
-              <td>{{ exp.designation }}</td>
-              <td>{{ exp.organization }}</td>
-              <td>{{ exp.vehicle_type }}</td>
-            </tr>
-            {% endfor %}
+            {% if employee.experience and employee.experience|length > 0 %}
+              {% for exp in employee.experience %}
+              <tr>
+                <td>{{ exp.from_date or '-' }}</td>
+                <td>{{ exp.to_date or '-' }}</td>
+                <td>{{ exp.designation or '-' }}</td>
+                <td>{{ exp.organization or '-' }}</td>
+                <td>{{ exp.vehicle_type or '-' }}</td>
+              </tr>
+              {% endfor %}
+            {% else %}
+              <tr>
+                <td colspan="5">-</td>
+              </tr>
+            {% endif %}
           </tbody>
         </table>
-        {% endif %}
 
         <!-- DRIVING & ELIGIBILITY -->
         <div class="profile-section">EXAMINATION OF DRIVING & ELIGIBILITY</div>
@@ -867,7 +919,6 @@
         </div>
 
         <!-- AWARDS & APPRECIATION -->
-        {% if employee.awards and employee.awards|length > 0 %}
         <div class="profile-section">AWARDS & APPRECIATION</div>
         <table>
           <thead>
@@ -878,19 +929,23 @@
             </tr>
           </thead>
           <tbody>
-            {% for award in employee.awards %}
-            <tr>
-              <td>{{ award.date }}</td>
-              <td>{{ award.nature }}</td>
-              <td>{{ award.remarks }}</td>
-            </tr>
-            {% endfor %}
+            {% if employee.awards and employee.awards|length > 0 %}
+              {% for award in employee.awards %}
+              <tr>
+                <td>{{ award.date or '-' }}</td>
+                <td>{{ award.nature or '-' }}</td>
+                <td>{{ award.remarks or '-' }}</td>
+              </tr>
+              {% endfor %}
+            {% else %}
+              <tr>
+                <td colspan="3">-</td>
+              </tr>
+            {% endif %}
           </tbody>
         </table>
-        {% endif %}
 
         <!-- ACCIDENTS/INCIDENTS -->
-        {% if employee.accidents and employee.accidents|length > 0 %}
         <div class="profile-section">ACCIDENTS/INCIDENTS</div>
         <table>
           <thead>
@@ -903,18 +958,23 @@
             </tr>
           </thead>
           <tbody>
-            {% for acc in employee.accidents %}
-            <tr>
-              <td>{{ acc.date }}</td>
-              <td>{{ acc.description }}</td>
-              <td>{{ acc.type }}</td>
-              <td>{{ acc.case_no or '-' }}</td>
-              <td>{{ acc.status or '-' }}</td>
-            </tr>
-            {% endfor %}
+            {% if employee.accidents and employee.accidents|length > 0 %}
+              {% for acc in employee.accidents %}
+              <tr>
+                <td>{{ acc.date or '-' }}</td>
+                <td>{{ acc.description or '-' }}</td>
+                <td>{{ acc.type or '-' }}</td>
+                <td>{{ acc.case_no or '-' }}</td>
+                <td>{{ acc.status or '-' }}</td>
+              </tr>
+              {% endfor %}
+            {% else %}
+              <tr>
+                <td colspan="5">-</td>
+              </tr>
+            {% endif %}
           </tbody>
         </table>
-        {% endif %}
 
         <!-- BANK DETAILS -->
         <div class="profile-section">BANK DETAILS</div>
@@ -1034,7 +1094,7 @@
               <div class="signature-sub">Signature & Date</div>
             </div>
             <div class="signature-box">
-              <div class="signature-label">Approval by the Chairman:</div>
+              <div class="signature-label">Approval by The Chairman:</div>
               <div class="signature-line"></div>
               <div class="signature-sub">Signature & Date</div>
             </div>
