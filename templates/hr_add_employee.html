@@ -1188,6 +1188,35 @@
     }
   </script>
 
+  <script>
+  // Uppercase all text inputs & textareas before form submission
+  document.addEventListener('DOMContentLoaded', function () {
+    const form = document.querySelector('form');
+    if (!form) return;
+
+    // Live: uppercase as user types
+    const SKIP_TYPES = new Set(['date', 'datetime-local', 'time', 'number', 'email', 'password', 'hidden', 'checkbox', 'radio', 'file']);
+    function attachUppercase(el) {
+      if (SKIP_TYPES.has(el.type)) return;
+      el.addEventListener('input', function () {
+        const pos = el.selectionStart;
+        el.value = el.value.toUpperCase();
+        try { el.setSelectionRange(pos, pos); } catch (e) {}
+      });
+    }
+    form.querySelectorAll('input, textarea').forEach(attachUppercase);
+
+    // Also uppercase on submit (catches paste & autofill)
+    form.addEventListener('submit', function () {
+      form.querySelectorAll('input, textarea').forEach(function (el) {
+        if (!SKIP_TYPES.has(el.type) && el.value) {
+          el.value = el.value.toUpperCase();
+        }
+      });
+    });
+  });
+  </script>
+
 {% include 'footer.html' %}
 </body>
 </html>
