@@ -5909,17 +5909,6 @@ def daily_technical_remarks():
     except Exception:
         latest_kms = {}
 
-    # Hide vehicles whose latest DTR status is Arrested
-    def _latest_dtr_status(v):
-        try:
-            vid = str(v.get('vehicle_id') if hasattr(v, 'get') else getattr(v, 'vehicle_id', '') or '')
-        except Exception:
-            vid = ''
-        entries = vehicle_history.get(vid, [])
-        return (entries[0].get('day_end_status') or '') if entries else ''
-
-    vehicles = [v for v in vehicles if 'arrest' not in _latest_dtr_status(v).lower()]
-
     return render_template('daily_technical_remarks.html', vehicles=vehicles, latest_kms=latest_kms, vehicle_history=vehicle_history)
 
 
