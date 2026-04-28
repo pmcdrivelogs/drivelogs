@@ -148,11 +148,19 @@
       <!-- Header -->
       <div class="mb-5 pb-4 border-b-2 border-gray-300 flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 class="text-2xl md:text-3xl font-bold text-blue-900 underline underline-offset-4">TRIP SHEET</h1>
+          <div class="flex flex-wrap items-center gap-4">
+            <h1 class="text-2xl md:text-3xl font-bold text-blue-900 underline underline-offset-4">TRIP SHEET</h1>
+            <div class="flex items-center gap-2 flex-wrap">
+              <label class="text-xs font-semibold text-gray-700">DATE:</label>
+              <input type="date" id="commonDate" class="border rounded-lg px-3 py-2 text-sm" style="min-width:140px;">
+              <label class="text-xs font-semibold text-gray-700 ml-2">TIME:</label>
+              <input type="time" id="commonTime" class="border rounded-lg px-3 py-2 text-sm" style="min-width:110px;">
+            </div>
+          </div>
           <p class="text-xs text-gray-500 mt-1">REF: PMCTECH/LOGI/FORM 8/001</p>
         </div>
         <div class="flex items-center gap-3 flex-wrap">
-          <input id="ts_search" type="search" placeholder="Search vehicle / reg no"
+          <input id="ts_search" type="search" placeholder="Search vehicle ID / reg no"
                  class="border rounded-lg px-3 py-2 text-sm" style="min-width:190px;">
         </div>
       </div>
@@ -168,12 +176,11 @@
             <tr>
               <th rowspan="2">VEHICLE<br>ID</th>
               <th rowspan="2">REG NO</th>
-              <th rowspan="2">DATE &amp; TIME</th>
-              <th rowspan="2">ROUTE<br>ID</th>
               <th rowspan="2">DRIVER<br>ID</th>
               <th rowspan="2">DRIVER NAME</th>
               <th rowspan="2">START KM</th>
               <th rowspan="2">CLOSE KM</th>
+              <th rowspan="2"><b>TOTAL KM</b></th>
               <th rowspan="2">START<br>TIME</th>
               <th rowspan="2">CLOSE<br>TIME</th>
               <th colspan="3">STUDENTS</th>
@@ -202,59 +209,70 @@
                 <td class="vid-cell">{{ vehicle.vehicle_id }}</td>
                 <!-- td[1] Reg No -->
                 <td class="reg-cell">{{ vehicle.registration_no or '—' }}</td>
-                <!-- td[2] Date & Time -->
-                <td><input type="datetime-local" class="trip-input" style="min-width:135px;"></td>
-                <!-- td[3] Route ID -->
-                <td><input type="text" class="trip-input" style="min-width:65px;" placeholder="Route ID"></td>
-                <!-- td[4] Driver ID -->
-                <td><input type="text" class="trip-input" style="min-width:65px;" placeholder="Driver ID"></td>
-                <!-- td[5] Driver Name -->
-                <td><input type="text" class="trip-input" style="min-width:100px;" placeholder="Driver Name"></td>
-                <!-- td[6] Start KM -->
+                <!-- td[2] Driver ID (last 2 digits) -->
+                <td><input type="text" class="trip-input driver-id" style="min-width:52px;" placeholder="00" maxlength="2"
+                           oninput="driverIdChanged(this)"></td>
+                <!-- td[3] Driver Name -->
+                <td><input type="text" class="trip-input driver-name" style="min-width:100px;" placeholder="Driver Name"
+                           oninput="driverNameChanged(this)"></td>
+                <!-- td[4] Start KM -->
                 <td>
                   <input type="number" step="0.01" class="trip-input km-start" style="min-width:95px;" placeholder="Start KM"
                          oninput="validateKmRow(this.closest('tr'))">
                 </td>
-                <!-- td[7] Close KM -->
+                <!-- td[5] Close KM -->
                 <td>
                   <input type="number" step="0.01" class="trip-input km-close" style="min-width:95px;" placeholder="Close KM"
                          oninput="validateKmRow(this.closest('tr'))">
                   <div class="km-err">⚠ Close &gt; Start</div>
                 </td>
-                <!-- td[8] Start Time -->
+                <!-- td[6] Total KM -->
+                <td><input type="text" class="trip-input total-km-cell" style="min-width:75px;font-weight:800;color:#1e40af;" placeholder="0" readonly></td>
+                <!-- td[7] Start Time -->
                 <td><input type="time" class="trip-input" style="min-width:75px;"></td>
-                <!-- td[9] Close Time -->
+                <!-- td[8] Close Time -->
                 <td><input type="time" class="trip-input" style="min-width:75px;"></td>
-                <!-- td[10..12] Students M/F/T -->
+                <!-- td[9..11] Students M/F/T -->
                 <td><input type="number" class="strength-input" min="0" placeholder="0" oninput="calcRowTotal(this.closest('tr'))"></td>
                 <td><input type="number" class="strength-input" min="0" placeholder="0" oninput="calcRowTotal(this.closest('tr'))"></td>
                 <td><input type="number" class="strength-input" min="0" placeholder="0" oninput="calcRowTotal(this.closest('tr'))"></td>
-                <!-- td[13..15] Faculty M/F/T -->
+                <!-- td[12..14] Faculty M/F/T -->
                 <td><input type="number" class="strength-input" min="0" placeholder="0" oninput="calcRowTotal(this.closest('tr'))"></td>
                 <td><input type="number" class="strength-input" min="0" placeholder="0" oninput="calcRowTotal(this.closest('tr'))"></td>
                 <td><input type="number" class="strength-input" min="0" placeholder="0" oninput="calcRowTotal(this.closest('tr'))"></td>
-                <!-- td[16..18] Guests M/F/T -->
+                <!-- td[15..17] Guests M/F/T -->
                 <td><input type="number" class="strength-input" min="0" placeholder="0" oninput="calcRowTotal(this.closest('tr'))"></td>
                 <td><input type="number" class="strength-input" min="0" placeholder="0" oninput="calcRowTotal(this.closest('tr'))"></td>
                 <td><input type="number" class="strength-input" min="0" placeholder="0" oninput="calcRowTotal(this.closest('tr'))"></td>
-                <!-- td[19] Grand Total -->
+                <!-- td[18] Grand Total -->
                 <td class="total-cell">0</td>
-                <!-- td[20] Start Place -->
+                <!-- td[19] Start Place -->
                 <td><input type="text" class="trip-input" style="min-width:88px;" placeholder="Start Place"></td>
-                <!-- td[21] Close Place -->
+                <!-- td[20] Close Place -->
                 <td><input type="text" class="trip-input" style="min-width:88px;" placeholder="Close Place"></td>
-                <!-- td[22] Comments -->
-                <td><input type="text" class="trip-input" style="min-width:88px;" placeholder="Comments"></td>
-                <!-- td[23] Entered By -->
+                <!-- td[21] Comments -->
+                <td>
+                  <select class="trip-input" style="min-width:130px;">
+                    <option value="Daily Trip" selected>Daily Trip</option>
+                    <option value="Unoperated">Non-operational</option>
+                    <option value="Brake Down">Brake Down</option>
+                    <option value="IV/Trip">IV/Training</option>
+                    <option value="Meter Fault">Meter Fault</option>
+                    <option value="Educational Tour">Educational Tour</option>
+                    <option value="School - College Visit">School - College Visit</option>
+                    <option value="Other-GO/NGO Purpose">Other-GO/NGO Purpose</option>
+                  </select>
+                </td>
+                <!-- td[22] Entered By -->
                 <td><input type="text" class="trip-input" style="min-width:88px;" value="{{ session.get('user_name', '') }}"></td>
-                <!-- td[24] Action -->
+                <!-- td[23] Action -->
                 <td>
                   <button type="button" class="submit-single-btn" onclick="submitSingleRow(this)">Submit</button>
                 </td>
               </tr>
               {% endfor %}
             {% else %}
-              <tr><td colspan="25" class="text-center py-8 text-gray-400">No vehicles found.</td></tr>
+              <tr><td colspan="24" class="text-center py-8 text-gray-400">No vehicles found.</td></tr>
             {% endif %}
           </tbody>
         </table>
@@ -265,18 +283,19 @@
 
   <script>
     const SINGLE_URL = "{{ url_for('trip_sheet_single') }}";
+    const DRIVER_LOOKUP_URL = "{{ url_for('api_driver_lookup') }}";
     const SESSION_USER = "{{ session.get('user_name', '') | e }}";
     const LATEST_KMS = {{ latest_kms | tojson }};
 
     /* ── Column helpers ──────────────────────────────────── */
-    // td indices: 0=vid,1=reg,2=datetime,3=route,4=driverid,5=drivername,
-    //             6=startKM,7=closeKM,8=startTime,9=closeTime,
-    //             10=sMale,11=sFemale,12=sTrans,13=fMale,14=fFemale,15=fTrans,
-    //             16=gMale,17=gFemale,18=gTrans,19=total,
-    //             20=startPlace,21=closePlace,22=comments,23=enteredBy,24=action
+    // td indices: 0=vid,1=reg,2=driverid,3=drivername,
+    //             4=startKM,5=closeKM,6=totalKM,7=startTime,8=closeTime,
+    //             9=sMale,10=sFemale,11=sTrans,12=fMale,13=fFemale,14=fTrans,
+    //             15=gMale,16=gFemale,17=gTrans,18=total,
+    //             19=startPlace,20=closePlace,21=comments,22=enteredBy,23=action
 
     function tdVal(td) {
-      const el = td.querySelector('input, textarea');
+      const el = td.querySelector('input, textarea, select');
       return el ? el.value.trim() : '';
     }
     function tdNum(td) {
@@ -286,48 +305,58 @@
 
     function getRowData(row) {
       const tds = row.querySelectorAll('td');
-      const sMale = tdNum(tds[10]), sFemale = tdNum(tds[11]), sTrans = tdNum(tds[12]);
-      const fMale = tdNum(tds[13]), fFemale = tdNum(tds[14]), fTrans = tdNum(tds[15]);
-      const gMale = tdNum(tds[16]), gFemale = tdNum(tds[17]), gTrans = tdNum(tds[18]);
+      const commonDate = document.getElementById('commonDate').value;
+      const commonTime = (document.getElementById('commonTime') || {}).value || '00:00';
+      const driverIdInp = tds[2].querySelector('.driver-id');
+      const sMale = tdNum(tds[9]), sFemale = tdNum(tds[10]), sTrans = tdNum(tds[11]);
+      const fMale = tdNum(tds[12]), fFemale = tdNum(tds[13]), fTrans = tdNum(tds[14]);
+      const gMale = tdNum(tds[15]), gFemale = tdNum(tds[16]), gTrans = tdNum(tds[17]);
       const sTotal = sMale + sFemale + sTrans;
       const fTotal = fMale + fFemale + fTrans;
       const gTotal = gMale + gFemale + gTrans;
       return {
         vehicle_id:          row.dataset.vehicleId,
         vehicle_no:          row.dataset.vehicleNo,
-        date_time:           tdVal(tds[2]),
-        route_id:            tdVal(tds[3]),
-        driver_id:           tdVal(tds[4]),
-        driver_name:         tdVal(tds[5]),
-        trip_start_km:       tdVal(tds[6]),
-        trip_close_km:       tdVal(tds[7]),
-        trip_start_time:     tdVal(tds[8]),
-        trip_close_time:     tdVal(tds[9]),
+        date_time:           commonDate ? commonDate + 'T' + commonTime : '',
+        route_id:            '',
+        driver_id:           driverIdInp.dataset.fullId || tdVal(tds[2]),
+        driver_name:         tdVal(tds[3]),
+        trip_start_km:       tdVal(tds[4]),
+        trip_close_km:       tdVal(tds[5]),
+        total_km:            tdVal(tds[6]),
+        trip_start_time:     tdVal(tds[7]),
+        trip_close_time:     tdVal(tds[8]),
         student_male:        sMale, student_female: sFemale, student_transgender: sTrans, student_total: sTotal,
         faculty_male:        fMale, faculty_female: fFemale, faculty_transgender: fTrans, faculty_total: fTotal,
         guest_male:          gMale, guest_female:   gFemale, guest_transgender:   gTrans, guest_total:   gTotal,
         cumulative_strength: sTotal + fTotal + gTotal,
-        trip_start_place:    tdVal(tds[20]),
-        trip_close_place:    tdVal(tds[21]),
-        comments:            tdVal(tds[22]),
-        entered_by:          tdVal(tds[23])
+        trip_start_place:    tdVal(tds[19]),
+        trip_close_place:    tdVal(tds[20]),
+        comments:            tdVal(tds[21]),
+        entered_by:          tdVal(tds[22])
       };
     }
 
-    /* ── KM validation ───────────────────────────────────── */
+    /* ── KM validation & Total KM calculation ───────────── */
     function validateKmRow(row) {
       const tds = row.querySelectorAll('td');
-      const startVal = parseFloat(tds[6].querySelector('.km-start').value);
-      const closeVal = parseFloat(tds[7].querySelector('.km-close').value);
-      const errDiv   = tds[7].querySelector('.km-err');
-      const closeInp = tds[7].querySelector('.km-close');
+      const startVal = parseFloat(tds[4].querySelector('.km-start').value);
+      const closeVal = parseFloat(tds[5].querySelector('.km-close').value);
+      const errDiv   = tds[5].querySelector('.km-err');
+      const closeInp = tds[5].querySelector('.km-close');
+      const totalKmCell = tds[6].querySelector('.total-km-cell');
       if (!isNaN(startVal) && !isNaN(closeVal) && closeVal <= startVal) {
         errDiv.style.display = 'block';
         closeInp.style.borderColor = '#dc2626';
+        totalKmCell.value = '';
         return false;
       }
       errDiv.style.display = 'none';
       closeInp.style.borderColor = '#d1d5db';
+      // Calculate total KM
+      if (!isNaN(startVal) && !isNaN(closeVal)) {
+        totalKmCell.value = (closeVal - startVal).toFixed(2);
+      }
       return true;
     }
 
@@ -335,8 +364,8 @@
     function calcRowTotal(row) {
       const tds = row.querySelectorAll('td');
       let total = 0;
-      for (let i = 10; i <= 18; i++) total += tdNum(tds[i]);
-      tds[19].textContent = total;
+      for (let i = 9; i <= 17; i++) total += tdNum(tds[i]);
+      tds[18].textContent = total;
     }
 
     /* ── Toast ───────────────────────────────────────────── */
@@ -367,7 +396,7 @@
     async function submitSingleRow(btn) {
       const row = btn.closest('tr');
       const d = getRowData(row);
-      if (!d.date_time || !d.route_id || !d.driver_id || !d.driver_name ||
+      if (!d.date_time || !d.driver_id || !d.driver_name ||
           !d.trip_start_km || !d.trip_close_km || !d.trip_start_place || !d.trip_close_place) {
         showToast('Fill all required fields for vehicle ' + d.vehicle_id, 'error');
         return;
@@ -409,20 +438,22 @@
         String(now.getHours()).padStart(2,'0') + ':' +
         String(now.getMinutes()).padStart(2,'0');
 
+      // Set common date and time
+      const commonDate = document.getElementById('commonDate');
+      if (commonDate) commonDate.value = dtStr.split('T')[0];
+      const commonTime = document.getElementById('commonTime');
+      if (commonTime) commonTime.value = dtStr.split('T')[1];
+
       document.querySelectorAll('#tripBody tr.vehicle-row').forEach(function (row) {
         const tds = row.querySelectorAll('td');
         const vid = row.dataset.vehicleId;
-
-        // Auto-fill datetime
-        const dtInp = tds[2].querySelector('input');
-        if (dtInp) dtInp.value = dtStr;
 
         // Auto-fill start KM from server latest_kms or localStorage
         const savedKm = (LATEST_KMS[vid] !== undefined && LATEST_KMS[vid] !== '')
           ? LATEST_KMS[vid]
           : localStorage.getItem('lastCloseKm_' + vid);
         if (savedKm) {
-          const startInp = tds[6].querySelector('.km-start');
+          const startInp = tds[4].querySelector('.km-start');
           if (startInp) { startInp.value = savedKm; startInp.style.borderColor = '#10b981'; }
         }
       });
@@ -470,6 +501,76 @@
         window.addEventListener('resize', syncTopScrollWidth);
       }
     });
+  </script>
+
+  <script>
+    /* ── Driver lookup (auto-fill) ──────────────────────── */
+    let driverIdTimeout = null;
+    let driverNameTimeout = null;
+
+    async function driverIdChanged(inp) {
+      clearTimeout(driverIdTimeout);
+      const row = inp.closest('tr');
+      const tds = row.querySelectorAll('td');
+      const last2 = inp.value.trim();
+      if (!last2) {
+        tds[3].querySelector('.driver-name').value = '';
+        inp.dataset.fullId = '';
+        inp.style.borderColor = '#d1d5db';
+        return;
+      }
+      if (last2.length < 2) { inp.dataset.fullId = ''; return; }
+      driverIdTimeout = setTimeout(async () => {
+        try {
+          const res = await fetch(DRIVER_LOOKUP_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ driver_id: last2 })
+          });
+          const data = await res.json();
+          if (data.driver_name) {
+            tds[3].querySelector('.driver-name').value = data.driver_name;
+            inp.dataset.fullId = data.driver_id;
+            inp.style.borderColor = '#10b981';
+          } else {
+            inp.dataset.fullId = '';
+            inp.style.borderColor = '#f87171';
+          }
+        } catch (err) {
+          console.error('Driver lookup failed:', err);
+        }
+      }, 300);
+    }
+
+    async function driverNameChanged(inp) {
+      clearTimeout(driverNameTimeout);
+      const row = inp.closest('tr');
+      const tds = row.querySelectorAll('td');
+      const driverName = inp.value.trim();
+      if (!driverName) {
+        const dIdInp = tds[2].querySelector('.driver-id');
+        dIdInp.value = ''; dIdInp.dataset.fullId = ''; dIdInp.style.borderColor = '#d1d5db';
+        return;
+      }
+      driverNameTimeout = setTimeout(async () => {
+        try {
+          const res = await fetch(DRIVER_LOOKUP_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ driver_name: driverName })
+          });
+          const data = await res.json();
+          if (data.driver_id) {
+            const dIdInp = tds[2].querySelector('.driver-id');
+            dIdInp.dataset.fullId = data.driver_id;
+            dIdInp.value = String(data.driver_id).slice(-2);
+            dIdInp.style.borderColor = '#10b981';
+          }
+        } catch (err) {
+          console.error('Driver lookup failed:', err);
+        }
+      }, 300);
+    }
   </script>
 
 <script src="{{ url_for('static', filename='js/uppercase.js') }}"></script>
