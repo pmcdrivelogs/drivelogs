@@ -91,6 +91,11 @@
       } catch (e) {
         // silently ignore
       }
+
+      // Reformat all dates from yyyy-mm-dd to dd/mm/yyyy
+      document.querySelectorAll('.info-value').forEach(function(el) {
+        el.textContent = el.textContent.replace(/\b(\d{4})[-\/](\d{2})[-\/](\d{2})\b/g, '$3/$2/$1');
+      });
     });
 
     function _getPrintableHTML() {
@@ -125,6 +130,55 @@
         setTimeout(() => { document.body.removeChild(iframe); }, 1000);
       }, 500);
     }
+
+    // ── Print field controls ──────────────────────────────────────────────
+    function toggleSection(secId, isChecked) {
+      var sec = document.getElementById(secId);
+      if (!sec) return;
+      if (isChecked) sec.classList.remove('hidden-from-print');
+      else sec.classList.add('hidden-from-print');
+      // Sync all field checkboxes inside this section
+      document.querySelectorAll('input[data-sec="' + secId + '"]').forEach(function(cb) {
+        cb.checked = isChecked;
+        var fid = cb.getAttribute('data-fid');
+        var el = document.getElementById(fid);
+        if (el) {
+          if (isChecked) el.classList.remove('hidden-from-print');
+          else el.classList.add('hidden-from-print');
+        }
+      });
+    }
+
+    function toggleField(cb) {
+      var fid = cb.getAttribute('data-fid');
+      var el = document.getElementById(fid);
+      if (el) {
+        if (cb.checked) el.classList.remove('hidden-from-print');
+        else el.classList.add('hidden-from-print');
+      }
+      // If any field in section is unchecked, make section checkbox indeterminate
+      var secId = cb.getAttribute('data-sec');
+      var allChecked = true;
+      var anyChecked = false;
+      document.querySelectorAll('input[data-sec="' + secId + '"]').forEach(function(c) {
+        if (!c.checked) allChecked = false;
+        else anyChecked = true;
+      });
+      var secCb = document.getElementById('sec-chk-' + secId);
+      if (secCb) {
+        secCb.indeterminate = !allChecked && anyChecked;
+        secCb.checked = allChecked;
+      }
+    }
+
+    function togglePrintCtrl() {
+      var body = document.getElementById('print-ctrl-body');
+      var chevron = document.getElementById('ctrl-chevron');
+      if (body) {
+        body.classList.toggle('hidden');
+        if (chevron) chevron.textContent = body.classList.contains('hidden') ? '▼' : '▲';
+      }
+    }
   </script>
   <style>
     * { font-family: 'Inter', sans-serif; }
@@ -141,11 +195,15 @@
       border-radius: 4px;
       margin: 8px 0 6px 0;
       box-shadow: 0 2px 6px rgba(234, 179, 8, 0.2);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
     }
+    .hidden-from-print { /* toggled by JS - hide field/section from print */ }
     
     .info-grid {
       display: grid;
-      grid-template-columns: repeat(4, 1fr);
+      grid-template-columns: repeat(3, 1fr);
       gap: 8px;
       margin-bottom: 8px;
     }
@@ -347,7 +405,7 @@
 
     .signature-line {
       border: 1px dotted #333;
-      height: 50px;
+      height: 80px;
       margin-bottom: 8px;
     }
 
@@ -371,162 +429,125 @@
     }
     
     @media print {
-      .no-print {
-        display: none !important;
-      }
-      body {
-        background: white;
-        padding: 0;
-        margin: 0;
-        font-size: 12px;
-      }
+      @page { margin: 6mm 8mm; size: A4 portrait; }
 
-      .logo-bar {
-        display: none !important;
-      }
+      .no-print { display: none !important; }
+      .hidden-from-print { display: none !important; }
+      body { background: white; padding: 0; margin: 0; font-size: 10pt; }
+      .logo-bar { display: none !important; }
 
-      .max-w-7xl {
-        max-width: 100%;
-        margin: 0;
-        padding: 8px;
-      }
+      .max-w-7xl { max-width: 100%; margin: 0; padding: 0; }
 
+      /* College header — compact */
       .college-header-wrapper {
-        page-break-after: avoid;
-        margin-bottom: 8px;
+        margin-bottom: 4px;
         border-bottom: 1px solid #999;
-        padding-bottom: 8px;
+        padding-bottom: 4px;
       }
+      .college-header-img { max-height: 70px; width: auto; max-width: 100%; padding: 0; }
 
-      .college-header-img {
-        max-width: 100%;
-        height: auto;
-        padding: 4px 0;
-      }
+      /* Employee header card */
+      .bg-white { background: white !important; }
+      .rounded-2xl { border-radius: 0 !important; }
+      .shadow-2xl { box-shadow: none !important; }
+      .p-4, .p-6 { padding: 3px !important; }
+      .mb-4 { margin-bottom: 3px !important; }
+      .mb-6 { margin-bottom: 3px !important; }
+      .mb-8 { margin-bottom: 3px !important; }
+      .mt-8 { margin-top: 3px !important; }
+      .pt-6 { padding-top: 3px !important; }
 
+      h1 { font-size: 13pt; margin-bottom: 1px; }
+      .text-lg, .text-3xl { font-size: 11pt !important; }
+      .badge { font-size: 8.5pt; padding: 2px 7px; border-radius: 6px; }
+
+      /* Section header strips */
       .profile-section {
-        margin: 6px 0 4px 0;
-        padding: 6px 10px;
-        font-size: 0.75rem;
+        margin: 5px 0 3px 0;
+        padding: 4px 8px;
+        font-size: 9pt;
+        letter-spacing: 0.3px;
+        page-break-after: avoid;
       }
 
+      /* label + value on ONE LINE */
       .info-grid {
-        gap: 6px;
-        margin-bottom: 6px;
-        grid-template-columns: repeat(2, 1fr);
+        grid-template-columns: repeat(3, 1fr);
+        gap: 3px;
+        margin-bottom: 3px;
       }
 
       .info-item {
-        padding: 6px;
+        display: flex;
+        flex-direction: row;
+        align-items: baseline;
+        flex-wrap: wrap;
+        gap: 0 4px;
+        padding: 3px 6px;
         border-left: 2px solid #eab308;
+        border-radius: 2px;
+        background: white;
         min-height: auto;
       }
 
       .info-label {
-        font-size: 0.6rem;
-        margin-bottom: 2px;
+        font-size: 8.5pt;
+        font-weight: 700;
+        color: #475569;
+        text-transform: uppercase;
+        letter-spacing: 0.2px;
+        margin-bottom: 0;
+        white-space: nowrap;
+        flex-shrink: 0;
       }
+      .info-label::after { content: ":"; }
 
       .info-value {
-        font-size: 0.75rem;
+        font-size: 9.5pt;
+        font-weight: 600;
+        color: #1e293b;
+        word-break: break-word;
       }
 
+      /* Tables */
       table {
-        margin-bottom: 6px;
-        font-size: 0.65rem;
+        margin-bottom: 4px;
+        font-size: 8.5pt;
+        page-break-inside: avoid;
       }
-
       table th {
         padding: 3px 5px;
-        font-size: 0.62rem;
+        font-size: 8pt;
       }
-
       table td {
         padding: 2px 5px;
+        font-size: 8.5pt;
       }
 
-      .bg-white {
-        background: white !important;
-      }
-
-      .p-4 {
-        padding: 4px !important;
-      }
-
-      .p-6 {
-        padding: 4px !important;
-      }
-
-      .shadow-2xl {
-        box-shadow: none !important;
-      }
-
+      /* Declaration section */
       .declaration-section {
-        padding: 12px;
+        padding: 7px 10px;
         margin: 0;
         page-break-inside: avoid;
       }
+      .declaration-title { font-size: 8.5pt; margin: 5px 0 4px 0; }
+      .declaration-content { font-size: 8pt; line-height: 1.5; margin-bottom: 6px; }
+      .declaration-emp-id { font-size: 8pt; margin-bottom: 4px; }
+      .declaration-note { font-size: 7.5pt; margin: 7px 0; }
 
-      .declaration-title {
-        margin: 8px 0 6px 0;
-        font-size: 0.8rem;
-      }
+      .date-place-row { gap: 12px; margin: 7px 0 6px 0; }
+      .date-place-label { font-size: 8pt; margin-bottom: 4px; }
+      .date-place-line { height: 16px; }
 
-      .declaration-content {
-        font-size: 0.75rem;
-        line-height: 1.4;
-        margin-bottom: 8px;
-      }
+      .driver-signature-box { margin: 7px 0; }
+      .driver-signature-label { font-size: 8pt; margin-bottom: 5px; }
+      .driver-signature-line { height: 34px; }
 
-      .date-place-row {
-        gap: 15px;
-        margin: 10px 0;
-      }
-
-      .signature-grid {
-        gap: 15px;
-        margin: 15px 0;
-      }
-
-      .signature-label {
-        font-size: 0.7rem;
-        margin-bottom: 4px;
-      }
-
-      .declaration-note {
-        font-size: 0.7rem;
-        margin: 10px 0;
-      }
-
-      .signature-section-title {
-        margin: 15px 0 8px 0;
-        font-size: 0.75rem;
-      }
-
-      h1 {
-        font-size: 1.05rem;
-        margin-bottom: 2px;
-      }
-
-      .flex-col {
-        gap: 2px;
-      }
-
-      .mt-8 {
-        margin-top: 4px !important;
-      }
-
-      .pt-6 {
-        padding-top: 3px !important;
-      }
-
-      .mb-8 {
-        margin-bottom: 4px !important;
-      }
-
-      .mb-6 {
-        margin-bottom: 3px !important;
-      }
+      .signature-section-title { font-size: 8pt; margin: 10px 0 5px 0; }
+      .signature-grid { gap: 14px; margin: 5px 0 7px 0; }
+      .signature-label { font-size: 8pt; margin-bottom: 4px; }
+      .signature-line { height: 50px; margin-bottom: 5px; }
+      .signature-sub { font-size: 7pt; }
     }
   </style>
 </head>
@@ -551,7 +572,7 @@
       
       <!-- College Header (First Page Only) -->
       <div class="college-header-wrapper w-full flex justify-center items-center border-b border-gray-300 bg-white mb-4">
-        <img src="{{ url_for('static', filename='img/pmc-logo.png') }}" alt="College Header" class="college-header-img w-full max-w-5xl h-auto p-2 md:p-4">
+        <img src="{{ url_for('static', filename='img/pmc-logo.png') }}" alt="College Header" class="college-header-img w-full max-w-5xl h-80px p-2 md:p-4">
         <script id="profile-data" type="application/json">{{ employee | tojson | safe }}</script>
       </div>
       
@@ -559,11 +580,18 @@
       <div class="bg-white rounded-2xl shadow-2xl p-4 mb-4">
         <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-6">
           <div>
-            <h1 class="text-3xl font-bold text-gray-800 mb-2">{{ employee.name }}</h1>
+            <div class="flex flex-wrap items-start justify-between gap-3 mb-2">
+              <h1 class="text-3xl font-bold text-gray-800 mb-0">{{ employee.name }}</h1>
+              {% if employee.profile_post or employee.profile_post_other %}
+              <div style="font-size:0.9rem; font-weight:600; color:#374151;">
+                Profile for the Post of: <span style="font-weight:800; color:#d97706;">{{ employee.profile_post_other or employee.profile_post }}</span>
+              </div>
+              {% endif %}
+            </div>
             <div class="flex items-center gap-3">
               <span class="text-lg font-semibold text-gray-600">ID: {{ employee.employee_id }}</span>
               {% if employee.status == 'active' %}
-              <span class="badge badge-active">Active</span>
+              <!-- <span class="badge badge-active">Active</span> -->
               {% elif employee.status == 'inactive' %}
               <span class="badge badge-inactive">Inactive</span>
               {% else %}
@@ -596,270 +624,372 @@
         </div>
       </div>
 
+      <!-- PRINT CONTROLS PANEL (no-print) -->
+      <div id="print-ctrl" class="no-print mb-4 rounded-xl overflow-hidden" style="border:2px solid #eab308;">
+        <div onclick="togglePrintCtrl()" style="background:#eab308; padding:10px 16px; cursor:pointer; display:flex; justify-content:space-between; align-items:center; font-weight:800; font-size:0.82rem; user-select:none;">
+          <span>&#9881; PRINT OPTIONS &mdash; SELECT / DESELECT SECTIONS &amp; FIELDS</span>
+          <span id="ctrl-chevron">&#9660;</span>
+        </div>
+        <div id="print-ctrl-body" class="hidden" style="padding:16px; background:white;">
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+
+            <!-- SECTION A: Employee Profile -->
+            <div>
+              <label style="display:flex;align-items:center;gap:6px;font-weight:800;color:#1e293b;background:#fef3c7;padding:6px 10px;border-radius:6px;margin-bottom:8px;cursor:pointer;font-size:0.82rem;">
+                <input type="checkbox" id="sec-chk-sec-emp-profile" checked onchange="toggleSection('sec-emp-profile',this.checked)">
+                EMPLOYEE PROFILE
+              </label>
+              <div style="display:flex;flex-direction:column;gap:4px;padding-left:8px;font-size:0.78rem;color:#374151;">
+                <label><input type="checkbox" checked data-sec="sec-emp-profile" data-fid="f-name" onchange="toggleField(this)"> Name</label>
+                <label><input type="checkbox" checked data-sec="sec-emp-profile" data-fid="f-dob" onchange="toggleField(this)"> Date of Birth</label>
+                <label><input type="checkbox" checked data-sec="sec-emp-profile" data-fid="f-age" onchange="toggleField(this)"> Age</label>
+                <label><input type="checkbox" checked data-sec="sec-emp-profile" data-fid="f-dl-no" onchange="toggleField(this)"> DL No.</label>
+                <label><input type="checkbox" checked data-sec="sec-emp-profile" data-fid="f-doi" onchange="toggleField(this)"> Date of Issue</label>
+                <label><input type="checkbox" checked data-sec="sec-emp-profile" data-fid="f-badge" onchange="toggleField(this)"> Badge No.</label>
+                <label><input type="checkbox" checked data-sec="sec-emp-profile" data-fid="f-lmv" onchange="toggleField(this)"> LMV Date of Issue</label>
+                <label><input type="checkbox" checked data-sec="sec-emp-profile" data-fid="f-hmv" onchange="toggleField(this)"> HMV Date of Issue</label>
+                <label><input type="checkbox" checked data-sec="sec-emp-profile" data-fid="f-rto" onchange="toggleField(this)"> RTO Ref</label>
+                <label><input type="checkbox" checked data-sec="sec-emp-profile" data-fid="f-vtr" onchange="toggleField(this)"> Validity (TR)</label>
+                <label><input type="checkbox" checked data-sec="sec-emp-profile" data-fid="f-vnt" onchange="toggleField(this)"> Validity (NT)</label>
+                <label><input type="checkbox" checked data-sec="sec-emp-profile" data-fid="f-dlsl" onchange="toggleField(this)"> DL SL. No</label>
+                <label><input type="checkbox" checked data-sec="sec-emp-profile" data-fid="f-aadhar" onchange="toggleField(this)"> Aadhar No.</label>
+                <label><input type="checkbox" checked data-sec="sec-emp-profile" data-fid="f-nativity" onchange="toggleField(this)"> Nativity</label>
+                <label><input type="checkbox" checked data-sec="sec-emp-profile" data-fid="f-blood" onchange="toggleField(this)"> Blood Group</label>
+              </div>
+            </div>
+
+            <!-- SECTION B: Personal Data -->
+            <div>
+              <label style="display:flex;align-items:center;gap:6px;font-weight:800;color:#1e293b;background:#fef3c7;padding:6px 10px;border-radius:6px;margin-bottom:8px;cursor:pointer;font-size:0.82rem;">
+                <input type="checkbox" id="sec-chk-sec-personal" checked onchange="toggleSection('sec-personal',this.checked)">
+                PERSONAL DATA
+              </label>
+              <div style="display:flex;flex-direction:column;gap:4px;padding-left:8px;font-size:0.78rem;color:#374151;">
+                <label><input type="checkbox" checked data-sec="sec-personal" data-fid="f-father-name" onchange="toggleField(this)"> Father Name</label>
+                <label><input type="checkbox" checked data-sec="sec-personal" data-fid="f-father-age" onchange="toggleField(this)"> Father Age</label>
+                <label><input type="checkbox" checked data-sec="sec-personal" data-fid="f-father-occ" onchange="toggleField(this)"> Father Occupation</label>
+                <label><input type="checkbox" checked data-sec="sec-personal" data-fid="f-mother-name" onchange="toggleField(this)"> Mother Name</label>
+                <label><input type="checkbox" checked data-sec="sec-personal" data-fid="f-mother-age" onchange="toggleField(this)"> Mother Age</label>
+                <label><input type="checkbox" checked data-sec="sec-personal" data-fid="f-mother-occ" onchange="toggleField(this)"> Mother Occupation</label>
+                <label><input type="checkbox" checked data-sec="sec-personal" data-fid="f-spouse-name" onchange="toggleField(this)"> Spouse Name</label>
+                <label><input type="checkbox" checked data-sec="sec-personal" data-fid="f-spouse-age" onchange="toggleField(this)"> Spouse Age</label>
+                <label><input type="checkbox" checked data-sec="sec-personal" data-fid="f-spouse-occ" onchange="toggleField(this)"> Spouse Occupation</label>
+                <label><input type="checkbox" checked data-sec="sec-personal" data-fid="f-ch1-name" onchange="toggleField(this)"> Child 1 Name</label>
+                <label><input type="checkbox" checked data-sec="sec-personal" data-fid="f-ch1-age" onchange="toggleField(this)"> Child 1 Age</label>
+                <label><input type="checkbox" checked data-sec="sec-personal" data-fid="f-ch1-occ" onchange="toggleField(this)"> Child 1 Occupation</label>
+                <label><input type="checkbox" checked data-sec="sec-personal" data-fid="f-ch2-name" onchange="toggleField(this)"> Child 2 Name</label>
+                <label><input type="checkbox" checked data-sec="sec-personal" data-fid="f-ch2-age" onchange="toggleField(this)"> Child 2 Age</label>
+                <label><input type="checkbox" checked data-sec="sec-personal" data-fid="f-ch2-occ" onchange="toggleField(this)"> Child 2 Occupation</label>
+                <label><input type="checkbox" checked data-sec="sec-personal" data-fid="f-ch3-name" onchange="toggleField(this)"> Child 3 Name</label>
+                <label><input type="checkbox" checked data-sec="sec-personal" data-fid="f-ch3-age" onchange="toggleField(this)"> Child 3 Age</label>
+                <label><input type="checkbox" checked data-sec="sec-personal" data-fid="f-ch3-occ" onchange="toggleField(this)"> Child 3 Occupation</label>
+                <label><input type="checkbox" checked data-sec="sec-personal" data-fid="f-edu" onchange="toggleField(this)"> Max Education</label>
+                <label><input type="checkbox" checked data-sec="sec-personal" data-fid="f-school" onchange="toggleField(this)"> School</label>
+                <label><input type="checkbox" checked data-sec="sec-personal" data-fid="f-nat-rel" onchange="toggleField(this)"> Nationality &amp; Religion</label>
+                <label><input type="checkbox" checked data-sec="sec-personal" data-fid="f-mtongue" onchange="toggleField(this)"> Mother Tongue</label>
+                <label><input type="checkbox" checked data-sec="sec-personal" data-fid="f-otherlang" onchange="toggleField(this)"> Other Languages</label>
+                <label><input type="checkbox" checked data-sec="sec-personal" data-fid="f-community" onchange="toggleField(this)"> Community &amp; Caste</label>
+                <label><input type="checkbox" checked data-sec="sec-personal" data-fid="f-drv-school" onchange="toggleField(this)"> Driving School</label>
+                <label><input type="checkbox" checked data-sec="sec-personal" data-fid="f-present-addr" onchange="toggleField(this)"> Present Address</label>
+                <label><input type="checkbox" checked data-sec="sec-personal" data-fid="f-perm-addr" onchange="toggleField(this)"> Permanent Address</label>
+                <label><input type="checkbox" checked data-sec="sec-personal" data-fid="f-phone" onchange="toggleField(this)"> Phone No.</label>
+                <label><input type="checkbox" checked data-sec="sec-personal" data-fid="f-whatsapp" onchange="toggleField(this)"> WhatsApp No.</label>
+                <label><input type="checkbox" checked data-sec="sec-personal" data-fid="f-home-phone" onchange="toggleField(this)"> Home Phone No.</label>
+              </div>
+            </div>
+
+            <!-- SECTION C: Health & Fitness -->
+            <div>
+              <label style="display:flex;align-items:center;gap:6px;font-weight:800;color:#1e293b;background:#fef3c7;padding:6px 10px;border-radius:6px;margin-bottom:8px;cursor:pointer;font-size:0.82rem;">
+                <input type="checkbox" id="sec-chk-sec-health" checked onchange="toggleSection('sec-health',this.checked)">
+                HEALTH &amp; FITNESS
+              </label>
+              <div style="display:flex;flex-direction:column;gap:4px;padding-left:8px;font-size:0.78rem;color:#374151;">
+                <label><input type="checkbox" checked data-sec="sec-health" data-fid="f-vision" onchange="toggleField(this)"> Vision</label>
+                <label><input type="checkbox" checked data-sec="sec-health" data-fid="f-vision-date" onchange="toggleField(this)"> Vision Checkup Date</label>
+                <label><input type="checkbox" checked data-sec="sec-health" data-fid="f-vision-rmk" onchange="toggleField(this)"> Remarks - Vision</label>
+                <label><input type="checkbox" checked data-sec="sec-health" data-fid="f-hearing" onchange="toggleField(this)"> Hearing</label>
+                <label><input type="checkbox" checked data-sec="sec-health" data-fid="f-hearing-date" onchange="toggleField(this)"> Hearing Checkup Date</label>
+                <label><input type="checkbox" checked data-sec="sec-health" data-fid="f-hearing-rmk" onchange="toggleField(this)"> Remarks - Hearing</label>
+                <label><input type="checkbox" checked data-sec="sec-health" data-fid="f-bp" onchange="toggleField(this)"> BP</label>
+                <label><input type="checkbox" checked data-sec="sec-health" data-fid="f-bp-date" onchange="toggleField(this)"> BP Checkup Date</label>
+                <label><input type="checkbox" checked data-sec="sec-health" data-fid="f-bp-rmk" onchange="toggleField(this)"> Remarks - BP</label>
+                <label><input type="checkbox" checked data-sec="sec-health" data-fid="f-sugar" onchange="toggleField(this)"> Sugar</label>
+                <label><input type="checkbox" checked data-sec="sec-health" data-fid="f-sugar-date" onchange="toggleField(this)"> Sugar Checkup Date</label>
+                <label><input type="checkbox" checked data-sec="sec-health" data-fid="f-sugar-rmk" onchange="toggleField(this)"> Remarks - Sugar</label>
+                <label><input type="checkbox" checked data-sec="sec-health" data-fid="f-fractures" onchange="toggleField(this)"> Fractures</label>
+                <label><input type="checkbox" checked data-sec="sec-health" data-fid="f-fractures-date" onchange="toggleField(this)"> Fractures Checkup Date</label>
+                <label><input type="checkbox" checked data-sec="sec-health" data-fid="f-fractures-rmk" onchange="toggleField(this)"> Remarks - Fractures</label>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </div>
+
       <!-- Profile Content -->
       <div class="bg-white rounded-2xl shadow-2xl p-4">
         
         <!-- EMPLOYEE PROFILE -->
+        <div id="sec-emp-profile">
         <div class="profile-section">EMPLOYEE PROFILE</div>
         <div class="info-grid">
-          <div class="info-item">
+          <div id="f-name" class="info-item">
             <div class="info-label">Name</div>
             <div class="info-value">{{ employee.name or '-' }}</div>
           </div>
-          <div class="info-item">
-            <div class="info-label">Age</div>
-            <div class="info-value">{{ employee.age or '-' }}</div>
-          </div>
-          <div class="info-item">
-            <div class="info-label">DL No.</div>
-            <div class="info-value">{{ employee.dl_no or '-' }}</div>
-          </div>
-          <div class="info-item">
+          <div id="f-dob" class="info-item">
             <div class="info-label">Date of Birth</div>
             <div class="info-value">{{ employee.date_of_birth or '-' }}</div>
           </div>
-          <div class="info-item">
+          <div id="f-age" class="info-item">
+            <div class="info-label">Age</div>
+            <div class="info-value">{{ employee.age or '-' }}</div>
+          </div>
+          <div id="f-dl-no" class="info-item">
+            <div class="info-label">DL No.</div>
+            <div class="info-value">{{ employee.dl_no or '-' }}</div>
+          </div>
+          <div id="f-doi" class="info-item">
             <div class="info-label">Date of Issue</div>
             <div class="info-value">{{ employee.date_of_issue or '-' }}</div>
           </div>
-          <div class="info-item">
+          <div id="f-badge" class="info-item">
             <div class="info-label">Badge No.</div>
             <div class="info-value">{{ employee.badge_no or '-' }}</div>
           </div>
-          <div class="info-item">
+          <div id="f-lmv" class="info-item">
             <div class="info-label">LMV Date of Issue</div>
             <div class="info-value">{{ employee.lmv_date_of_issue or '-' }}</div>
           </div>
-          <div class="info-item">
-            <div class="info-label">RTO Ref</div>
-            <div class="info-value">{{ employee.rto_ref or '-' }}</div>
-          </div>
-          <div class="info-item">
+          <div id="f-hmv" class="info-item">
             <div class="info-label">HMV Date of Issue</div>
             <div class="info-value">{{ employee.hmv_date_of_issue or '-' }}</div>
           </div>
-          <div class="info-item">
-            <div class="info-label">VALIDITY (NT)</div>
-            <div class="info-value">{{ employee.validity_nt or '-' }}</div>
+          <div id="f-rto" class="info-item">
+            <div class="info-label">RTO Ref</div>
+            <div class="info-value">{{ employee.rto_ref or '-' }}</div>
           </div>
-          <div class="info-item">
-            <div class="info-label">VALIDITY (TR)</div>
+          <div id="f-vtr" class="info-item">
+            <div class="info-label">Validity (TR)</div>
             <div class="info-value">{{ employee.validity_tr or '-' }}</div>
           </div>
-          <div class="info-item">
-            <div class="info-label">AADHAR NO.</div>
+          <div id="f-vnt" class="info-item">
+            <div class="info-label">Validity (NT)</div>
+            <div class="info-value">{{ employee.validity_nt or '-' }}</div>
+          </div>
+          <div id="f-dlsl" class="info-item">
+            <div class="info-label">DL SL. No</div>
+            <div class="info-value">{{ employee.dl_sl_no or '-' }}</div>
+          </div>
+          <div id="f-aadhar" class="info-item">
+            <div class="info-label">Aadhar No.</div>
             <div class="info-value">{{ employee.aadhar_no or '-' }}</div>
           </div>
-          <div class="info-item">
-            <div class="info-label">NATIVITY</div>
+          <div id="f-nativity" class="info-item">
+            <div class="info-label">Nativity</div>
             <div class="info-value">{{ employee.nativity or '-' }}</div>
           </div>
-          <div class="info-item">
-            <div class="info-label">PROFILE FOR THE POST OF</div>
-            <div class="info-value">{{ employee.profile_post or employee.profile_post_other or '-' }}</div>
-          </div>
-          <div class="info-item">
-            <div class="info-label">BLOOD GROUP</div>
+          <div id="f-blood" class="info-item">
+            <div class="info-label">Blood Group</div>
             <div class="info-value">{{ employee.blood_group or '-' }}</div>
           </div>
-          <div class="info-item">
-            <div class="info-label">DATE OF JOINING</div>
-            <div class="info-value">{{ employee.date_of_joining or employee.expected_date_of_joining or '-' }}</div>
-          </div>
-          <div class="info-item">
-            <div class="info-label">BASIC SALARY</div>
-            <div class="info-value">{% if employee.basic_salary is not none and employee.basic_salary != '' %}{{ ('%.2f'|format(employee.basic_salary|float)) }}{% else %}-{% endif %}</div>
-          </div>
+
+        </div>
         </div>
 
         <!-- PERSONAL DATA -->
+        <div id="sec-personal">
         <div class="profile-section">PERSONAL DATA</div>
         <div class="info-grid">
-          <div class="info-item">
+          <div id="f-father-name" class="info-item">
             <div class="info-label">Father Name</div>
             <div class="info-value">{{ employee.father_name or '-' }}</div>
           </div>
-          <div class="info-item">
+          <div id="f-father-age" class="info-item">
             <div class="info-label">Father Age</div>
             <div class="info-value">{{ employee.father_age or '-' }}</div>
           </div>
-          <div class="info-item">
+          <div id="f-father-occ" class="info-item">
             <div class="info-label">Father Occupation</div>
             <div class="info-value">{{ employee.father_occupation or '-' }}</div>
           </div>
-          <div class="info-item">
-            <div class="info-label">Father Gender</div>
-            <div class="info-value">{{ employee.father_gender or '-' }}</div>
-          </div>
-          <div class="info-item">
+          <div id="f-mother-name" class="info-item">
             <div class="info-label">Mother Name</div>
             <div class="info-value">{{ employee.mother_name or '-' }}</div>
           </div>
-          <div class="info-item">
+          <div id="f-mother-age" class="info-item">
             <div class="info-label">Mother Age</div>
             <div class="info-value">{{ employee.mother_age or '-' }}</div>
           </div>
-          <div class="info-item">
+          <div id="f-mother-occ" class="info-item">
             <div class="info-label">Mother Occupation</div>
             <div class="info-value">{{ employee.mother_occupation or '-' }}</div>
           </div>
-          <div class="info-item">
-            <div class="info-label">Mother Gender</div>
-            <div class="info-value">{{ employee.mother_gender or '-' }}</div>
-          </div>
-          <div class="info-item">
+          <div id="f-spouse-name" class="info-item">
             <div class="info-label">Spouse Name</div>
             <div class="info-value">{{ employee.spouse_name or '-' }}</div>
           </div>
-          <div class="info-item">
+          <div id="f-spouse-age" class="info-item">
             <div class="info-label">Spouse Age</div>
             <div class="info-value">{{ employee.spouse_age or '-' }}</div>
           </div>
-          <div class="info-item">
+          <div id="f-spouse-occ" class="info-item">
             <div class="info-label">Spouse Occupation</div>
             <div class="info-value">{{ employee.spouse_occupation or '-' }}</div>
           </div>
-          <div class="info-item">
-            <div class="info-label">Spouse Gender</div>
-            <div class="info-value">{{ employee.spouse_gender or '-' }}</div>
-          </div>
-          <div class="info-item">
-            <div class="info-label">Child-1 Name</div>
+          <div id="f-ch1-name" class="info-item">
+            <div class="info-label">Child 1 Name</div>
             <div class="info-value">{{ employee.child1_name or '-' }}</div>
           </div>
-          <div class="info-item">
-            <div class="info-label">Child-1 Age</div>
+          <div id="f-ch1-age" class="info-item">
+            <div class="info-label">Child 1 Age</div>
             <div class="info-value">{{ employee.child1_age or '-' }}</div>
           </div>
-          <div class="info-item">
-            <div class="info-label">Child-1 Occupation</div>
+          <div id="f-ch1-occ" class="info-item">
+            <div class="info-label">Child 1 Occupation</div>
             <div class="info-value">{{ employee.child1_occupation or '-' }}</div>
           </div>
-          <div class="info-item">
-            <div class="info-label">Child-1 Gender</div>
-            <div class="info-value">{{ employee.child1_gender or '-' }}</div>
-          </div>
-          <div class="info-item">
-            <div class="info-label">Child-2 Name</div>
+          <div id="f-ch2-name" class="info-item">
+            <div class="info-label">Child 2 Name</div>
             <div class="info-value">{{ employee.child2_name or '-' }}</div>
           </div>
-          <div class="info-item">
-            <div class="info-label">Child-2 Age</div>
+          <div id="f-ch2-age" class="info-item">
+            <div class="info-label">Child 2 Age</div>
             <div class="info-value">{{ employee.child2_age or '-' }}</div>
           </div>
-          <div class="info-item">
-            <div class="info-label">Child-2 Occupation</div>
+          <div id="f-ch2-occ" class="info-item">
+            <div class="info-label">Child 2 Occupation</div>
             <div class="info-value">{{ employee.child2_occupation or '-' }}</div>
           </div>
-          <div class="info-item">
-            <div class="info-label">Child-2 Gender</div>
-            <div class="info-value">{{ employee.child2_gender or '-' }}</div>
-          </div>
-          <div class="info-item">
-            <div class="info-label">Child-3 Name</div>
+          <div id="f-ch3-name" class="info-item">
+            <div class="info-label">Child 3 Name</div>
             <div class="info-value">{{ employee.child3_name or '-' }}</div>
           </div>
-          <div class="info-item">
-            <div class="info-label">Child-3 Age</div>
+          <div id="f-ch3-age" class="info-item">
+            <div class="info-label">Child 3 Age</div>
             <div class="info-value">{{ employee.child3_age or '-' }}</div>
           </div>
-          <div class="info-item">
-            <div class="info-label">Child-3 Occupation</div>
+          <div id="f-ch3-occ" class="info-item">
+            <div class="info-label">Child 3 Occupation</div>
             <div class="info-value">{{ employee.child3_occupation or '-' }}</div>
           </div>
-          <div class="info-item">
-            <div class="info-label">Child-3 Gender</div>
-            <div class="info-value">{{ employee.child3_gender or '-' }}</div>
-          </div>
-          <div class="info-item">
+          <div id="f-edu" class="info-item">
             <div class="info-label">Max Education</div>
             <div class="info-value">{{ employee.max_education or '-' }}</div>
           </div>
-          <div class="info-item">
+          <div id="f-school" class="info-item">
             <div class="info-label">School</div>
             <div class="info-value">{{ employee.school or '-' }}</div>
           </div>
-          <div class="info-item">
+          <div id="f-nat-rel" class="info-item">
+            <div class="info-label">Nationality &amp; Religion</div>
+            <div class="info-value">{{ ((employee.nationality or '') ~ (' / ' ~ employee.religion if employee.religion else '')) or '-' }}</div>
+          </div>
+          <div id="f-mtongue" class="info-item">
             <div class="info-label">Mother Tongue</div>
             <div class="info-value">{{ employee.mother_tongue or '-' }}</div>
           </div>
-          <div class="info-item">
+          <div id="f-otherlang" class="info-item">
             <div class="info-label">Other Languages</div>
             <div class="info-value">{{ employee.other_lang or '-' }}</div>
           </div>
-          <div class="info-item">
-            <div class="info-label">Nationality</div>
-            <div class="info-value">{{ employee.nationality or '-' }}</div>
-          </div>
-          <div class="info-item">
-            <div class="info-label">Community & Caste</div>
+          <div id="f-community" class="info-item">
+            <div class="info-label">Community &amp; Caste</div>
             <div class="info-value">{{ employee.community_caste or '-' }}</div>
           </div>
-          <div class="info-item">
-            <div class="info-label">Religion</div>
-            <div class="info-value">{{ employee.religion or '-' }}</div>
+          <div id="f-drv-school" class="info-item">
+            <div class="info-label">Driving School</div>
+            <div class="info-value">{{ employee.driving_school or '-' }}</div>
           </div>
-          <div class="info-item">
-            <div class="info-label">Permanent Address</div>
-            <div class="info-value">{{ employee.permanent_address or '-' }}</div>
-          </div>
-          <div class="info-item">
+          <div id="f-present-addr" class="info-item">
             <div class="info-label">Present Address</div>
             <div class="info-value">{{ employee.present_address or '-' }}</div>
           </div>
-          <div class="info-item">
+          <div id="f-perm-addr" class="info-item">
+            <div class="info-label">Permanent Address</div>
+            <div class="info-value">{{ employee.permanent_address or '-' }}</div>
+          </div>
+          <div id="f-phone" class="info-item">
             <div class="info-label">Phone No.</div>
             <div class="info-value">{{ employee.phone_no or '-' }}</div>
           </div>
-          <div class="info-item">
-            <div class="info-label">WhatsApp Phone No.</div>
+          <div id="f-whatsapp" class="info-item">
+            <div class="info-label">WhatsApp No.</div>
             <div class="info-value">{{ employee.whatsapp_phone_no or '-' }}</div>
           </div>
+          <div id="f-home-phone" class="info-item">
+            <div class="info-label">Home Phone No.</div>
+            <div class="info-value">{{ employee.home_phone_no or '-' }}</div>
+          </div>
+        </div>
         </div>
 
         <!-- HEALTH & FITNESS -->
-        <div class="profile-section">HEALTH & FITNESS</div>
+        <div id="sec-health">
+        <div class="profile-section">HEALTH &amp; FITNESS</div>
         <div class="info-grid">
-          <div class="info-item">
+          <div id="f-vision" class="info-item">
             <div class="info-label">Vision</div>
             <div class="info-value">{{ (employee.vision_r or employee.vision) ~ (' / ' ~ employee.vision_l) if employee.vision_l else (employee.vision_r or employee.vision) or '-' }}</div>
           </div>
-          <div class="info-item">
-            <div class="info-label">Vision Checkup Date</div>
+          <div id="f-vision-date" class="info-item">
+            <div class="info-label">Checkup Date</div>
             <div class="info-value">{{ employee.vision_checkup_date or '-' }}</div>
           </div>
-          <div class="info-item">
+          <div id="f-vision-rmk" class="info-item">
+            <div class="info-label">Remarks</div>
+            <div class="info-value">{{ employee.remarks_vision or '-' }}</div>
+          </div>
+          <div id="f-hearing" class="info-item">
             <div class="info-label">Hearing</div>
             <div class="info-value">{{ (employee.hearing_r or employee.hearing) ~ (' / ' ~ employee.hearing_l) if employee.hearing_l else (employee.hearing_r or employee.hearing) or '-' }}</div>
           </div>
-          <div class="info-item">
-            <div class="info-label">Hearing Checkup Date</div>
+          <div id="f-hearing-date" class="info-item">
+            <div class="info-label">Checkup Date</div>
             <div class="info-value">{{ employee.hearing_checkup_date or '-' }}</div>
           </div>
-          <div class="info-item">
+          <div id="f-hearing-rmk" class="info-item">
+            <div class="info-label">Remarks</div>
+            <div class="info-value">{{ employee.remarks_hearing or '-' }}</div>
+          </div>
+          <div id="f-bp" class="info-item">
             <div class="info-label">BP</div>
             <div class="info-value">{{ employee.bp or '-' }}</div>
           </div>
-          <div class="info-item">
-            <div class="info-label">BP Checkup Date</div>
+          <div id="f-bp-date" class="info-item">
+            <div class="info-label">Checkup Date</div>
             <div class="info-value">{{ employee.bp_checkup_date or '-' }}</div>
           </div>
-          <div class="info-item">
+          <div id="f-bp-rmk" class="info-item">
+            <div class="info-label">Remarks</div>
+            <div class="info-value">{{ employee.remarks_bp or '-' }}</div>
+          </div>
+          <div id="f-sugar" class="info-item">
             <div class="info-label">Sugar</div>
             <div class="info-value">{{ employee.sugar or '-' }}</div>
           </div>
-          <div class="info-item">
-            <div class="info-label">Sugar Checkup Date</div>
+          <div id="f-sugar-date" class="info-item">
+            <div class="info-label">Checkup Date</div>
             <div class="info-value">{{ employee.sugar_checkup_date or '-' }}</div>
           </div>
-          <div class="info-item">
+          <div id="f-sugar-rmk" class="info-item">
+            <div class="info-label">Remarks</div>
+            <div class="info-value">{{ employee.remarks_sugar or '-' }}</div>
+          </div>
+          <div id="f-fractures" class="info-item">
             <div class="info-label">Fractures</div>
             <div class="info-value">{{ employee.fractures or '-' }}</div>
           </div>
-          <div class="info-item">
-            <div class="info-label">Fractures Checkup Date</div>
+          <div id="f-fractures-date" class="info-item">
+            <div class="info-label">Checkup Date</div>
             <div class="info-value">{{ employee.fractures_checkup_date or '-' }}</div>
           </div>
+          <div id="f-fractures-rmk" class="info-item">
+            <div class="info-label">Remarks</div>
+            <div class="info-value">{{ employee.remarks_fractures or '-' }}</div>
+          </div>
+        </div>
         </div>
 
         <!-- EXPERIENCE -->
@@ -869,8 +999,8 @@
             <tr>
               <th>FROM DATE</th>
               <th>TO DATE</th>
-              <th>DESIGNATION</th>
               <th>ORGANIZATION</th>
+              <th>DESIGNATION</th>
               <th>VEHICLE TYPE</th>
             </tr>
           </thead>
@@ -977,6 +1107,7 @@
         </table>
 
         <!-- BANK DETAILS -->
+        <div class="no-print">
         <div class="profile-section">BANK DETAILS</div>
         <div class="info-grid">
           <div class="info-item"><div class="info-label">Bank Name</div><div class="info-value">{{ employee.bank_name or '-' }}</div></div>
@@ -985,6 +1116,7 @@
           <div class="info-item"><div class="info-label">IFSC</div><div class="info-value">{{ employee.ifsc_code or '-' }}</div></div>
           <div class="info-item"><div class="info-label">Branch</div><div class="info-value">{{ employee.branch or '-' }}</div></div>
           <div class="info-item"><div class="info-label">Account Type</div><div class="info-value">{{ employee.account_type or '-' }}</div></div>
+        </div>
         </div>
 
         <!-- NOMINEE INFORMATION -->
@@ -1048,27 +1180,26 @@
             <p>hereby declare that the above information furnished by me is authenticated and true to my conscience and knowledge. I also strictly obey the rules and regulations of the Institution and if any violation of order found I bind myself to the actions of the Authorities.</p>
           </div>
 
-          <!-- Date & Place -->
-          <div class="date-place-row">
-            <div class="date-place-item">
-              <div class="date-place-label">Date:</div>
-              <div class="date-place-line"></div>
+          <!-- Date/Place (left) + Driver's Signature (right) -->
+          <div style="display:grid; grid-template-columns:1fr 1fr; gap:25px; margin:18px 0 20px 0;">
+            <!-- Left: Date & Place stacked -->
+            <div style="display:flex; flex-direction:column; gap:14px;">
+              <div class="date-place-item">
+                <div class="date-place-label">Date:</div>
+              </div>
+              <div class="date-place-item">
+                <div class="date-place-label">Place:</div>
+              </div>
             </div>
+            <!-- Right: Driver's Signature -->
             <div class="date-place-item">
-              <div class="date-place-label">Place:</div>
-              <div class="date-place-line"></div>
+              <div class="date-place-label">Driver's Signature:</div>
             </div>
-          </div>
-
-          <!-- Driver's Signature -->
-          <div class="driver-signature-box">
-            <div class="driver-signature-label">Driver's Signature:</div>
-            <div class="driver-signature-line"></div>
           </div>
 
           <!-- Submission Note -->
           <div class="declaration-note">
-            Submitted to the Honourable Secretary Sir & the Honourable Trustee Madam through the Respective Sir for Approval.
+            Submitted to the Honourable Chairman Sir & the Honourable Trustee Madam through the Respective Sir for Approval.
           </div>
 
           <!-- Verification Signatures -->
