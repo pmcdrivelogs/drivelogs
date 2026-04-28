@@ -297,6 +297,11 @@
             </div>
             
             <div class="form-group">
+              <label class="form-label">DL SL. NO</label>
+              <input type="text" name="dl_sl_no" class="form-input" value="{{ employee.dl_sl_no if edit_mode else '' }}">
+            </div>
+            
+            <div class="form-group">
               <label class="form-label">AADHAR NO.</label>
               <input type="text" name="aadhar_no" class="form-input" maxlength="12" value="{{ employee.aadhar_no if edit_mode else '' }}">
             </div>
@@ -482,7 +487,7 @@
           <!-- HEALTH & FITNESS SECTION -->
           <div class="form-section mt-8">HEALTH & FITNESS</div>
           
-          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div class="form-group">
               <label class="form-label">VISION</label>
               <div class="flex gap-2">
@@ -491,8 +496,12 @@
               </div>
             </div>
             <div class="form-group">
-              <label class="form-label">CHECKUP DATE</label>
+              <label class="form-label">VISION CHECKUP DATE</label>
               <input type="date" name="vision_checkup_date" class="form-input" value="{{ employee.vision_checkup_date if edit_mode else '' }}">
+            </div>
+            <div class="form-group">
+              <label class="form-label">REMARKS - VISION</label>
+              <input type="text" name="remarks_vision" class="form-input" value="{{ employee.remarks_vision if edit_mode else '' }}">
             </div>
             
             <div class="form-group">
@@ -503,8 +512,12 @@
               </div>
             </div>
             <div class="form-group">
-              <label class="form-label">CHECKUP DATE</label>
+              <label class="form-label">HEARING CHECKUP DATE</label>
               <input type="date" name="hearing_checkup_date" class="form-input" value="{{ employee.hearing_checkup_date if edit_mode else '' }}">
+            </div>
+            <div class="form-group">
+              <label class="form-label">REMARKS - HEARING</label>
+              <input type="text" name="remarks_hearing" class="form-input" value="{{ employee.remarks_hearing if edit_mode else '' }}">
             </div>
             
             <div class="form-group">
@@ -512,8 +525,12 @@
               <input type="text" name="bp" class="form-input" value="{{ employee.bp if edit_mode else '' }}">
             </div>
             <div class="form-group">
-              <label class="form-label">CHECKUP DATE</label>
+              <label class="form-label">BP CHECKUP DATE</label>
               <input type="date" name="bp_checkup_date" class="form-input" value="{{ employee.bp_checkup_date if edit_mode else '' }}">
+            </div>
+            <div class="form-group">
+              <label class="form-label">REMARKS - BP</label>
+              <input type="text" name="remarks_bp" class="form-input" value="{{ employee.remarks_bp if edit_mode else '' }}">
             </div>
             
             <div class="form-group">
@@ -521,8 +538,12 @@
               <input type="text" name="sugar" class="form-input" value="{{ employee.sugar if edit_mode else '' }}">
             </div>
             <div class="form-group">
-              <label class="form-label">CHECKUP DATE</label>
+              <label class="form-label">SUGAR CHECKUP DATE</label>
               <input type="date" name="sugar_checkup_date" class="form-input" value="{{ employee.sugar_checkup_date if edit_mode else '' }}">
+            </div>
+            <div class="form-group">
+              <label class="form-label">REMARKS - SUGAR</label>
+              <input type="text" name="remarks_sugar" class="form-input" value="{{ employee.remarks_sugar if edit_mode else '' }}">
             </div>
             
             <div class="form-group">
@@ -530,8 +551,12 @@
               <input type="text" name="fractures" class="form-input" value="{{ employee.fractures if edit_mode else '' }}">
             </div>
             <div class="form-group">
-              <label class="form-label">CHECKUP DATE</label>
+              <label class="form-label">FRACTURES CHECKUP DATE</label>
               <input type="date" name="fractures_checkup_date" class="form-input" value="{{ employee.fractures_checkup_date if edit_mode else '' }}">
+            </div>
+            <div class="form-group">
+              <label class="form-label">REMARKS - FRACTURES</label>
+              <input type="text" name="remarks_fractures" class="form-input" value="{{ employee.remarks_fractures if edit_mode else '' }}">
             </div>
           </div>
 
@@ -744,6 +769,11 @@
             </div>
             
             <div class="form-group">
+              <label class="form-label">DRIVING SCHOOL</label>
+              <input type="text" name="driving_school" class="form-input" value="{{ employee.driving_school if edit_mode else '' }}">
+            </div>
+            
+            <div class="form-group">
               <label class="form-label">MOTHER TONGUE</label>
               <input type="text" name="mother_tongue" class="form-input" value="{{ employee.mother_tongue if edit_mode else '' }}">
             </div>
@@ -795,6 +825,11 @@
             <div class="form-group">
               <label class="form-label">ALTERNATIVE PHONE NO</label>
               <input type="tel" name="number_phone_no" class="form-input" value="{{ employee.number_phone_no if edit_mode else '' }}">
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">HOME PHONE NO</label>
+              <input type="tel" name="home_phone_no" class="form-input" value="{{ employee.home_phone_no if edit_mode else '' }}">
             </div>
           </div>
           
