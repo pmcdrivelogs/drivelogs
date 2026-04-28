@@ -283,7 +283,8 @@
 
   <script>
     const SINGLE_URL = "{{ url_for('trip_sheet_single') }}";
-    const DRIVER_LOOKUP_URL = "{{ url_for('api_driver_lookup') }}";
+    // Direct URL for driver lookup (fallback if url_for fails)
+    const DRIVER_LOOKUP_URL = "/api/driver-lookup";
     const SESSION_USER = "{{ session.get('user_name', '') | e }}";
     const LATEST_KMS = {{ latest_kms | tojson }};
 
