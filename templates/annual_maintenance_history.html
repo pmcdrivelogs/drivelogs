@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Annual Maintenance History - Drive Logs</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <style>
+    .modal-overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,0.65); z-index: 9999;
+      overflow-y: auto; padding: 20px;
+    }
+    .modal-overlay.active { display: block; }
+    .modal-box {
+      background: white; border-radius: 16px;
+      max-width: 1140px; margin: 40px auto;
+      padding: 28px; position: relative;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+    }
+    .detail-table { border-collapse: collapse; width: 100%; font-size: 0.68rem; }
+    .detail-table th {
+      background: #1e3a8a; color: white;
+      padding: 8px 6px; border: 1px solid #1e40af; text-align: center;
+    }
+    .detail-table td {
+      padding: 6px 7px; border: 1px solid #cbd5e1;
+      text-align: center; vertical-align: top;
+    }
+    .detail-table td.tleft { text-align: left; }
+    @media (max-width: 640px) {
+      .detail-table { font-size: 0.58rem; }
+      .modal-box { padding: 14px; margin: 10px auto; }
+    }
+  </style>
+</head>
+<body class="bg-[#fcfcfc] min-h-screen flex flex-col pt-20">
+  <div class="logo-bar w-full flex items-center justify-between px-4 py-3 fixed top-0 left-0 z-50">
+    <img src="{{ url_for('static', filename='img/drive-logs.png') }}" alt="Drive Logs Logo" class="h-12 md:h-14 w-auto ml-2">
+    <div class="flex items-center gap-4">
+      <a href="{{ url_for('admin_dashboard') }}" class="bg-yellow-500 hover:bg-yellow-600 text-gray-900 px-4 py-2 rounded-full text-sm font-semibold transition-colors">&#8592; Admin Dashboard</a>
+      <a href="{{ url_for('logout') }}" class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-full text-sm font-semibold transition-colors">Logout</a>
+    </div>
+  </div>
+  <div class="w-full flex justify-center items-center border-b border-gray-300 bg-white">
+    <img src="{{ url_for('static', filename='img/pmc-logo.png') }}" alt="College Header" class="w-full max-w-5xl h-auto p-2 md:p-4">
+  </div>
+
+  <div class="flex-1 py-6 px-4">
+    <div class="bg-white rounded-2xl shadow-lg w-full max-w-6xl mx-auto p-6 md:p-8 border-2 border-gray-200">
+      <div class="mb-6 pb-4 border-b-2 border-gray-300 flex flex-col md:flex-row md:items-center justify-between gap-3">
+        <h1 class="text-xl md:text-2xl font-bold text-blue-900">ANNUAL PERIODICAL MAINTENANCE &mdash; HISTORY</h1>
+        <input type="search" id="historySearch" placeholder="Search vehicle / reg no&hellip;" class="border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" style="min-width:220px;">
+      </div>
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}{% for category, message in messages %}
+          <div class="mb-4 p-4 rounded-lg {% if category=='success' %}bg-green-100 text-green-800 border border-green-300{% else %}bg-red-100 text-red-800 border border-red-300{% endif %}">{{ message }}</div>
+        {% endfor %}{% endif %}
+      {% endwith %}
+
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm border-collapse" id="historyTable">
+          <thead>
+            <tr class="bg-blue-900 text-white">
+              <th class="px-4 py-3 border border-blue-800">#</th>
+              <th class="px-4 py-3 border border-blue-800">Vehicle ID</th>
+              <th class="px-4 py-3 border border-blue-800">Registration No</th>
+              <th class="px-4 py-3 border border-blue-800">From Month</th>
+              <th class="px-4 py-3 border border-blue-800">To Month</th>
+              <th class="px-4 py-3 border border-blue-800">Submitted On</th>
+              <th class="px-4 py-3 border border-blue-800">Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% if records %}
+              {% for r in records %}
+              <tr class="border-b border-gray-200 hover:bg-blue-50 history-row">
+                <td class="px-4 py-2 border border-gray-200 text-center text-gray-500">{{ loop.index }}</td>
+                <td class="px-4 py-2 border border-gray-200 text-center font-bold text-blue-900">{{ r.vehicle_id or '&mdash;' }}</td>
+                <td class="px-4 py-2 border border-gray-200 text-center font-semibold">{{ r.registration_no or '&mdash;' }}</td>
+                <td class="px-4 py-2 border border-gray-200 text-center">{{ r.from_month or '&mdash;' }}</td>
+                <td class="px-4 py-2 border border-gray-200 text-center">{{ r.to_month or '&mdash;' }}</td>
+                <td class="px-4 py-2 border border-gray-200 text-center text-gray-500 text-xs">{{ (r.created_at or '')[:10] or '&mdash;' }}</td>
+                <td class="px-4 py-2 border border-gray-200 text-center">
+                  <button onclick="openModal({{ loop.index0 }})"
+                    class="bg-blue-700 hover:bg-blue-900 text-white text-xs px-5 py-1.5 rounded-full font-semibold transition-colors shadow">
+                    &#128065; View
+                  </button>
+                </td>
+              </tr>
+              {% endfor %}
+            {% else %}
+              <tr><td colspan="7" class="text-center py-12 text-gray-400 text-base">No records found.</td></tr>
+            {% endif %}
+          </tbody>
+        </table>
+      </div>
+      <div class="mt-4 text-sm text-gray-500">Total: <span class="font-bold text-blue-900">{{ records|length }}</span> record(s)</div>
+    </div>
+  </div>
+
+
+  <!-- Detail Modal -->
+  <div class="modal-overlay" id="detailModal">
+    <div class="modal-box">
+      <button onclick="closeModal()"
+        class="absolute top-4 right-4 text-gray-400 hover:text-red-600 text-3xl font-bold leading-none"
+        style="line-height:1;">&times;</button>
+      <div id="modalContent"></div>
+    </div>
+  </div>
+
+
+  <script>
+    const RECORDS = {{ records | tojson }};
+    const PROCESSES = [
+      "PUMP OIL ATTACHMENT",
+      "CROWN VALIDE ADJUSTMENT",
+      "DRIVE LINE REPLACEMENT",
+      "CLUTCH FREE ADJUSTMENT",
+      "PROGRESSIVE BRAKING FOR ACCIDENT",
+      "TYRE REFINING",
+      "BREAK OIL CHECKING OR REPLACEMENT",
+      "BRAKE CHAMBER FUNCTIONS & VALVE CHECKING",
+      "BREAK TIMING & POWER CHAMBER OPENING & AIR LEAKMENT",
+      "CLUTCH RELEASE & REPAIR OR REPLACEMENT",
+      "RADIATOR COOLANT BAR LEAKMENT",
+      "SIGNAL ON EXPRESS LIGHT, AIR CHECKS & REPLACEMENT",
+      "AIR COMPRESSOR AIR SUPPLY CONDITIONUNG EQUIPMT & SERVICE",
+      "AIR FILTER REPLACEMENT",
+      "VACCUUM STAER OIL & SL TAILIED",
+      "WATER PUMP CONDTION & CHECKING",
+      "VEHICLE ATTACHMENTS",
+      "GAS FILTER SERVICE",
+      "TOTAL AIR BOOT WORK (60+C)",
+      "TOTAL ELECTRICAL CIRCUIT & TIMING",
+      "TOTAL LIGHTS & ACTIVE CHECKING",
+      "TTV ALL WHEELS BEARING ACCOUNT SET REPLACEMENT",
+      "FUEL PUMP & CONATCT BALL POWER SYSTEM",
+      "MAGNETO SET TIMICING",
+      "IMPTVEMENT BATTERY CHARGING & TEST FILING",
+      "FIRST AID KIT CHECKING"
+    ];
+
+    function openModal(idx) {
+      const r = RECORDS[idx];
+      let rows = "";
+      PROCESSES.forEach(function(name, i) {
+        const n = i + 1;
+        rows +=
+          "<tr>" +
+          "<td>" + n + "</td>" +
+          "<td class=\"tleft\">" + name + "</td>" +
+          "<td>" + (r["processed_date_" + n] || "&mdash;") + "</td>" +
+          "<td>" + (r["kilometer_reading_" + n] || "&mdash;") + "</td>" +
+          "<td>" + (r["action_processed_" + n] || "&mdash;") + "</td>" +
+          "<td>" + (r["observation_" + n] || "&mdash;") + "</td>" +
+          "<td>" + (r["parts_used_" + n] || "&mdash;") + "</td>" +
+          "<td>" + (r["qty_" + n] || "&mdash;") + "</td>" +
+          "<td>" + (r["supplier_bill_" + n] || "&mdash;") + "</td>" +
+          "<td>" + (r["value_" + n] || "&mdash;") + "</td>" +
+          "</tr>";
+      });
+      document.getElementById("modalContent").innerHTML =
+        "<div class=\"mb-5 pb-4 border-b-2 border-gray-300\">" +
+          "<h2 class=\"text-lg font-bold text-blue-900 mb-2\">ANNUAL PERIODICAL MAINTENANCE (YEARLY SERVICE)</h2>" +
+          "<div class=\"flex flex-wrap gap-6 text-sm text-gray-700\">" +
+            "<span><strong>Vehicle&nbsp;ID:</strong>&nbsp;" + (r.vehicle_id || "&mdash;") + "</span>" +
+            "<span><strong>Reg&nbsp;No:</strong>&nbsp;" + (r.registration_no || "&mdash;") + "</span>" +
+            "<span><strong>From:</strong>&nbsp;" + (r.from_month || "&mdash;") + "</span>" +
+            "<span><strong>To:</strong>&nbsp;" + (r.to_month || "&mdash;") + "</span>" +
+            "<span><strong>Submitted:</strong>&nbsp;" + ((r.created_at || "").substring(0, 10) || "&mdash;") + "</span>" +
+          "</div>" +
+        "</div>" +
+        "<div class=\"overflow-x-auto\">" +
+          "<table class=\"detail-table\">" +
+            "<thead><tr>" +
+              "<th>S.No</th>" +
+              "<th>Process Name</th>" +
+              "<th>Processed Date</th>" +
+              "<th>KM Reading</th>" +
+              "<th>Action Processed</th>" +
+              "<th>Observation / Recommendation</th>" +
+              "<th>Parts Used</th>" +
+              "<th>Qty</th>" +
+              "<th>Supplier Bill No. & Date</th>" +
+              "<th>Value</th>" +
+            "</tr></thead>" +
+            "<tbody>" + rows + "</tbody>" +
+          "</table>" +
+        "</div>";
+      document.getElementById("detailModal").classList.add("active");
+    }
+
+    function closeModal() {
+      document.getElementById("detailModal").classList.remove("active");
+      document.getElementById("modalContent").innerHTML = "";
+    }
+    document.getElementById("detailModal").addEventListener("click", function(e) {
+      if (e.target === this) closeModal();
+    });
+    document.getElementById("historySearch").addEventListener("input", function() {
+      const term = this.value.trim().toLowerCase();
+      document.querySelectorAll("#historyTable .history-row").forEach(function(row) {
+        row.style.display = (!term || row.innerText.toLowerCase().includes(term)) ? "" : "none";
+      });
+    });
+  </script>
+
+<script src="{{ url_for('static', filename='js/uppercase.js') }}"></script>
+{% include 'footer.html' %}
+</body>
+</html>
