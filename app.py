@@ -2868,19 +2868,19 @@ def trip_sheet():
     
     # GET request - show form
     try:
-        vehicles = supabase.table('vehicles').select('vehicle_id, registration_no').order('vehicle_id').execute()
-        # Build latest close-KM per vehicle from trip_sheet records
-        latest_kms = {}
+        vehicles_res = supabase.table('vehicles').select('vehicle_id, registration_no').execute()
+        vehicles_data = vehicles_res.data or []
+        # Sort ascending by numeric portion of vehicle_id (handles V1,V2,...V10 correctly)
         try:
-            trip_records = get_all_trip_sheets() or []
-            for r in trip_records:
-                vid = r.get('vehicle_id')
-                if vid and vid not in latest_kms:
-                    val = r.get('trip_close_km')
-                    latest_kms[vid] = str(val) if val is not None else ''
+            vehicles_data.sort(key=lambda v: int(''.join(filter(str.isdigit, str(v.get('vehicle_id', '')))) or '0'))
         except Exception:
-            latest_kms = {}
-        return render_template('trip_sheet.html', vehicles=vehicles.data, latest_kms=latest_kms)
+            vehicles_data.sort(key=lambda v: str(v.get('vehicle_id', '')))
+        
+        # Pass empty latest_kms to avoid connection timeout issues
+        # Users can still use localStorage for KM persistence
+        latest_kms = {}
+        
+        return render_template('trip_sheet.html', vehicles=vehicles_data, latest_kms=latest_kms)
     except Exception as e:
         flash(f'Error loading form: {str(e)}', 'danger')
         return redirect(url_for('dashboard'))
@@ -2917,6 +2917,7 @@ def trip_sheet_single():
             'vehicle_no':          request.form.get('vehicle_no'),
             'trip_start_km':       request.form.get('trip_start_km'),
             'trip_close_km':       request.form.get('trip_close_km'),
+            'total_km':            request.form.get('total_km'),
             'trip_start_time':     request.form.get('trip_start_time'),
             'trip_close_time':     request.form.get('trip_close_time'),
             'student_male':        student_male,
@@ -2945,6 +2946,39 @@ def trip_sheet_single():
             return jsonify({'success': False, 'message': 'Failed to save trip sheet.'})
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)})
+
+
+@app.route('/api/driver-lookup', methods=['POST'])
+@login_required
+def api_driver_lookup():
+    """Fetch driver details by ID or Name. Returns {driver_id, driver_name} or empty."""
+    try:
+        data = request.get_json() or {}
+        driver_id = (data.get('driver_id') or '').strip().upper()
+        driver_name = (data.get('driver_name') or '').strip().upper()
+        
+        # Try to fetch from employees table by ID or Name
+        employees = supabase.table('employees').select('employee_id, name').execute()
+        emp_list = employees.data or []
+        
+        if driver_id:
+            # Exact match first
+            for emp in emp_list:
+                if str(emp.get('employee_id', '')).upper() == driver_id:
+                    return jsonify({'driver_id': emp.get('employee_id', ''), 'driver_name': emp.get('name', '')})
+            # Last-N-digit match (user enters last 2 digits)
+            for emp in emp_list:
+                if str(emp.get('employee_id', '')).upper().endswith(driver_id):
+                    return jsonify({'driver_id': emp.get('employee_id', ''), 'driver_name': emp.get('name', '')})
+        elif driver_name:
+            # Search by name (exact or partial match)
+            for emp in emp_list:
+                if emp.get('name', '').upper().startswith(driver_name):
+                    return jsonify({'driver_id': emp.get('employee_id', ''), 'driver_name': emp.get('name', '')})
+        
+        return jsonify({'driver_id': '', 'driver_name': ''})
+    except Exception as e:
+        return jsonify({'driver_id': '', 'driver_name': '', 'error': str(e)})
 
 
 @app.route('/home')
