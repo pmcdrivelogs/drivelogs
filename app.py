@@ -2868,12 +2868,84 @@ def trip_sheet():
     
     # GET request - show form
     try:
-        # Get all vehicles for dropdown
         vehicles = supabase.table('vehicles').select('vehicle_id, registration_no').order('vehicle_id').execute()
-        return render_template('trip_sheet.html', vehicles=vehicles.data)
+        # Build latest close-KM per vehicle from trip_sheet records
+        latest_kms = {}
+        try:
+            trip_records = get_all_trip_sheets() or []
+            for r in trip_records:
+                vid = r.get('vehicle_id')
+                if vid and vid not in latest_kms:
+                    val = r.get('trip_close_km')
+                    latest_kms[vid] = str(val) if val is not None else ''
+        except Exception:
+            latest_kms = {}
+        return render_template('trip_sheet.html', vehicles=vehicles.data, latest_kms=latest_kms)
     except Exception as e:
         flash(f'Error loading form: {str(e)}', 'danger')
         return redirect(url_for('dashboard'))
+
+
+@app.route('/trip-sheet/single', methods=['POST'])
+@login_required
+def trip_sheet_single():
+    """Handle single-vehicle trip sheet submission via AJAX (returns JSON)."""
+    try:
+        student_male        = int(request.form.get('student_male', 0) or 0)
+        student_female      = int(request.form.get('student_female', 0) or 0)
+        student_transgender = int(request.form.get('student_transgender', 0) or 0)
+        student_total       = student_male + student_female + student_transgender
+
+        faculty_male        = int(request.form.get('faculty_male', 0) or 0)
+        faculty_female      = int(request.form.get('faculty_female', 0) or 0)
+        faculty_transgender = int(request.form.get('faculty_transgender', 0) or 0)
+        faculty_total       = faculty_male + faculty_female + faculty_transgender
+
+        guest_male          = int(request.form.get('guest_male', 0) or 0)
+        guest_female        = int(request.form.get('guest_female', 0) or 0)
+        guest_transgender   = int(request.form.get('guest_transgender', 0) or 0)
+        guest_total         = guest_male + guest_female + guest_transgender
+
+        cumulative_strength = student_total + faculty_total + guest_total
+
+        data = {
+            'date_time':           request.form.get('date_time'),
+            'route_id':            request.form.get('route_id'),
+            'driver_id':           request.form.get('driver_id'),
+            'driver_name':         request.form.get('driver_name'),
+            'vehicle_id':          request.form.get('vehicle_id'),
+            'vehicle_no':          request.form.get('vehicle_no'),
+            'trip_start_km':       request.form.get('trip_start_km'),
+            'trip_close_km':       request.form.get('trip_close_km'),
+            'trip_start_time':     request.form.get('trip_start_time'),
+            'trip_close_time':     request.form.get('trip_close_time'),
+            'student_male':        student_male,
+            'student_female':      student_female,
+            'student_transgender': student_transgender,
+            'student_total':       student_total,
+            'faculty_male':        faculty_male,
+            'faculty_female':      faculty_female,
+            'faculty_transgender': faculty_transgender,
+            'faculty_total':       faculty_total,
+            'guest_male':          guest_male,
+            'guest_female':        guest_female,
+            'guest_transgender':   guest_transgender,
+            'guest_total':         guest_total,
+            'cumulative_strength': cumulative_strength,
+            'trip_start_place':    request.form.get('trip_start_place'),
+            'trip_close_place':    request.form.get('trip_close_place'),
+            'comments':            request.form.get('comments'),
+            'entered_by':          request.form.get('entered_by'),
+        }
+
+        result = supabase.table('trip_sheet').insert(data).execute()
+        if result.data:
+            return jsonify({'success': True, 'message': 'Trip sheet saved!'})
+        else:
+            return jsonify({'success': False, 'message': 'Failed to save trip sheet.'})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)})
+
 
 @app.route('/home')
 @login_required
