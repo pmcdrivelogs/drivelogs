@@ -26,6 +26,19 @@
           this.value = this.value.toUpperCase();
         });
       }
+
+      // Auto-fill registration number when vehicle is selected
+      const vehicleMap = {{ vehicles | tojson }};
+      const vidMap = {};
+      vehicleMap.forEach(function(v) {
+        vidMap[String(v.vehicle_id)] = v.registration_no || '';
+      });
+      const vidSelect = document.querySelector('select[name="vehicle_id"]');
+      if (vidSelect && regInput) {
+        vidSelect.addEventListener('change', function() {
+          regInput.value = (vidMap[this.value] || '').toUpperCase();
+        });
+      }
     });
   </script>
   <style>
@@ -110,8 +123,8 @@
             <label class="font-bold text-gray-900 whitespace-nowrap">VEHICLE ID:</label>
             <select name="vehicle_id" class="flex-1 px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200">
               <option value="">Select</option>
-              {% for i in range(1, 101) %}
-              <option value="{{ i }}">{{ i }}</option>
+              {% for v in vehicles %}
+              <option value="{{ v.vehicle_id }}">{{ v.vehicle_id }}</option>
               {% endfor %}
             </select>
           </div>
