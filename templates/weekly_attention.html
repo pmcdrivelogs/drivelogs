@@ -26,6 +26,19 @@
           this.value = this.value.toUpperCase();
         });
       }
+
+      // Auto-fill registration number when vehicle is selected
+      const vehicleMap = {{ vehicles | tojson }};
+      const vidMap = {};
+      vehicleMap.forEach(function(v) {
+        vidMap[String(v.vehicle_id)] = v.registration_no || '';
+      });
+      const vidSelect = document.querySelector('select[name="vehicle_id"]');
+      if (vidSelect && regInput) {
+        vidSelect.addEventListener('change', function() {
+          regInput.value = (vidMap[this.value] || '').toUpperCase();
+        });
+      }
     });
   </script>
   <style>
@@ -86,7 +99,7 @@
       
       <!-- Header -->
       <div class="text-center mb-6 pb-4 border-b-2 border-gray-300">
-        <h1 class="text-xl md:text-2xl font-bold text-blue-900">WEEKLY/FORTHNIGHT ATTENTION CHECKLIST BY DRIVER</h1>
+        <h1 class="text-xl md:text-2xl font-bold text-blue-900">WEEKLY/FORTHNIGHT ATTENTION CHECKLIST BY THE TECHNICIAN</h1>
       </div>
 
       <!-- Form -->
@@ -97,8 +110,8 @@
             <label class="font-bold text-gray-900 whitespace-nowrap">VEHICLE ID:</label>
             <select name="vehicle_id" required class="flex-1 px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-blue-500 focus:ring-2 focus:ring-blue-200">
               <option value="">Select</option>
-              {% for i in range(1, 101) %}
-              <option value="{{ i }}">{{ i }}</option>
+              {% for v in vehicles %}
+              <option value="{{ v.vehicle_id }}">{{ v.vehicle_id }}</option>
               {% endfor %}
             </select>
           </div>
@@ -132,221 +145,221 @@
               <tr>
                 <td class="px-2 py-2 border border-gray-300 text-center font-semibold">1.</td>
                 <td class="px-2 py-2 border border-gray-300 font-medium text-xs">FLOOR BROOMING</td>
-                <td class="px-1 py-1 border border-gray-300"><input type="date" name="w1_processed_date_1" class="w-full border-0 focus:outline-none text-center"></td>
-                <td class="px-1 py-1 border border-gray-300"><input type="text" name="w1_kilometer_1" class="w-full border-0 focus:outline-none text-center"></td>
-                <td class="px-1 py-1 border border-gray-300"><input type="text" name="w1_observation_1" class="w-full border-0 focus:outline-none"></td>
-                <td class="px-1 py-1 border border-gray-300"><input type="date" name="w2_processed_date_1" class="w-full border-0 focus:outline-none text-center"></td>
-                <td class="px-1 py-1 border border-gray-300"><input type="text" name="w2_kilometer_1" class="w-full border-0 focus:outline-none text-center"></td>
-                <td class="px-1 py-1 border border-gray-300"><input type="text" name="w2_observation_1" class="w-full border-0 focus:outline-none"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="date" name="week1_date_1" class="w-full border-0 focus:outline-none text-center"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="text" name="week1_km_1" class="w-full border-0 focus:outline-none text-center"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="text" name="week1_obs_1" class="w-full border-0 focus:outline-none"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="date" name="week2_date_1" class="w-full border-0 focus:outline-none text-center"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="text" name="week2_km_1" class="w-full border-0 focus:outline-none text-center"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="text" name="week2_obs_1" class="w-full border-0 focus:outline-none"></td>
               </tr>
               <!-- Row 2 -->
               <tr>
                 <td class="px-2 py-2 border border-gray-300 text-center font-semibold">2.</td>
                 <td class="px-2 py-2 border border-gray-300 font-medium text-xs">COMPLETE WATER WASHING</td>
-                <td class="px-1 py-1 border border-gray-300"><input type="date" name="w1_processed_date_2" class="w-full border-0 focus:outline-none text-center"></td>
-                <td class="px-1 py-1 border border-gray-300"><input type="text" name="w1_kilometer_2" class="w-full border-0 focus:outline-none text-center"></td>
-                <td class="px-1 py-1 border border-gray-300"><input type="text" name="w1_observation_2" class="w-full border-0 focus:outline-none"></td>
-                <td class="px-1 py-1 border border-gray-300"><input type="date" name="w2_processed_date_2" class="w-full border-0 focus:outline-none text-center"></td>
-                <td class="px-1 py-1 border border-gray-300"><input type="text" name="w2_kilometer_2" class="w-full border-0 focus:outline-none text-center"></td>
-                <td class="px-1 py-1 border border-gray-300"><input type="text" name="w2_observation_2" class="w-full border-0 focus:outline-none"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="date" name="week1_date_2" class="w-full border-0 focus:outline-none text-center"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="text" name="week1_km_2" class="w-full border-0 focus:outline-none text-center"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="text" name="week1_obs_2" class="w-full border-0 focus:outline-none"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="date" name="week2_date_2" class="w-full border-0 focus:outline-none text-center"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="text" name="week2_km_2" class="w-full border-0 focus:outline-none text-center"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="text" name="week2_obs_2" class="w-full border-0 focus:outline-none"></td>
               </tr>
               <!-- Row 3 -->
               <tr>
                 <td class="px-2 py-2 border border-gray-300 text-center font-semibold">3.</td>
                 <td class="px-2 py-2 border border-gray-300 font-medium text-xs">TIEROS END GREASING</td>
-                <td class="px-1 py-1 border border-gray-300"><input type="date" name="w1_processed_date_3" class="w-full border-0 focus:outline-none text-center"></td>
-                <td class="px-1 py-1 border border-gray-300"><input type="text" name="w1_kilometer_3" class="w-full border-0 focus:outline-none text-center"></td>
-                <td class="px-1 py-1 border border-gray-300"><input type="text" name="w1_observation_3" class="w-full border-0 focus:outline-none"></td>
-                <td class="px-1 py-1 border border-gray-300"><input type="date" name="w2_processed_date_3" class="w-full border-0 focus:outline-none text-center"></td>
-                <td class="px-1 py-1 border border-gray-300"><input type="text" name="w2_kilometer_3" class="w-full border-0 focus:outline-none text-center"></td>
-                <td class="px-1 py-1 border border-gray-300"><input type="text" name="w2_observation_3" class="w-full border-0 focus:outline-none"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="date" name="week1_date_3" class="w-full border-0 focus:outline-none text-center"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="text" name="week1_km_3" class="w-full border-0 focus:outline-none text-center"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="text" name="week1_obs_3" class="w-full border-0 focus:outline-none"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="date" name="week2_date_3" class="w-full border-0 focus:outline-none text-center"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="text" name="week2_km_3" class="w-full border-0 focus:outline-none text-center"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="text" name="week2_obs_3" class="w-full border-0 focus:outline-none"></td>
               </tr>
               <!-- Row 4 -->
               <tr>
                 <td class="px-2 py-2 border border-gray-300 text-center font-semibold">4.</td>
                 <td class="px-2 py-2 border border-gray-300 font-medium text-xs">TYRE INFLATION PHYSICAL EXAM</td>
-                <td class="px-1 py-1 border border-gray-300"><input type="date" name="w1_processed_date_4" class="w-full border-0 focus:outline-none text-center"></td>
-                <td class="px-1 py-1 border border-gray-300"><input type="text" name="w1_kilometer_4" class="w-full border-0 focus:outline-none text-center"></td>
-                <td class="px-1 py-1 border border-gray-300"><input type="text" name="w1_observation_4" class="w-full border-0 focus:outline-none"></td>
-                <td class="px-1 py-1 border border-gray-300"><input type="date" name="w2_processed_date_4" class="w-full border-0 focus:outline-none text-center"></td>
-                <td class="px-1 py-1 border border-gray-300"><input type="text" name="w2_kilometer_4" class="w-full border-0 focus:outline-none text-center"></td>
-                <td class="px-1 py-1 border border-gray-300"><input type="text" name="w2_observation_4" class="w-full border-0 focus:outline-none"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="date" name="week1_date_4" class="w-full border-0 focus:outline-none text-center"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="text" name="week1_km_4" class="w-full border-0 focus:outline-none text-center"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="text" name="week1_obs_4" class="w-full border-0 focus:outline-none"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="date" name="week2_date_4" class="w-full border-0 focus:outline-none text-center"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="text" name="week2_km_4" class="w-full border-0 focus:outline-none text-center"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="text" name="week2_obs_4" class="w-full border-0 focus:outline-none"></td>
               </tr>
               <!-- Row 5 -->
               <tr>
                 <td class="px-2 py-2 border border-gray-300 text-center font-semibold">5.</td>
                 <td class="px-2 py-2 border border-gray-300 font-medium text-xs">ENGINE OIL CHECKUP & TOPUP</td>
-                <td class="px-1 py-1 border border-gray-300"><input type="date" name="w1_processed_date_5" class="w-full border-0 focus:outline-none text-center"></td>
-                <td class="px-1 py-1 border border-gray-300"><input type="text" name="w1_kilometer_5" class="w-full border-0 focus:outline-none text-center"></td>
-                <td class="px-1 py-1 border border-gray-300"><input type="text" name="w1_observation_5" class="w-full border-0 focus:outline-none"></td>
-                <td class="px-1 py-1 border border-gray-300"><input type="date" name="w2_processed_date_5" class="w-full border-0 focus:outline-none text-center"></td>
-                <td class="px-1 py-1 border border-gray-300"><input type="text" name="w2_kilometer_5" class="w-full border-0 focus:outline-none text-center"></td>
-                <td class="px-1 py-1 border border-gray-300"><input type="text" name="w2_observation_5" class="w-full border-0 focus:outline-none"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="date" name="week1_date_5" class="w-full border-0 focus:outline-none text-center"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="text" name="week1_km_5" class="w-full border-0 focus:outline-none text-center"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="text" name="week1_obs_5" class="w-full border-0 focus:outline-none"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="date" name="week2_date_5" class="w-full border-0 focus:outline-none text-center"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="text" name="week2_km_5" class="w-full border-0 focus:outline-none text-center"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="text" name="week2_obs_5" class="w-full border-0 focus:outline-none"></td>
               </tr>
               <!-- Row 6 -->
               <tr>
                 <td class="px-2 py-2 border border-gray-300 text-center font-semibold">6.</td>
                 <td class="px-2 py-2 border border-gray-300 font-medium text-xs">ANY OTHER OIL SPILLS CHECKUP</td>
-                <td class="px-1 py-1 border border-gray-300"><input type="date" name="w1_processed_date_6" class="w-full border-0 focus:outline-none text-center"></td>
-                <td class="px-1 py-1 border border-gray-300"><input type="text" name="w1_kilometer_6" class="w-full border-0 focus:outline-none text-center"></td>
-                <td class="px-1 py-1 border border-gray-300"><input type="text" name="w1_observation_6" class="w-full border-0 focus:outline-none"></td>
-                <td class="px-1 py-1 border border-gray-300"><input type="date" name="w2_processed_date_6" class="w-full border-0 focus:outline-none text-center"></td>
-                <td class="px-1 py-1 border border-gray-300"><input type="text" name="w2_kilometer_6" class="w-full border-0 focus:outline-none text-center"></td>
-                <td class="px-1 py-1 border border-gray-300"><input type="text" name="w2_observation_6" class="w-full border-0 focus:outline-none"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="date" name="week1_date_6" class="w-full border-0 focus:outline-none text-center"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="text" name="week1_km_6" class="w-full border-0 focus:outline-none text-center"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="text" name="week1_obs_6" class="w-full border-0 focus:outline-none"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="date" name="week2_date_6" class="w-full border-0 focus:outline-none text-center"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="text" name="week2_km_6" class="w-full border-0 focus:outline-none text-center"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="text" name="week2_obs_6" class="w-full border-0 focus:outline-none"></td>
               </tr>
               <!-- Row 7 -->
               <tr>
                 <td class="px-2 py-2 border border-gray-300 text-center font-semibold">7.</td>
                 <td class="px-2 py-2 border border-gray-300 font-medium text-xs">FAN BELTS TENSION CHECKUP</td>
-                <td class="px-1 py-1 border border-gray-300"><input type="date" name="w1_processed_date_7" class="w-full border-0 focus:outline-none text-center"></td>
-                <td class="px-1 py-1 border border-gray-300"><input type="text" name="w1_kilometer_7" class="w-full border-0 focus:outline-none text-center"></td>
-                <td class="px-1 py-1 border border-gray-300"><input type="text" name="w1_observation_7" class="w-full border-0 focus:outline-none"></td>
-                <td class="px-1 py-1 border border-gray-300"><input type="date" name="w2_processed_date_7" class="w-full border-0 focus:outline-none text-center"></td>
-                <td class="px-1 py-1 border border-gray-300"><input type="text" name="w2_kilometer_7" class="w-full border-0 focus:outline-none text-center"></td>
-                <td class="px-1 py-1 border border-gray-300"><input type="text" name="w2_observation_7" class="w-full border-0 focus:outline-none"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="date" name="week1_date_7" class="w-full border-0 focus:outline-none text-center"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="text" name="week1_km_7" class="w-full border-0 focus:outline-none text-center"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="text" name="week1_obs_7" class="w-full border-0 focus:outline-none"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="date" name="week2_date_7" class="w-full border-0 focus:outline-none text-center"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="text" name="week2_km_7" class="w-full border-0 focus:outline-none text-center"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="text" name="week2_obs_7" class="w-full border-0 focus:outline-none"></td>
               </tr>
               <!-- Row 8 -->
               <tr>
                 <td class="px-2 py-2 border border-gray-300 text-center font-semibold">8.</td>
                 <td class="px-2 py-2 border border-gray-300 font-medium text-xs">RADIATOR HOSES</td>
-                <td class="px-1 py-1 border border-gray-300"><input type="date" name="w1_processed_date_8" class="w-full border-0 focus:outline-none text-center"></td>
-                <td class="px-1 py-1 border border-gray-300"><input type="text" name="w1_kilometer_8" class="w-full border-0 focus:outline-none text-center"></td>
-                <td class="px-1 py-1 border border-gray-300"><input type="text" name="w1_observation_8" class="w-full border-0 focus:outline-none"></td>
-                <td class="px-1 py-1 border border-gray-300"><input type="date" name="w2_processed_date_8" class="w-full border-0 focus:outline-none text-center"></td>
-                <td class="px-1 py-1 border border-gray-300"><input type="text" name="w2_kilometer_8" class="w-full border-0 focus:outline-none text-center"></td>
-                <td class="px-1 py-1 border border-gray-300"><input type="text" name="w2_observation_8" class="w-full border-0 focus:outline-none"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="date" name="week1_date_8" class="w-full border-0 focus:outline-none text-center"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="text" name="week1_km_8" class="w-full border-0 focus:outline-none text-center"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="text" name="week1_obs_8" class="w-full border-0 focus:outline-none"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="date" name="week2_date_8" class="w-full border-0 focus:outline-none text-center"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="text" name="week2_km_8" class="w-full border-0 focus:outline-none text-center"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="text" name="week2_obs_8" class="w-full border-0 focus:outline-none"></td>
               </tr>
               <!-- Row 9 -->
               <tr>
                 <td class="px-2 py-2 border border-gray-300 text-center font-semibold">9.</td>
                 <td class="px-2 py-2 border border-gray-300 font-medium text-xs">FUEL HOSES</td>
-                <td class="px-1 py-1 border border-gray-300"><input type="date" name="w1_processed_date_9" class="w-full border-0 focus:outline-none text-center"></td>
-                <td class="px-1 py-1 border border-gray-300"><input type="text" name="w1_kilometer_9" class="w-full border-0 focus:outline-none text-center"></td>
-                <td class="px-1 py-1 border border-gray-300"><input type="text" name="w1_observation_9" class="w-full border-0 focus:outline-none"></td>
-                <td class="px-1 py-1 border border-gray-300"><input type="date" name="w2_processed_date_9" class="w-full border-0 focus:outline-none text-center"></td>
-                <td class="px-1 py-1 border border-gray-300"><input type="text" name="w2_kilometer_9" class="w-full border-0 focus:outline-none text-center"></td>
-                <td class="px-1 py-1 border border-gray-300"><input type="text" name="w2_observation_9" class="w-full border-0 focus:outline-none"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="date" name="week1_date_9" class="w-full border-0 focus:outline-none text-center"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="text" name="week1_km_9" class="w-full border-0 focus:outline-none text-center"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="text" name="week1_obs_9" class="w-full border-0 focus:outline-none"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="date" name="week2_date_9" class="w-full border-0 focus:outline-none text-center"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="text" name="week2_km_9" class="w-full border-0 focus:outline-none text-center"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="text" name="week2_obs_9" class="w-full border-0 focus:outline-none"></td>
               </tr>
               <!-- Row 10 -->
               <tr>
                 <td class="px-2 py-2 border border-gray-300 text-center font-semibold">10.</td>
                 <td class="px-2 py-2 border border-gray-300 font-medium text-xs">BREAK LINING CHECKUP & ADJUSTMENT</td>
-                <td class="px-1 py-1 border border-gray-300"><input type="date" name="w1_processed_date_10" class="w-full border-0 focus:outline-none text-center"></td>
-                <td class="px-1 py-1 border border-gray-300"><input type="text" name="w1_kilometer_10" class="w-full border-0 focus:outline-none text-center"></td>
-                <td class="px-1 py-1 border border-gray-300"><input type="text" name="w1_observation_10" class="w-full border-0 focus:outline-none"></td>
-                <td class="px-1 py-1 border border-gray-300"><input type="date" name="w2_processed_date_10" class="w-full border-0 focus:outline-none text-center"></td>
-                <td class="px-1 py-1 border border-gray-300"><input type="text" name="w2_kilometer_10" class="w-full border-0 focus:outline-none text-center"></td>
-                <td class="px-1 py-1 border border-gray-300"><input type="text" name="w2_observation_10" class="w-full border-0 focus:outline-none"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="date" name="week1_date_10" class="w-full border-0 focus:outline-none text-center"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="text" name="week1_km_10" class="w-full border-0 focus:outline-none text-center"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="text" name="week1_obs_10" class="w-full border-0 focus:outline-none"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="date" name="week2_date_10" class="w-full border-0 focus:outline-none text-center"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="text" name="week2_km_10" class="w-full border-0 focus:outline-none text-center"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="text" name="week2_obs_10" class="w-full border-0 focus:outline-none"></td>
               </tr>
               <!-- Row 11 -->
               <tr>
                 <td class="px-2 py-2 border border-gray-300 text-center font-semibold">11.</td>
                 <td class="px-2 py-2 border border-gray-300 font-medium text-xs">CLUTCH PLY & OIL CHECK & ADJUSTMENT</td>
-                <td class="px-1 py-1 border border-gray-300"><input type="date" name="w1_processed_date_11" class="w-full border-0 focus:outline-none text-center"></td>
-                <td class="px-1 py-1 border border-gray-300"><input type="text" name="w1_kilometer_11" class="w-full border-0 focus:outline-none text-center"></td>
-                <td class="px-1 py-1 border border-gray-300"><input type="text" name="w1_observation_11" class="w-full border-0 focus:outline-none"></td>
-                <td class="px-1 py-1 border border-gray-300"><input type="date" name="w2_processed_date_11" class="w-full border-0 focus:outline-none text-center"></td>
-                <td class="px-1 py-1 border border-gray-300"><input type="text" name="w2_kilometer_11" class="w-full border-0 focus:outline-none text-center"></td>
-                <td class="px-1 py-1 border border-gray-300"><input type="text" name="w2_observation_11" class="w-full border-0 focus:outline-none"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="date" name="week1_date_11" class="w-full border-0 focus:outline-none text-center"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="text" name="week1_km_11" class="w-full border-0 focus:outline-none text-center"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="text" name="week1_obs_11" class="w-full border-0 focus:outline-none"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="date" name="week2_date_11" class="w-full border-0 focus:outline-none text-center"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="text" name="week2_km_11" class="w-full border-0 focus:outline-none text-center"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="text" name="week2_obs_11" class="w-full border-0 focus:outline-none"></td>
               </tr>
               <!-- Row 12 -->
               <tr>
                 <td class="px-2 py-2 border border-gray-300 text-center font-semibold">12.</td>
                 <td class="px-2 py-2 border border-gray-300 font-medium text-xs">UNDER CHASIS BOLTS CHECK UP</td>
-                <td class="px-1 py-1 border border-gray-300"><input type="date" name="w1_processed_date_12" class="w-full border-0 focus:outline-none text-center"></td>
-                <td class="px-1 py-1 border border-gray-300"><input type="text" name="w1_kilometer_12" class="w-full border-0 focus:outline-none text-center"></td>
-                <td class="px-1 py-1 border border-gray-300"><input type="text" name="w1_observation_12" class="w-full border-0 focus:outline-none"></td>
-                <td class="px-1 py-1 border border-gray-300"><input type="date" name="w2_processed_date_12" class="w-full border-0 focus:outline-none text-center"></td>
-                <td class="px-1 py-1 border border-gray-300"><input type="text" name="w2_kilometer_12" class="w-full border-0 focus:outline-none text-center"></td>
-                <td class="px-1 py-1 border border-gray-300"><input type="text" name="w2_observation_12" class="w-full border-0 focus:outline-none"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="date" name="week1_date_12" class="w-full border-0 focus:outline-none text-center"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="text" name="week1_km_12" class="w-full border-0 focus:outline-none text-center"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="text" name="week1_obs_12" class="w-full border-0 focus:outline-none"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="date" name="week2_date_12" class="w-full border-0 focus:outline-none text-center"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="text" name="week2_km_12" class="w-full border-0 focus:outline-none text-center"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="text" name="week2_obs_12" class="w-full border-0 focus:outline-none"></td>
               </tr>
               <!-- Row 13 -->
               <tr>
                 <td class="px-2 py-2 border border-gray-300 text-center font-semibold">13.</td>
                 <td class="px-2 py-2 border border-gray-300 font-medium text-xs">JOINT BOLTS CHECKUP & GREASING</td>
-                <td class="px-1 py-1 border border-gray-300"><input type="date" name="w1_processed_date_13" class="w-full border-0 focus:outline-none text-center"></td>
-                <td class="px-1 py-1 border border-gray-300"><input type="text" name="w1_kilometer_13" class="w-full border-0 focus:outline-none text-center"></td>
-                <td class="px-1 py-1 border border-gray-300"><input type="text" name="w1_observation_13" class="w-full border-0 focus:outline-none"></td>
-                <td class="px-1 py-1 border border-gray-300"><input type="date" name="w2_processed_date_13" class="w-full border-0 focus:outline-none text-center"></td>
-                <td class="px-1 py-1 border border-gray-300"><input type="text" name="w2_kilometer_13" class="w-full border-0 focus:outline-none text-center"></td>
-                <td class="px-1 py-1 border border-gray-300"><input type="text" name="w2_observation_13" class="w-full border-0 focus:outline-none"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="date" name="week1_date_13" class="w-full border-0 focus:outline-none text-center"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="text" name="week1_km_13" class="w-full border-0 focus:outline-none text-center"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="text" name="week1_obs_13" class="w-full border-0 focus:outline-none"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="date" name="week2_date_13" class="w-full border-0 focus:outline-none text-center"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="text" name="week2_km_13" class="w-full border-0 focus:outline-none text-center"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="text" name="week2_obs_13" class="w-full border-0 focus:outline-none"></td>
               </tr>
               <!-- Row 14 -->
               <tr>
                 <td class="px-2 py-2 border border-gray-300 text-center font-semibold">14.</td>
                 <td class="px-2 py-2 border border-gray-300 font-medium text-xs">SPRING PLATE CONDITION CHECKUP</td>
-                <td class="px-1 py-1 border border-gray-300"><input type="date" name="w1_processed_date_14" class="w-full border-0 focus:outline-none text-center"></td>
-                <td class="px-1 py-1 border border-gray-300"><input type="text" name="w1_kilometer_14" class="w-full border-0 focus:outline-none text-center"></td>
-                <td class="px-1 py-1 border border-gray-300"><input type="text" name="w1_observation_14" class="w-full border-0 focus:outline-none"></td>
-                <td class="px-1 py-1 border border-gray-300"><input type="date" name="w2_processed_date_14" class="w-full border-0 focus:outline-none text-center"></td>
-                <td class="px-1 py-1 border border-gray-300"><input type="text" name="w2_kilometer_14" class="w-full border-0 focus:outline-none text-center"></td>
-                <td class="px-1 py-1 border border-gray-300"><input type="text" name="w2_observation_14" class="w-full border-0 focus:outline-none"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="date" name="week1_date_14" class="w-full border-0 focus:outline-none text-center"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="text" name="week1_km_14" class="w-full border-0 focus:outline-none text-center"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="text" name="week1_obs_14" class="w-full border-0 focus:outline-none"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="date" name="week2_date_14" class="w-full border-0 focus:outline-none text-center"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="text" name="week2_km_14" class="w-full border-0 focus:outline-none text-center"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="text" name="week2_obs_14" class="w-full border-0 focus:outline-none"></td>
               </tr>
               <!-- Row 15 -->
               <tr>
                 <td class="px-2 py-2 border border-gray-300 text-center font-semibold">15.</td>
                 <td class="px-2 py-2 border border-gray-300 font-medium text-xs">DRINING WATER FROM VACCUM TANK</td>
-                <td class="px-1 py-1 border border-gray-300"><input type="date" name="w1_processed_date_15" class="w-full border-0 focus:outline-none text-center"></td>
-                <td class="px-1 py-1 border border-gray-300"><input type="text" name="w1_kilometer_15" class="w-full border-0 focus:outline-none text-center"></td>
-                <td class="px-1 py-1 border border-gray-300"><input type="text" name="w1_observation_15" class="w-full border-0 focus:outline-none"></td>
-                <td class="px-1 py-1 border border-gray-300"><input type="date" name="w2_processed_date_15" class="w-full border-0 focus:outline-none text-center"></td>
-                <td class="px-1 py-1 border border-gray-300"><input type="text" name="w2_kilometer_15" class="w-full border-0 focus:outline-none text-center"></td>
-                <td class="px-1 py-1 border border-gray-300"><input type="text" name="w2_observation_15" class="w-full border-0 focus:outline-none"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="date" name="week1_date_15" class="w-full border-0 focus:outline-none text-center"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="text" name="week1_km_15" class="w-full border-0 focus:outline-none text-center"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="text" name="week1_obs_15" class="w-full border-0 focus:outline-none"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="date" name="week2_date_15" class="w-full border-0 focus:outline-none text-center"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="text" name="week2_km_15" class="w-full border-0 focus:outline-none text-center"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="text" name="week2_obs_15" class="w-full border-0 focus:outline-none"></td>
               </tr>
               <!-- Row 16 -->
               <tr>
                 <td class="px-2 py-2 border border-gray-300 text-center font-semibold">16.</td>
                 <td class="px-2 py-2 border border-gray-300 font-medium text-xs">WIPER CONDITION CHECKUP</td>
-                <td class="px-1 py-1 border border-gray-300"><input type="date" name="w1_processed_date_16" class="w-full border-0 focus:outline-none text-center"></td>
-                <td class="px-1 py-1 border border-gray-300"><input type="text" name="w1_kilometer_16" class="w-full border-0 focus:outline-none text-center"></td>
-                <td class="px-1 py-1 border border-gray-300"><input type="text" name="w1_observation_16" class="w-full border-0 focus:outline-none"></td>
-                <td class="px-1 py-1 border border-gray-300"><input type="date" name="w2_processed_date_16" class="w-full border-0 focus:outline-none text-center"></td>
-                <td class="px-1 py-1 border border-gray-300"><input type="text" name="w2_kilometer_16" class="w-full border-0 focus:outline-none text-center"></td>
-                <td class="px-1 py-1 border border-gray-300"><input type="text" name="w2_observation_16" class="w-full border-0 focus:outline-none"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="date" name="week1_date_16" class="w-full border-0 focus:outline-none text-center"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="text" name="week1_km_16" class="w-full border-0 focus:outline-none text-center"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="text" name="week1_obs_16" class="w-full border-0 focus:outline-none"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="date" name="week2_date_16" class="w-full border-0 focus:outline-none text-center"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="text" name="week2_km_16" class="w-full border-0 focus:outline-none text-center"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="text" name="week2_obs_16" class="w-full border-0 focus:outline-none"></td>
               </tr>
               <!-- Row 17 -->
               <tr>
                 <td class="px-2 py-2 border border-gray-300 text-center font-semibold">17.</td>
                 <td class="px-2 py-2 border border-gray-300 font-medium text-xs">FIRE EXTINGUSHER LEVEL</td>
-                <td class="px-1 py-1 border border-gray-300"><input type="date" name="w1_processed_date_17" class="w-full border-0 focus:outline-none text-center"></td>
-                <td class="px-1 py-1 border border-gray-300"><input type="text" name="w1_kilometer_17" class="w-full border-0 focus:outline-none text-center"></td>
-                <td class="px-1 py-1 border border-gray-300"><input type="text" name="w1_observation_17" class="w-full border-0 focus:outline-none"></td>
-                <td class="px-1 py-1 border border-gray-300"><input type="date" name="w2_processed_date_17" class="w-full border-0 focus:outline-none text-center"></td>
-                <td class="px-1 py-1 border border-gray-300"><input type="text" name="w2_kilometer_17" class="w-full border-0 focus:outline-none text-center"></td>
-                <td class="px-1 py-1 border border-gray-300"><input type="text" name="w2_observation_17" class="w-full border-0 focus:outline-none"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="date" name="week1_date_17" class="w-full border-0 focus:outline-none text-center"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="text" name="week1_km_17" class="w-full border-0 focus:outline-none text-center"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="text" name="week1_obs_17" class="w-full border-0 focus:outline-none"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="date" name="week2_date_17" class="w-full border-0 focus:outline-none text-center"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="text" name="week2_km_17" class="w-full border-0 focus:outline-none text-center"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="text" name="week2_obs_17" class="w-full border-0 focus:outline-none"></td>
               </tr>
               <!-- Row 18 -->
               <tr>
                 <td class="px-2 py-2 border border-gray-300 text-center font-semibold">18.</td>
                 <td class="px-2 py-2 border border-gray-300 font-medium text-xs">STARTER & ALTERNATOR CHECKUP</td>
-                <td class="px-1 py-1 border border-gray-300"><input type="date" name="w1_processed_date_18" class="w-full border-0 focus:outline-none text-center"></td>
-                <td class="px-1 py-1 border border-gray-300"><input type="text" name="w1_kilometer_18" class="w-full border-0 focus:outline-none text-center"></td>
-                <td class="px-1 py-1 border border-gray-300"><input type="text" name="w1_observation_18" class="w-full border-0 focus:outline-none"></td>
-                <td class="px-1 py-1 border border-gray-300"><input type="date" name="w2_processed_date_18" class="w-full border-0 focus:outline-none text-center"></td>
-                <td class="px-1 py-1 border border-gray-300"><input type="text" name="w2_kilometer_18" class="w-full border-0 focus:outline-none text-center"></td>
-                <td class="px-1 py-1 border border-gray-300"><input type="text" name="w2_observation_18" class="w-full border-0 focus:outline-none"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="date" name="week1_date_18" class="w-full border-0 focus:outline-none text-center"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="text" name="week1_km_18" class="w-full border-0 focus:outline-none text-center"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="text" name="week1_obs_18" class="w-full border-0 focus:outline-none"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="date" name="week2_date_18" class="w-full border-0 focus:outline-none text-center"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="text" name="week2_km_18" class="w-full border-0 focus:outline-none text-center"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="text" name="week2_obs_18" class="w-full border-0 focus:outline-none"></td>
               </tr>
               <!-- Row 19 -->
               <tr>
                 <td class="px-2 py-2 border border-gray-300 text-center font-semibold">19.</td>
                 <td class="px-2 py-2 border border-gray-300 font-medium text-xs">BATTERY WATER LEVEL & CONDITION</td>
-                <td class="px-1 py-1 border border-gray-300"><input type="date" name="w1_processed_date_19" class="w-full border-0 focus:outline-none text-center"></td>
-                <td class="px-1 py-1 border border-gray-300"><input type="text" name="w1_kilometer_19" class="w-full border-0 focus:outline-none text-center"></td>
-                <td class="px-1 py-1 border border-gray-300"><input type="text" name="w1_observation_19" class="w-full border-0 focus:outline-none"></td>
-                <td class="px-1 py-1 border border-gray-300"><input type="date" name="w2_processed_date_19" class="w-full border-0 focus:outline-none text-center"></td>
-                <td class="px-1 py-1 border border-gray-300"><input type="text" name="w2_kilometer_19" class="w-full border-0 focus:outline-none text-center"></td>
-                <td class="px-1 py-1 border border-gray-300"><input type="text" name="w2_observation_19" class="w-full border-0 focus:outline-none"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="date" name="week1_date_19" class="w-full border-0 focus:outline-none text-center"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="text" name="week1_km_19" class="w-full border-0 focus:outline-none text-center"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="text" name="week1_obs_19" class="w-full border-0 focus:outline-none"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="date" name="week2_date_19" class="w-full border-0 focus:outline-none text-center"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="text" name="week2_km_19" class="w-full border-0 focus:outline-none text-center"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="text" name="week2_obs_19" class="w-full border-0 focus:outline-none"></td>
               </tr>
               <!-- Row 20 -->
               <tr>
                 <td class="px-2 py-2 border border-gray-300 text-center font-semibold">20.</td>
                 <td class="px-2 py-2 border border-gray-300 font-medium text-xs">SEATS CONDITION, SCREWS & BOLTS</td>
-                <td class="px-1 py-1 border border-gray-300"><input type="date" name="w1_processed_date_20" class="w-full border-0 focus:outline-none text-center"></td>
-                <td class="px-1 py-1 border border-gray-300"><input type="text" name="w1_kilometer_20" class="w-full border-0 focus:outline-none text-center"></td>
-                <td class="px-1 py-1 border border-gray-300"><input type="text" name="w1_observation_20" class="w-full border-0 focus:outline-none"></td>
-                <td class="px-1 py-1 border border-gray-300"><input type="date" name="w2_processed_date_20" class="w-full border-0 focus:outline-none text-center"></td>
-                <td class="px-1 py-1 border border-gray-300"><input type="text" name="w2_kilometer_20" class="w-full border-0 focus:outline-none text-center"></td>
-                <td class="px-1 py-1 border border-gray-300"><input type="text" name="w2_observation_20" class="w-full border-0 focus:outline-none"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="date" name="week1_date_20" class="w-full border-0 focus:outline-none text-center"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="text" name="week1_km_20" class="w-full border-0 focus:outline-none text-center"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="text" name="week1_obs_20" class="w-full border-0 focus:outline-none"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="date" name="week2_date_20" class="w-full border-0 focus:outline-none text-center"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="text" name="week2_km_20" class="w-full border-0 focus:outline-none text-center"></td>
+                <td class="px-1 py-1 border border-gray-300"><input type="text" name="week2_obs_20" class="w-full border-0 focus:outline-none"></td>
               </tr>
             </tbody>
           </table>
