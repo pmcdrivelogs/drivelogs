@@ -9,241 +9,109 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
     * { font-family: 'Inter', sans-serif; }
-    
-    body {
-      background: linear-gradient(135deg, #fef3c7 0%, #fde68a 50%, #fef3c7 100%);
-    }
-    
-    .form-container {
-      background: white;
-      border-radius: 16px;
-      padding: 32px 40px;
-      box-shadow: 0 4px 25px rgba(0, 0, 0, 0.1);
-      border: 2px solid #d1d5db;
-    }
-    
-    .form-row {
-      display: flex;
-      align-items: center;
-      margin-bottom: 18px;
-    }
-    
-    .form-label {
-      font-weight: 700;
-      color: #1f2937;
-      font-size: 0.85rem;
-      text-transform: uppercase;
-      letter-spacing: 0.3px;
-      min-width: 220px;
-    }
-    
-    .colon {
-      font-weight: bold;
-      color: #1f2937;
-      margin: 0 16px;
-      font-size: 1.1rem;
-    }
-    
-    .form-input, .form-select {
-      flex: 1;
-      padding: 12px 18px;
-      border: 2px solid #f59e0b;
-      border-radius: 30px;
-      font-size: 0.95rem;
-      transition: all 0.3s ease;
-      background: white;
-    }
-    
-    .form-input:focus, .form-select:focus {
-      outline: none;
-      border-color: #d97706;
-      box-shadow: 0 0 0 4px rgba(245, 158, 11, 0.15);
-    }
-    
-    .form-input[readonly] {
-      background-color: #f9fafb;
-      cursor: not-allowed;
-      color: #374151;
-    }
-    
-    .form-select {
-      cursor: pointer;
-      appearance: none;
-      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23f59e0b'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E");
-      background-repeat: no-repeat;
-      background-position: right 16px center;
-      background-size: 20px;
-      padding-right: 48px;
-    }
-    
-    .submit-btn {
-      background: linear-gradient(135deg, #1e40af 0%, #1e3a8a 100%);
-      color: white;
-      padding: 16px 56px;
-      border-radius: 50px;
-      font-weight: 700;
-      font-size: 1.1rem;
-      box-shadow: 0 6px 20px rgba(30, 64, 175, 0.35);
-      transition: all 0.3s ease;
-      border: none;
-      cursor: pointer;
-    }
-    
-    .submit-btn:hover {
-      transform: translateY(-3px);
-      box-shadow: 0 8px 25px rgba(30, 64, 175, 0.45);
-      background: linear-gradient(135deg, #1e3a8a 0%, #1e293b 100%);
-    }
-    
-    .form-title {
-      color: #1e40af;
-      font-size: 1.75rem;
-      font-weight: 800;
-      text-decoration: underline;
-      text-underline-offset: 6px;
-      text-decoration-thickness: 3px;
-    }
-    
-    .form-ref {
-      color: #374151;
-      font-weight: 700;
-      font-size: 0.9rem;
-    }
-    
-    .two-column {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 24px;
-    }
-    
-    .three-column {
-      display: grid;
-      grid-template-columns: 1fr 1fr 1fr;
-      gap: 16px;
-    }
-    
-    .section-header {
-      background: linear-gradient(135deg, #3b82f6 0%, #1e40af 100%);
-      color: white;
-      padding: 10px 20px;
-      border-radius: 10px;
-      font-weight: 700;
-      font-size: 0.9rem;
-      text-transform: uppercase;
-      margin: 20px 0 15px 0;
-      text-align: center;
-    }
-    
-    .category-box {
-      background: #f8fafc;
-      border: 2px solid #e2e8f0;
-      border-radius: 12px;
-      padding: 15px;
-      margin-bottom: 15px;
-    }
-    
-    .category-title {
-      font-weight: 700;
-      color: #1e40af;
-      font-size: 0.9rem;
-      text-transform: uppercase;
-      margin-bottom: 12px;
-      padding-bottom: 8px;
-      border-bottom: 2px solid #3b82f6;
-    }
-    
-    .count-input {
-      padding: 10px 14px;
-      border: 2px solid #cbd5e1;
-      border-radius: 8px;
-      font-size: 0.9rem;
+
+    .trip-table {
+      border-collapse: collapse;
       width: 100%;
+      font-size: 0.72rem;
+    }
+    .trip-table th {
+      background-color: #1e3a8a;
+      color: white;
+      padding: 7px 5px;
+      font-weight: bold;
+      text-align: center;
+      border: 1px solid #1e40af;
+      font-size: 0.63rem;
+      vertical-align: middle;
+      white-space: nowrap;
+    }
+    .trip-table th.sub-hdr {
+      background-color: #1d4ed8;
+      font-size: 0.6rem;
+      padding: 4px 4px;
+    }
+    .trip-table td {
+      padding: 4px 3px;
+      border: 1px solid #d1d5db;
+      text-align: center;
+      vertical-align: middle;
+    }
+    .trip-table tr.vehicle-row:hover td {
+      background-color: #fffbeb;
+    }
+    .trip-input {
+      width: 100%;
+      padding: 5px 6px;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      font-size: 0.71rem;
+      background: white;
+      transition: border-color 0.2s;
+      box-sizing: border-box;
+    }
+    .trip-input:focus {
+      outline: none;
+      border-color: #f59e0b;
+      box-shadow: 0 0 0 2px rgba(245,158,11,0.15);
+    }
+    .strength-input {
+      width: 44px;
+      padding: 4px 2px;
+      border: 1px solid #d1d5db;
+      border-radius: 5px;
+      font-size: 0.68rem;
       text-align: center;
       font-weight: 600;
     }
-    
-    .count-input:focus {
+    .strength-input:focus {
       outline: none;
       border-color: #3b82f6;
-      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+      box-shadow: 0 0 0 2px rgba(59,130,246,0.15);
     }
-    
-    .count-label {
-      font-size: 0.75rem;
-      font-weight: 600;
-      color: #64748b;
-      text-transform: uppercase;
-      margin-bottom: 6px;
-      display: block;
-      text-align: center;
-    }
-    
-    .subtotal-box {
-      background: #eff6ff;
-      border: 2px solid #3b82f6;
-      border-radius: 8px;
-      padding: 10px;
-      text-align: center;
-    }
-    
-    .subtotal-value {
-      font-size: 1.2rem;
+    .total-cell {
+      font-size: 0.88rem;
       font-weight: 800;
       color: #1e40af;
     }
-    
-    .grand-total-box {
-      background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-      color: white;
-      border-radius: 12px;
-      padding: 20px;
-      text-align: center;
-      margin-top: 20px;
-    }
-    
-    .grand-total-label {
-      font-size: 1rem;
+    .km-err {
+      color: #dc2626;
+      font-size: 0.58rem;
       font-weight: 600;
-      margin-bottom: 8px;
+      display: none;
+      white-space: nowrap;
     }
-    
-    .grand-total-value {
-      font-size: 2rem;
-      font-weight: 800;
+    .submit-single-btn {
+      background: linear-gradient(135deg, #059669, #047857);
+      color: white;
+      border: none;
+      border-radius: 20px;
+      padding: 5px 11px;
+      font-size: 0.67rem;
+      font-weight: 700;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.2s;
+      box-shadow: 0 2px 6px rgba(5,150,105,0.3);
     }
-    
-    @media (max-width: 768px) {
-      .form-container {
-        padding: 24px 20px;
-      }
-      
-      .form-row {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 8px;
-      }
-      
-      .form-label {
-        min-width: auto;
-      }
-      
-      .colon {
-        display: none;
-      }
-      
-      .form-input, .form-select {
-        width: 100%;
-      }
-      
-      .two-column, .three-column {
-        grid-template-columns: 1fr;
-        gap: 12px;
-      }
+    .submit-single-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 10px rgba(5,150,105,0.4); }
+    .submit-single-btn:disabled { background: #9ca3af; cursor: not-allowed; transform: none; box-shadow: none; }
+
+    .vid-cell { font-weight: 700; color: #1e3a8a; font-size: 0.72rem; white-space: nowrap; }
+    .reg-cell { color: #374151; font-weight: 600; font-size: 0.7rem; white-space: nowrap; }
+    .row-submitted td { background-color: #f0fdf4 !important; }
+    .row-error td { background-color: #fef2f2 !important; }
+    .toast {
+      position: fixed; right: 20px; top: 80px; z-index: 9999;
+      padding: 13px 18px; border-radius: 10px; box-shadow: 0 6px 20px rgba(0,0,0,0.18);
+      color: white; font-size: 13px; display: flex; align-items: center; gap: 8px;
+      animation: tsIn 0.3s ease;
     }
+    @keyframes tsIn { from { transform: translateX(110%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
   </style>
 </head>
-<body class="min-h-screen flex flex-col pt-20">
-  
+<body class="bg-[#fcfcfc] min-h-screen flex flex-col pt-20">
+
   <!-- Logo Bar -->
   <div class="logo-bar w-full flex items-center justify-between px-4 py-3 fixed top-0 left-0 z-50">
     <img src="{{ url_for('static', filename='img/drive-logs.png') }}" alt="Drive Logs Logo" class="h-12 md:h-14 w-auto ml-2">
@@ -263,350 +131,344 @@
   </div>
 
   <!-- Main Content -->
-  <div class="flex-1 py-8 px-4">
-    <div class="form-container w-full max-w-5xl mx-auto">
-      
-      <!-- Flash Messages -->
+  <div class="flex-1 py-6 px-4">
+    <div class="bg-white rounded-2xl shadow-lg w-full max-w-[98%] mx-auto p-4 md:p-6 border-2 border-gray-200">
+
+      <!-- Flash messages hidden container -->
       {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
+          <div id="flashContainer" style="display:none;">
           {% for category, message in messages %}
-            <div class="mb-4 p-4 rounded-lg {% if category == 'success' %}bg-green-100 text-green-800 border border-green-300{% elif category == 'danger' %}bg-red-100 text-red-800 border border-red-300{% else %}bg-blue-100 text-blue-800 border border-blue-300{% endif %}">
-              {{ message }}
-            </div>
+            <div class="flash-msg" data-category="{{ category }}">{{ message }}</div>
           {% endfor %}
+          </div>
         {% endif %}
       {% endwith %}
-      
+
       <!-- Header -->
-      <div class="text-center mb-2">
-        <h1 class="form-title">TRIP SHEET</h1>
+      <div class="mb-5 pb-4 border-b-2 border-gray-300 flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 class="text-2xl md:text-3xl font-bold text-blue-900 underline underline-offset-4">TRIP SHEET</h1>
+          <p class="text-xs text-gray-500 mt-1">REF: PMCTECH/LOGI/FORM 8/001</p>
+        </div>
+        <div class="flex items-center gap-3 flex-wrap">
+          <input id="ts_search" type="search" placeholder="Search vehicle / reg no"
+                 class="border rounded-lg px-3 py-2 text-sm" style="min-width:190px;">
+        </div>
       </div>
-      <div class="text-right mb-6">
-        <span class="form-ref">REF: PMCTECH/LOGI/FORM 8/001</span>
+
+      <!-- Trip Sheet Table -->
+      <!-- Top scrollbar mirror -->
+      <div id="topScroll" style="overflow-x:auto; overflow-y:hidden; height:12px; margin-bottom:2px;">
+        <div id="topScrollInner" style="height:1px;"></div>
+      </div>
+      <div id="tableScroll" class="overflow-x-auto">
+        <table class="trip-table" id="tripTable">
+          <thead>
+            <tr>
+              <th rowspan="2">VEHICLE<br>ID</th>
+              <th rowspan="2">REG NO</th>
+              <th rowspan="2">DATE &amp; TIME</th>
+              <th rowspan="2">ROUTE<br>ID</th>
+              <th rowspan="2">DRIVER<br>ID</th>
+              <th rowspan="2">DRIVER NAME</th>
+              <th rowspan="2">START KM</th>
+              <th rowspan="2">CLOSE KM</th>
+              <th rowspan="2">START<br>TIME</th>
+              <th rowspan="2">CLOSE<br>TIME</th>
+              <th colspan="3">STUDENTS</th>
+              <th colspan="3">FACULTY</th>
+              <th colspan="3">GUESTS</th>
+              <th rowspan="2">TOTAL</th>
+              <th rowspan="2">START PLACE</th>
+              <th rowspan="2">CLOSE PLACE</th>
+              <th rowspan="2">COMMENTS</th>
+              <th rowspan="2">ENTERED BY</th>
+              <th rowspan="2">ACTION</th>
+            </tr>
+            <tr>
+              <th class="sub-hdr">M</th><th class="sub-hdr">F</th><th class="sub-hdr">T</th>
+              <th class="sub-hdr">M</th><th class="sub-hdr">F</th><th class="sub-hdr">T</th>
+              <th class="sub-hdr">M</th><th class="sub-hdr">F</th><th class="sub-hdr">T</th>
+            </tr>
+          </thead>
+          <tbody id="tripBody">
+            {% if vehicles %}
+              {% for vehicle in vehicles %}
+              <tr class="vehicle-row"
+                  data-vehicle-id="{{ vehicle.vehicle_id }}"
+                  data-vehicle-no="{{ vehicle.registration_no or '' }}">
+                <!-- td[0] Vehicle ID -->
+                <td class="vid-cell">{{ vehicle.vehicle_id }}</td>
+                <!-- td[1] Reg No -->
+                <td class="reg-cell">{{ vehicle.registration_no or '—' }}</td>
+                <!-- td[2] Date & Time -->
+                <td><input type="datetime-local" class="trip-input" style="min-width:135px;"></td>
+                <!-- td[3] Route ID -->
+                <td><input type="text" class="trip-input" style="min-width:65px;" placeholder="Route ID"></td>
+                <!-- td[4] Driver ID -->
+                <td><input type="text" class="trip-input" style="min-width:65px;" placeholder="Driver ID"></td>
+                <!-- td[5] Driver Name -->
+                <td><input type="text" class="trip-input" style="min-width:100px;" placeholder="Driver Name"></td>
+                <!-- td[6] Start KM -->
+                <td>
+                  <input type="number" step="0.01" class="trip-input km-start" style="min-width:95px;" placeholder="Start KM"
+                         oninput="validateKmRow(this.closest('tr'))">
+                </td>
+                <!-- td[7] Close KM -->
+                <td>
+                  <input type="number" step="0.01" class="trip-input km-close" style="min-width:95px;" placeholder="Close KM"
+                         oninput="validateKmRow(this.closest('tr'))">
+                  <div class="km-err">⚠ Close &gt; Start</div>
+                </td>
+                <!-- td[8] Start Time -->
+                <td><input type="time" class="trip-input" style="min-width:75px;"></td>
+                <!-- td[9] Close Time -->
+                <td><input type="time" class="trip-input" style="min-width:75px;"></td>
+                <!-- td[10..12] Students M/F/T -->
+                <td><input type="number" class="strength-input" min="0" placeholder="0" oninput="calcRowTotal(this.closest('tr'))"></td>
+                <td><input type="number" class="strength-input" min="0" placeholder="0" oninput="calcRowTotal(this.closest('tr'))"></td>
+                <td><input type="number" class="strength-input" min="0" placeholder="0" oninput="calcRowTotal(this.closest('tr'))"></td>
+                <!-- td[13..15] Faculty M/F/T -->
+                <td><input type="number" class="strength-input" min="0" placeholder="0" oninput="calcRowTotal(this.closest('tr'))"></td>
+                <td><input type="number" class="strength-input" min="0" placeholder="0" oninput="calcRowTotal(this.closest('tr'))"></td>
+                <td><input type="number" class="strength-input" min="0" placeholder="0" oninput="calcRowTotal(this.closest('tr'))"></td>
+                <!-- td[16..18] Guests M/F/T -->
+                <td><input type="number" class="strength-input" min="0" placeholder="0" oninput="calcRowTotal(this.closest('tr'))"></td>
+                <td><input type="number" class="strength-input" min="0" placeholder="0" oninput="calcRowTotal(this.closest('tr'))"></td>
+                <td><input type="number" class="strength-input" min="0" placeholder="0" oninput="calcRowTotal(this.closest('tr'))"></td>
+                <!-- td[19] Grand Total -->
+                <td class="total-cell">0</td>
+                <!-- td[20] Start Place -->
+                <td><input type="text" class="trip-input" style="min-width:88px;" placeholder="Start Place"></td>
+                <!-- td[21] Close Place -->
+                <td><input type="text" class="trip-input" style="min-width:88px;" placeholder="Close Place"></td>
+                <!-- td[22] Comments -->
+                <td><input type="text" class="trip-input" style="min-width:88px;" placeholder="Comments"></td>
+                <!-- td[23] Entered By -->
+                <td><input type="text" class="trip-input" style="min-width:88px;" value="{{ session.get('user_name', '') }}"></td>
+                <!-- td[24] Action -->
+                <td>
+                  <button type="button" class="submit-single-btn" onclick="submitSingleRow(this)">Submit</button>
+                </td>
+              </tr>
+              {% endfor %}
+            {% else %}
+              <tr><td colspan="25" class="text-center py-8 text-gray-400">No vehicles found.</td></tr>
+            {% endif %}
+          </tbody>
+        </table>
       </div>
 
-      <!-- Form -->
-      <form method="POST">
-        
-        <!-- Date & Time -->
-        <div class="form-row">
-          <label class="form-label">DATE & TIME</label>
-          <span class="colon">:</span>
-          <input type="datetime-local" name="date_time" class="form-input" required>
-        </div>
-
-        <!-- Route ID -->
-        <div class="form-row">
-          <label class="form-label">ROUTE ID</label>
-          <span class="colon">:</span>
-          <input type="text" name="route_id" class="form-input" required placeholder="Enter route ID (e.g., R001)">
-        </div>
-
-        <!-- Driver ID -->
-        <div class="form-row">
-          <label class="form-label">DRIVER ID</label>
-          <span class="colon">:</span>
-          <input type="text" name="driver_id" class="form-input" required placeholder="Enter driver ID">
-        </div>
-
-        <!-- Vehicle ID -->
-        <div class="form-row">
-          <label class="form-label">VEHICLE ID</label>
-          <span class="colon">:</span>
-          <select name="vehicle_id" id="vehicleSelect" class="form-select" required onchange="fillVehicleDetails()">
-            <option value="">-- Select Vehicle --</option>
-            {% for vehicle in vehicles %}
-            <option value="{{ vehicle.vehicle_id }}" 
-                    data-vehicle-no="{{ vehicle.registration_no or '' }}">
-              {{ vehicle.vehicle_id }} - {{ vehicle.registration_no or 'No Registration' }}
-            </option>
-            {% endfor %}
-          </select>
-        </div>
-
-        <!-- Vehicle No (Auto-filled) -->
-        <div class="form-row">
-          <label class="form-label">VEHICLE NO</label>
-          <span class="colon">:</span>
-          <input type="text" name="vehicle_no" id="vehicleNo" class="form-input" readonly>
-        </div>
-
-        <!-- Driver Name -->
-        <div class="form-row">
-          <label class="form-label">DRIVER NAME</label>
-          <span class="colon">:</span>
-          <input type="text" name="driver_name" class="form-input" required placeholder="Enter driver name">
-        </div>
-
-        <!-- Trip Start Kilometer -->
-        <div class="form-row">
-          <label class="form-label">TRIP START KILOMETER</label>
-          <span class="colon">:</span>
-          <input type="number" step="0.01" name="trip_start_km" id="tripStartKm" class="form-input" required placeholder="Enter starting kilometer" oninput="validateKm()">
-        </div>
-
-        <!-- Trip Close Kilometer -->
-        <div class="form-row">
-          <label class="form-label">TRIP CLOSE KILOMETER</label>
-          <span class="colon">:</span>
-          <input type="number" step="0.01" name="trip_close_km" id="tripCloseKm" class="form-input" required placeholder="Enter closing kilometer (must be > start)" oninput="validateKm()">
-        </div>
-        <div id="kmError" style="display:none; color:#dc2626; font-size:0.85rem; font-weight:600; margin:-10px 0 14px 236px;">
-          ⚠️ Trip Close Kilometer must be greater than Trip Start Kilometer.
-        </div>
-
-        <!-- Trip Start & Close Time -->
-        <div class="two-column mb-4">
-          <div class="form-row">
-            <label class="form-label">TRIP STARTING TIME</label>
-            <span class="colon">:</span>
-            <input type="time" name="trip_start_time" class="form-input" required>
-          </div>
-          
-          <div class="form-row">
-            <label class="form-label">TRIP CLOSING TIME</label>
-            <span class="colon">:</span>
-            <input type="time" name="trip_close_time" class="form-input" required>
-          </div>
-        </div>
-
-        <!-- Cumulative Strength Section -->
-        <div class="section-header">
-          CUMULATIVE STRENGTH
-        </div>
-
-        <!-- Student Category -->
-        <div class="category-box">
-          <div class="category-title">👨‍🎓 STUDENTS</div>
-          <div class="three-column">
-            <div>
-              <label class="count-label">Male</label>
-              <input type="number" name="student_male" id="studentMale" class="count-input" value="0" min="0" oninput="calculateTotals()">
-            </div>
-            <div>
-              <label class="count-label">Female</label>
-              <input type="number" name="student_female" id="studentFemale" class="count-input" value="0" min="0" oninput="calculateTotals()">
-            </div>
-            <div>
-              <label class="count-label">Transgender</label>
-              <input type="number" name="student_transgender" id="studentTransgender" class="count-input" value="0" min="0" oninput="calculateTotals()">
-            </div>
-          </div>
-          <div class="subtotal-box mt-3">
-            <span class="text-sm font-semibold text-gray-600">Student Total: </span>
-            <span class="subtotal-value" id="studentTotal">0</span>
-          </div>
-        </div>
-
-        <!-- Faculty Category -->
-        <div class="category-box">
-          <div class="category-title">👨‍🏫 FACULTY</div>
-          <div class="three-column">
-            <div>
-              <label class="count-label">Male</label>
-              <input type="number" name="faculty_male" id="facultyMale" class="count-input" value="0" min="0" oninput="calculateTotals()">
-            </div>
-            <div>
-              <label class="count-label">Female</label>
-              <input type="number" name="faculty_female" id="facultyFemale" class="count-input" value="0" min="0" oninput="calculateTotals()">
-            </div>
-            <div>
-              <label class="count-label">Transgender</label>
-              <input type="number" name="faculty_transgender" id="facultyTransgender" class="count-input" value="0" min="0" oninput="calculateTotals()">
-            </div>
-          </div>
-          <div class="subtotal-box mt-3">
-            <span class="text-sm font-semibold text-gray-600">Faculty Total: </span>
-            <span class="subtotal-value" id="facultyTotal">0</span>
-          </div>
-        </div>
-
-        <!-- Guest Category -->
-        <div class="category-box">
-          <div class="category-title">👥 GUESTS</div>
-          <div class="three-column">
-            <div>
-              <label class="count-label">Male</label>
-              <input type="number" name="guest_male" id="guestMale" class="count-input" value="0" min="0" oninput="calculateTotals()">
-            </div>
-            <div>
-              <label class="count-label">Female</label>
-              <input type="number" name="guest_female" id="guestFemale" class="count-input" value="0" min="0" oninput="calculateTotals()">
-            </div>
-            <div>
-              <label class="count-label">Transgender</label>
-              <input type="number" name="guest_transgender" id="guestTransgender" class="count-input" value="0" min="0" oninput="calculateTotals()">
-            </div>
-          </div>
-          <div class="subtotal-box mt-3">
-            <span class="text-sm font-semibold text-gray-600">Guest Total: </span>
-            <span class="subtotal-value" id="guestTotal">0</span>
-          </div>
-        </div>
-
-        <!-- Grand Total -->
-        <div class="grand-total-box">
-          <div class="grand-total-label">CUMULATIVE TOTAL STRENGTH</div>
-          <div class="grand-total-value" id="grandTotal">0</div>
-          <input type="hidden" name="cumulative_strength" id="cumulativeStrengthInput" value="0">
-        </div>
-
-        <!-- Trip Starting Place -->
-        <div class="form-row">
-          <label class="form-label">TRIP STARTING PLACE</label>
-          <span class="colon">:</span>
-          <input type="text" name="trip_start_place" class="form-input" required placeholder="Enter starting location">
-        </div>
-
-        <!-- Trip Closing Place -->
-        <div class="form-row">
-          <label class="form-label">TRIP CLOSING PLACE</label>
-          <span class="colon">:</span>
-          <input type="text" name="trip_close_place" class="form-input" required placeholder="Enter closing location">
-        </div>
-
-        <!-- Any Comments -->
-        <div class="form-row mt-6">
-          <label class="form-label">ANY COMMENTS</label>
-          <span class="colon">:</span>
-          <input type="text" name="comments" class="form-input" placeholder="Enter any comments or remarks">
-        </div>
-
-        <!-- Entered By -->
-        <div class="form-row">
-          <label class="form-label">ENTERED BY</label>
-          <span class="colon">:</span>
-          <input type="text" name="entered_by" class="form-input" value="{{ session.get('user_name', '') }}" required placeholder="Enter your name">
-        </div>
-
-        <!-- Submit Button -->
-        <div class="flex justify-center mt-10">
-          <button type="submit" class="submit-btn">
-            Submit Trip Sheet
-          </button>
-        </div>
-      </form>
     </div>
   </div>
 
   <script>
-    // Validate that close km > start km
-    function validateKm() {
-      const startKm = parseFloat(document.getElementById('tripStartKm').value);
-      const closeKm = parseFloat(document.getElementById('tripCloseKm').value);
-      const errorEl = document.getElementById('kmError');
-      const closeInput = document.getElementById('tripCloseKm');
+    const SINGLE_URL = "{{ url_for('trip_sheet_single') }}";
+    const SESSION_USER = "{{ session.get('user_name', '') | e }}";
+    const LATEST_KMS = {{ latest_kms | tojson }};
 
-      if (!isNaN(startKm) && !isNaN(closeKm) && closeKm <= startKm) {
-        errorEl.style.display = 'block';
-        closeInput.style.borderColor = '#dc2626';
-        closeInput.style.boxShadow = '0 0 0 4px rgba(220,38,38,0.15)';
-        return false;
-      } else {
-        errorEl.style.display = 'none';
-        closeInput.style.borderColor = '#f59e0b';
-        closeInput.style.boxShadow = '';
-        return true;
-      }
+    /* ── Column helpers ──────────────────────────────────── */
+    // td indices: 0=vid,1=reg,2=datetime,3=route,4=driverid,5=drivername,
+    //             6=startKM,7=closeKM,8=startTime,9=closeTime,
+    //             10=sMale,11=sFemale,12=sTrans,13=fMale,14=fFemale,15=fTrans,
+    //             16=gMale,17=gFemale,18=gTrans,19=total,
+    //             20=startPlace,21=closePlace,22=comments,23=enteredBy,24=action
+
+    function tdVal(td) {
+      const el = td.querySelector('input, textarea');
+      return el ? el.value.trim() : '';
+    }
+    function tdNum(td) {
+      const el = td.querySelector('input');
+      return parseInt(el ? el.value : '0') || 0;
     }
 
-    // Block form submission if km validation fails; also save close KM per vehicle for next entry
-    document.querySelector('form').addEventListener('submit', function(e) {
-      const startKm = parseFloat(document.getElementById('tripStartKm').value);
-      const closeKm = parseFloat(document.getElementById('tripCloseKm').value);
-      if (!isNaN(startKm) && !isNaN(closeKm) && closeKm <= startKm) {
-        e.preventDefault();
-        validateKm();
-        document.getElementById('tripCloseKm').focus();
+    function getRowData(row) {
+      const tds = row.querySelectorAll('td');
+      const sMale = tdNum(tds[10]), sFemale = tdNum(tds[11]), sTrans = tdNum(tds[12]);
+      const fMale = tdNum(tds[13]), fFemale = tdNum(tds[14]), fTrans = tdNum(tds[15]);
+      const gMale = tdNum(tds[16]), gFemale = tdNum(tds[17]), gTrans = tdNum(tds[18]);
+      const sTotal = sMale + sFemale + sTrans;
+      const fTotal = fMale + fFemale + fTrans;
+      const gTotal = gMale + gFemale + gTrans;
+      return {
+        vehicle_id:          row.dataset.vehicleId,
+        vehicle_no:          row.dataset.vehicleNo,
+        date_time:           tdVal(tds[2]),
+        route_id:            tdVal(tds[3]),
+        driver_id:           tdVal(tds[4]),
+        driver_name:         tdVal(tds[5]),
+        trip_start_km:       tdVal(tds[6]),
+        trip_close_km:       tdVal(tds[7]),
+        trip_start_time:     tdVal(tds[8]),
+        trip_close_time:     tdVal(tds[9]),
+        student_male:        sMale, student_female: sFemale, student_transgender: sTrans, student_total: sTotal,
+        faculty_male:        fMale, faculty_female: fFemale, faculty_transgender: fTrans, faculty_total: fTotal,
+        guest_male:          gMale, guest_female:   gFemale, guest_transgender:   gTrans, guest_total:   gTotal,
+        cumulative_strength: sTotal + fTotal + gTotal,
+        trip_start_place:    tdVal(tds[20]),
+        trip_close_place:    tdVal(tds[21]),
+        comments:            tdVal(tds[22]),
+        entered_by:          tdVal(tds[23])
+      };
+    }
+
+    /* ── KM validation ───────────────────────────────────── */
+    function validateKmRow(row) {
+      const tds = row.querySelectorAll('td');
+      const startVal = parseFloat(tds[6].querySelector('.km-start').value);
+      const closeVal = parseFloat(tds[7].querySelector('.km-close').value);
+      const errDiv   = tds[7].querySelector('.km-err');
+      const closeInp = tds[7].querySelector('.km-close');
+      if (!isNaN(startVal) && !isNaN(closeVal) && closeVal <= startVal) {
+        errDiv.style.display = 'block';
+        closeInp.style.borderColor = '#dc2626';
+        return false;
+      }
+      errDiv.style.display = 'none';
+      closeInp.style.borderColor = '#d1d5db';
+      return true;
+    }
+
+    /* ── Strength totals ─────────────────────────────────── */
+    function calcRowTotal(row) {
+      const tds = row.querySelectorAll('td');
+      let total = 0;
+      for (let i = 10; i <= 18; i++) total += tdNum(tds[i]);
+      tds[19].textContent = total;
+    }
+
+    /* ── Toast ───────────────────────────────────────────── */
+    let _toastOffset = 80;
+    function showToast(msg, type) {
+      const t = document.createElement('div');
+      t.className = 'toast';
+      t.style.background = type === 'success' ? '#16a34a' : type === 'warning' ? '#d97706' : '#dc2626';
+      t.style.top = _toastOffset + 'px';
+      _toastOffset += 58;
+      t.innerHTML = (type === 'success' ? '✅ ' : type === 'warning' ? '⚠️ ' : '❌ ') + msg;
+      document.body.appendChild(t);
+      setTimeout(() => {
+        t.style.transition = 'opacity 0.4s';
+        t.style.opacity = '0';
+        setTimeout(() => { t.remove(); _toastOffset = Math.max(80, _toastOffset - 58); }, 400);
+      }, 3500);
+    }
+
+    /* ── AJAX submit ─────────────────────────────────────── */
+    async function postRowData(data) {
+      const fd = new FormData();
+      for (const [k, v] of Object.entries(data)) fd.append(k, v);
+      const res = await fetch(SINGLE_URL, { method: 'POST', body: fd });
+      return res.json();
+    }
+
+    async function submitSingleRow(btn) {
+      const row = btn.closest('tr');
+      const d = getRowData(row);
+      if (!d.date_time || !d.route_id || !d.driver_id || !d.driver_name ||
+          !d.trip_start_km || !d.trip_close_km || !d.trip_start_place || !d.trip_close_place) {
+        showToast('Fill all required fields for vehicle ' + d.vehicle_id, 'error');
         return;
       }
-      // Save close KM keyed by vehicle ID so next entry for same vehicle auto-fills
-      const vehicleId = document.getElementById('vehicleSelect').value;
-      if (!isNaN(closeKm) && vehicleId) {
-        localStorage.setItem('lastCloseKm_' + vehicleId, closeKm);
+      if (!validateKmRow(row)) {
+        showToast('Close KM must be > Start KM for vehicle ' + d.vehicle_id, 'error');
+        return;
       }
-    });
-
-    function fillVehicleDetails() {
-      const select = document.getElementById('vehicleSelect');
-      const selectedOption = select.options[select.selectedIndex];
-      const startKmInput = document.getElementById('tripStartKm');
-
-      if (selectedOption.value) {
-        // Fill vehicle registration number
-        document.getElementById('vehicleNo').value = selectedOption.getAttribute('data-vehicle-no');
-
-        // Auto-fill Trip Start KM from last recorded Close KM for this vehicle
-        const savedKm = localStorage.getItem('lastCloseKm_' + selectedOption.value);
-        if (savedKm !== null && savedKm !== '') {
-          startKmInput.value = savedKm;
-          startKmInput.style.borderColor = '#10b981';
-          startKmInput.style.boxShadow = '0 0 0 4px rgba(16,185,129,0.15)';
-          startKmInput.title = 'Auto-filled: last closing KM for this vehicle was ' + savedKm + ' km';
+      btn.disabled = true; btn.textContent = '...';
+      try {
+        const r = await postRowData(d);
+        if (r.success) {
+          row.classList.add('row-submitted');
+          btn.textContent = '✓ Done';
+          btn.style.background = 'linear-gradient(135deg,#16a34a,#15803d)';
+          showToast('Trip saved for vehicle ' + d.vehicle_id, 'success');
+          if (d.trip_close_km) {
+            localStorage.setItem('lastCloseKm_' + d.vehicle_id, d.trip_close_km);
+            LATEST_KMS[d.vehicle_id] = d.trip_close_km;  // keep in-memory reference current
+          }
         } else {
-          startKmInput.value = '';
-          startKmInput.style.borderColor = '#f59e0b';
-          startKmInput.style.boxShadow = '';
-          startKmInput.title = '';
+          row.classList.add('row-error');
+          btn.disabled = false; btn.textContent = 'Submit';
+          showToast('Error (' + d.vehicle_id + '): ' + r.message, 'error');
         }
-        // Re-validate KM whenever vehicle changes (clear any stale error)
-        document.getElementById('kmError').style.display = 'none';
-        document.getElementById('tripCloseKm').style.borderColor = '#f59e0b';
-        document.getElementById('tripCloseKm').style.boxShadow = '';
-      } else {
-        document.getElementById('vehicleNo').value = '';
-        startKmInput.value = '';
-        startKmInput.style.borderColor = '#f59e0b';
-        startKmInput.style.boxShadow = '';
-        startKmInput.title = '';
+      } catch (err) {
+        row.classList.add('row-error');
+        btn.disabled = false; btn.textContent = 'Submit';
+        showToast('Network error for vehicle ' + d.vehicle_id, 'error');
       }
     }
 
-    // Calculate all totals
-    function calculateTotals() {
-      // Student totals
-      const studentMale = parseInt(document.getElementById('studentMale').value) || 0;
-      const studentFemale = parseInt(document.getElementById('studentFemale').value) || 0;
-      const studentTransgender = parseInt(document.getElementById('studentTransgender').value) || 0;
-      const studentTotal = studentMale + studentFemale + studentTransgender;
-      document.getElementById('studentTotal').textContent = studentTotal;
-
-      // Faculty totals
-      const facultyMale = parseInt(document.getElementById('facultyMale').value) || 0;
-      const facultyFemale = parseInt(document.getElementById('facultyFemale').value) || 0;
-      const facultyTransgender = parseInt(document.getElementById('facultyTransgender').value) || 0;
-      const facultyTotal = facultyMale + facultyFemale + facultyTransgender;
-      document.getElementById('facultyTotal').textContent = facultyTotal;
-
-      // Guest totals
-      const guestMale = parseInt(document.getElementById('guestMale').value) || 0;
-      const guestFemale = parseInt(document.getElementById('guestFemale').value) || 0;
-      const guestTransgender = parseInt(document.getElementById('guestTransgender').value) || 0;
-      const guestTotal = guestMale + guestFemale + guestTransgender;
-      document.getElementById('guestTotal').textContent = guestTotal;
-
-      // Grand total
-      const grandTotal = studentTotal + facultyTotal + guestTotal;
-      document.getElementById('grandTotal').textContent = grandTotal;
-      document.getElementById('cumulativeStrengthInput').value = grandTotal;
-    }
-
-    // Set current date and time on load; auto-fill Trip Start KM from last Close KM
-    document.addEventListener('DOMContentLoaded', function() {
+    /* ── DOMContentLoaded setup ──────────────────────────── */
+    document.addEventListener('DOMContentLoaded', function () {
       const now = new Date();
-      const year = now.getFullYear();
-      const month = String(now.getMonth() + 1).padStart(2, '0');
-      const day = String(now.getDate()).padStart(2, '0');
-      const hours = String(now.getHours()).padStart(2, '0');
-      const minutes = String(now.getMinutes()).padStart(2, '0');
-      
-      const datetimeStr = `${year}-${month}-${day}T${hours}:${minutes}`;
-      document.querySelector('input[name="date_time"]').value = datetimeStr;
+      const dtStr = now.getFullYear() + '-' +
+        String(now.getMonth() + 1).padStart(2,'0') + '-' +
+        String(now.getDate()).padStart(2,'0') + 'T' +
+        String(now.getHours()).padStart(2,'0') + ':' +
+        String(now.getMinutes()).padStart(2,'0');
 
-      // Trip Start KM is auto-filled per vehicle when a vehicle is selected (see fillVehicleDetails)
+      document.querySelectorAll('#tripBody tr.vehicle-row').forEach(function (row) {
+        const tds = row.querySelectorAll('td');
+        const vid = row.dataset.vehicleId;
 
-      // Initialize totals on load
-      calculateTotals();
+        // Auto-fill datetime
+        const dtInp = tds[2].querySelector('input');
+        if (dtInp) dtInp.value = dtStr;
+
+        // Auto-fill start KM from server latest_kms or localStorage
+        const savedKm = (LATEST_KMS[vid] !== undefined && LATEST_KMS[vid] !== '')
+          ? LATEST_KMS[vid]
+          : localStorage.getItem('lastCloseKm_' + vid);
+        if (savedKm) {
+          const startInp = tds[6].querySelector('.km-start');
+          if (startInp) { startInp.value = savedKm; startInp.style.borderColor = '#10b981'; }
+        }
+      });
+
+      // Search filter
+      const search = document.getElementById('ts_search');
+      if (search) {
+        search.addEventListener('input', function () {
+          const term = this.value.trim().toLowerCase();
+          document.querySelectorAll('#tripBody tr.vehicle-row').forEach(function (row) {
+            const text = (row.querySelector('.vid-cell').textContent +
+                          row.querySelector('.reg-cell').textContent).toLowerCase();
+            row.style.display = (!term || text.includes(term)) ? '' : 'none';
+          });
+        });
+      }
+
+      // Flash toasts
+      const fc = document.getElementById('flashContainer');
+      if (fc) {
+        fc.querySelectorAll('.flash-msg').forEach(m => {
+          const cat = m.dataset.category || 'info';
+          showToast(m.textContent.trim(), cat === 'success' ? 'success' : cat === 'danger' ? 'error' : 'warning');
+        });
+      }
+
+      // Sync top scrollbar with the table scroll container
+      const tableScroll = document.getElementById('tableScroll');
+      const topScroll   = document.getElementById('topScroll');
+      const topInner    = document.getElementById('topScrollInner');
+      if (tableScroll && topScroll && topInner) {
+        // Set inner width to match the scrollable content width
+        function syncTopScrollWidth() {
+          topInner.style.width = tableScroll.scrollWidth + 'px';
+        }
+        syncTopScrollWidth();
+        // Sync scrolling both ways
+        topScroll.addEventListener('scroll', function () {
+          tableScroll.scrollLeft = topScroll.scrollLeft;
+        });
+        tableScroll.addEventListener('scroll', function () {
+          topScroll.scrollLeft = tableScroll.scrollLeft;
+        });
+        // Recalc width if window resizes
+        window.addEventListener('resize', syncTopScrollWidth);
+      }
     });
   </script>
 
