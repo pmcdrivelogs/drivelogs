@@ -931,6 +931,42 @@ def save_annual_maintenance(maintenance_data):
         traceback.print_exc()
         return 0
 
+def get_all_weekly_attention(limit=500):
+    """Fetch all weekly attention records ordered by latest first"""
+    try:
+        result = supabase.table('weekly_attention').select('*').order('created_at', desc=True).limit(limit).execute()
+        return result.data or []
+    except Exception as e:
+        print(f"Error fetching weekly attention records: {e}")
+        return []
+
+def get_all_monthly_maintenance(limit=500):
+    """Fetch all monthly maintenance records ordered by latest first"""
+    try:
+        result = supabase.table('monthly_maintenance').select('*').order('created_at', desc=True).limit(limit).execute()
+        return result.data or []
+    except Exception as e:
+        print(f"Error fetching monthly maintenance records: {e}")
+        return []
+
+def get_all_halfyearly_maintenance(limit=500):
+    """Fetch all half-yearly maintenance records ordered by latest first"""
+    try:
+        result = supabase.table('halfyearly_maintenance').select('*').order('created_at', desc=True).limit(limit).execute()
+        return result.data or []
+    except Exception as e:
+        print(f"Error fetching half-yearly maintenance records: {e}")
+        return []
+
+def get_all_annual_maintenance(limit=500):
+    """Fetch all annual maintenance records ordered by latest first"""
+    try:
+        result = supabase.table('annual_maintenance').select('*').order('created_at', desc=True).limit(limit).execute()
+        return result.data or []
+    except Exception as e:
+        print(f"Error fetching annual maintenance records: {e}")
+        return []
+
 def save_annual_summary_complaints(complaint_entries):
     """Save multiple annual summary complaint entries"""
     try:
