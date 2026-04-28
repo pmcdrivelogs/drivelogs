@@ -148,7 +148,7 @@
           <div class="pt-1 border-t border-gray-100">
             <div class="flex flex-wrap gap-1.5">
               {% set today_str = '' %}
-              {% for label, field in [('INS', 'insurance_validity'), ('FIT', 'fitness_validity'), ('PUC', 'pucc_validity'), ('TAX', 'tax_validity'), ('PRM', 'permit_validity')] %}
+              {% for label, field in [('INS', 'insurance_validity'), ('FIT', 'fitness_validity'), ('PUC', 'pucc_validity'), ('TAX', 'tax_validity'), ('PMT', 'permit_validity')] %}
                 {% set val = v[field] if v[field] is defined else None %}
                 {% if val %}
                   <span class="px-2 py-0.5 rounded text-xs font-semibold bg-green-100 text-green-700" title="{{ label }}: {{ val }}">{{ label }}</span>
