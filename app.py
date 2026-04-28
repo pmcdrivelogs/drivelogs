@@ -54,6 +54,7 @@ from database import (
 from database import save_dc_entry, get_all_dc_entries, get_dc_entry, get_last_dc_save_error, _get_next_dc_number
 from database import get_all_daily_technical_remarks
 from database import get_daily_technical_remark_by_id, update_daily_technical_remark, get_daily_technical_remarks_page, get_daily_technical_remarks_by_vehicle_date
+from database import get_all_weekly_attention, get_all_monthly_maintenance, get_all_halfyearly_maintenance, get_all_annual_maintenance
 from database import save_material_utilization, consume_part_from_purchases
 from datetime import datetime
 import time
@@ -5054,7 +5055,7 @@ def admin_save_user_modules(user_id):
     try:
         modules = request.form.getlist('modules[]') or request.form.getlist('modules') or []
         # Whitelist known module names to avoid arbitrary data
-        allowed = ['Purchase', 'Utilization', 'Maintenance', 'Internal Audit', 'Part ID', 'Scrap', 'Fuel', 'Statutory', 'Trip Sheet', 'Log Book', 'DC', 'Accidents/Incidents']
+        allowed = ['Purchase', 'Utilization', 'Maintenance', 'Internal Audit', 'Part ID', 'Scrap', 'Fuel', 'Statutory', 'Trip Sheet', 'Log Book', 'DC', 'Accidents/Incidents', 'Weekly Attention', 'Monthly Maintenance', 'Annual Maintenance', 'Halfyearly Maintenance']
         selected = [m for m in modules if m in allowed]
         # Try updating via Supabase directly so we can return any underlying error message
         try:
@@ -6106,7 +6107,8 @@ def weekly_attention():
         
         return redirect(url_for('weekly_attention'))
     
-    return render_template('weekly_attention.html')
+    vehicles = get_all_vehicles() or []
+    return render_template('weekly_attention.html', vehicles=vehicles)
 
 @app.route('/job-card')
 @login_required
@@ -6321,7 +6323,8 @@ def monthly_maintenance():
         
         return redirect(url_for('monthly_maintenance'))
     
-    return render_template('monthly_maintenance.html')
+    vehicles = get_all_vehicles() or []
+    return render_template('monthly_maintenance.html', vehicles=vehicles)
 
 
 
@@ -6363,7 +6366,8 @@ def halfyearly_maintenance():
         
         return redirect(url_for('halfyearly_maintenance'))
     
-    return render_template('halfyearly_maintenance.html')
+    vehicles = get_all_vehicles() or []
+    return render_template('halfyearly_maintenance.html', vehicles=vehicles)
 
 @app.route('/annual-maintenance', methods=['GET', 'POST'])
 @login_required
@@ -6402,9 +6406,47 @@ def annual_maintenance():
         
         return redirect(url_for('annual_maintenance'))
     
-    return render_template('annual_maintenance.html')
+    vehicles = get_all_vehicles() or []
+    return render_template('annual_maintenance.html', vehicles=vehicles)
 
-@app.route('/annual-summary')
+@app.route('/weekly-attention/history')
+@login_required
+def weekly_attention_history():
+    all_rows = get_all_weekly_attention() or []
+    # Group individual process rows into submissions by vehicle_id + created_at (minute precision)
+    seen = {}
+    submissions = []
+    for row in all_rows:
+        key = "{}_{}".format(row.get('vehicle_id', ''), (row.get('created_at', '') or '')[:16])
+        if key not in seen:
+            sub = {
+                'vehicle_id': row.get('vehicle_id'),
+                'registration_no': row.get('registration_no'),
+                'created_at': row.get('created_at'),
+                'processes': []
+            }
+            seen[key] = sub
+            submissions.append(sub)
+        seen[key]['processes'].append(row)
+    return render_template('weekly_attention_history.html', records=submissions)
+
+@app.route('/monthly-maintenance/history')
+@login_required
+def monthly_maintenance_history():
+    records = get_all_monthly_maintenance() or []
+    return render_template('monthly_maintenance_history.html', records=records)
+
+@app.route('/halfyearly-maintenance/history')
+@login_required
+def halfyearly_maintenance_history():
+    records = get_all_halfyearly_maintenance() or []
+    return render_template('halfyearly_maintenance_history.html', records=records)
+
+@app.route('/annual-maintenance/history')
+@login_required
+def annual_maintenance_history():
+    records = get_all_annual_maintenance() or []
+    return render_template('annual_maintenance_history.html', records=records)
 @login_required
 def annual_summary():
     return render_template('annual_summary.html')
@@ -6872,6 +6914,7 @@ def hr_add_employee():
                 'validity_nt': request.form.get('validity_nt') or None,
                 'validity_tr': request.form.get('validity_tr') or None,
                 'aadhar_no': (request.form.get('aadhar_no') or '').upper() or None,
+                'dl_sl_no': (request.form.get('dl_sl_no') or '').upper() or None,
                 'nativity': (request.form.get('nativity') or '').upper() or None,
                 'experience': experience_data,
                 'accidents': accidents_data,
@@ -6890,6 +6933,11 @@ def hr_add_employee():
                 'sugar_checkup_date': request.form.get('sugar_checkup_date') or None,
                 'fractures': request.form.get('fractures'),
                 'fractures_checkup_date': request.form.get('fractures_checkup_date') or None,
+                'remarks_vision': request.form.get('remarks_vision'),
+                'remarks_hearing': request.form.get('remarks_hearing'),
+                'remarks_bp': request.form.get('remarks_bp'),
+                'remarks_sugar': request.form.get('remarks_sugar'),
+                'remarks_fractures': request.form.get('remarks_fractures'),
                 'alcohol': request.form.get('alcohol'),
                 'gutkha': request.form.get('gutkha'),
                 'smoking': request.form.get('smoking'),
@@ -6922,6 +6970,7 @@ def hr_add_employee():
                 'child3_gender': request.form.get('child3_gender'),
                 'max_education': (request.form.get('max_education') or '').upper() or None,
                 'school': (request.form.get('school') or '').upper() or None,
+                'driving_school': (request.form.get('driving_school') or '').upper() or None,
                 'mother_tongue': (request.form.get('mother_tongue') or '').upper() or None,
                 'other_lang': (request.form.get('other_lang') or '').upper() or None,
                 'nationality': (request.form.get('nationality') or '').upper() or None,
@@ -6931,6 +6980,7 @@ def hr_add_employee():
                 'present_address': (request.form.get('present_address') or '').upper() or None,
                 'phone_no': request.form.get('phone_no'),
                 'whatsapp_phone_no': request.form.get('whatsapp_phone_no'),
+                'home_phone_no': request.form.get('home_phone_no'),
                 'number_phone_no': request.form.get('number_phone_no'),
                 'nominee_name': (request.form.get('nominee_name') or '').upper() or None,
                 'nominee_phone_no': request.form.get('nominee_phone_no'),
@@ -7065,6 +7115,7 @@ def hr_edit_employee(employee_id):
                 'validity_nt': request.form.get('validity_nt') or None,
                 'validity_tr': request.form.get('validity_tr') or None,
                 'aadhar_no': request.form.get('aadhar_no'),
+                'dl_sl_no': (request.form.get('dl_sl_no') or '').upper() or None,
                 'nativity': request.form.get('nativity'),
                 'experience': experience_data,
                 'accidents': accidents_data,
@@ -7083,6 +7134,11 @@ def hr_edit_employee(employee_id):
                 'sugar_checkup_date': request.form.get('sugar_checkup_date') or None,
                 'fractures': request.form.get('fractures'),
                 'fractures_checkup_date': request.form.get('fractures_checkup_date') or None,
+                'remarks_vision': request.form.get('remarks_vision'),
+                'remarks_hearing': request.form.get('remarks_hearing'),
+                'remarks_bp': request.form.get('remarks_bp'),
+                'remarks_sugar': request.form.get('remarks_sugar'),
+                'remarks_fractures': request.form.get('remarks_fractures'),
                 'alcohol': request.form.get('alcohol'),
                 'gutkha': request.form.get('gutkha'),
                 'smoking': request.form.get('smoking'),
@@ -7115,6 +7171,7 @@ def hr_edit_employee(employee_id):
                 'child3_gender': request.form.get('child3_gender'),
                 'max_education': (request.form.get('max_education') or '').upper() or None,
                 'school': (request.form.get('school') or '').upper() or None,
+                'driving_school': (request.form.get('driving_school') or '').upper() or None,
                 'mother_tongue': (request.form.get('mother_tongue') or '').upper() or None,
                 'other_lang': (request.form.get('other_lang') or '').upper() or None,
                 'nationality': (request.form.get('nationality') or '').upper() or None,
@@ -7124,6 +7181,7 @@ def hr_edit_employee(employee_id):
                 'present_address': (request.form.get('present_address') or '').upper() or None,
                 'phone_no': request.form.get('phone_no'),
                 'whatsapp_phone_no': request.form.get('whatsapp_phone_no'),
+                'home_phone_no': request.form.get('home_phone_no'),
                 'number_phone_no': request.form.get('number_phone_no'),
                 'nominee_name': (request.form.get('nominee_name') or '').upper() or None,
                 'nominee_phone_no': request.form.get('nominee_phone_no'),
