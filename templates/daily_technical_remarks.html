@@ -139,7 +139,8 @@
                 <th>MATERIALS<br>PURCHASED</th>
                 <th>SUPPLIER/<br>BILL NO./Dt.</th>
                 <th>AMOUNT</th>
-                <th>STATUS /<br>ACTION</th>
+                <th>STATUS</th>
+                <th>ACTION</th>
               </tr>
             </thead>
             <tbody id="remarksBody">
@@ -169,7 +170,7 @@
                   <td class="text-xs text-gray-500 whitespace-nowrap">
                     {% if hist_pending %}{{ (hist_pending[0].date or (hist_pending[0].created_at or '')[:10]) or '—' }}{% else %}—{% endif %}
                   </td>
-                  <td colspan="6" class="text-left text-xs text-blue-700 px-3 py-2">
+                  <td colspan="7" class="text-left text-xs text-blue-700 px-3 py-2">
                     <span id="icon_{{ vid_key }}" class="mr-1 font-bold">▼</span>
                     {% if hist_pending %}
                       <span class="font-semibold">{{ hist_pending|length }} pending entr{{ 'y' if hist_pending|length == 1 else 'ies' }}</span>
@@ -185,7 +186,7 @@
 
                 <!-- ── Nested history table (collapsed by default) ──── -->
                 <tr id="hist_{{ vid_key }}" style="display:none;">
-                  <td colspan="10" style="padding:0; border-top:none;">
+                  <td colspan="11" style="padding:0; border-top:none;">
                     <table style="width:100%; border-collapse:collapse; font-size:0.72rem;">
                       <thead>
                         <tr style="background:#e2e8f0;">
@@ -230,7 +231,7 @@
                               {% if entry.amount is not none %}&#8377;{{ "%.2f"|format(entry.amount|float) }}{% else %}—{% endif %}
                             </td>
                             <td style="padding:4px 8px; border:1px solid #e2e8f0; text-align:center; white-space:nowrap; min-width:130px;">
-                              <form method="POST" action="{{ url_for('set_dtr_status', remark_id=entry.id) }}" style="display:flex; gap:3px; align-items:center; justify-content:center;">
+                              <form method="POST" action="{{ url_for('set_dtr_status', remark_id=entry.id) }}" class="dtr-status-form" style="display:flex; gap:3px; align-items:center; justify-content:center;">
                                 <select name="status" style="border:1px solid #cbd5e1; border-radius:4px; font-size:0.65rem; padding:2px 4px;">
                                   <option value="Pending" {% if not entry.day_end_status or entry.day_end_status == 'Pending' %}selected{% endif %}>Pending</option>
                                   <option value="No Issue" {% if entry.day_end_status == 'No Issue' %}selected{% endif %}>No Issue</option>
@@ -250,7 +251,9 @@
                 </tr>
 
                 <!-- ── Today's entry row (always visible, editable) ── -->
-                <tr class="entry-input-row">
+                <tr class="entry-input-row"
+                    data-vehicle-id="{{ vehicle.vehicle_id }}"
+                    data-vehicle-no="{{ vehicle.registration_no or '' }}">
                   <td class="text-xs text-blue-400 italic whitespace-nowrap">&#8593; today's entry</td>
                   <td></td>
                   <td><input type="date" name="row_date[]" class="w-full px-2 py-1 border border-gray-300 rounded text-sm"></td>
@@ -267,11 +270,16 @@
                       <option value="Arrested">Arrested</option>
                     </select>
                   </td>
+                  <td>
+                    <button type="button" class="dtr-submit-single-btn"
+                            style="background:linear-gradient(135deg,#059669,#047857);color:white;border:none;border-radius:16px;padding:5px 10px;font-size:0.65rem;font-weight:700;cursor:pointer;white-space:nowrap;transition:all 0.2s;box-shadow:0 2px 5px rgba(5,150,105,0.3);"
+                            onclick="submitDTRRow(this)">Submit</button>
+                  </td>
                 </tr>
 
                 {% endfor %}
               {% else %}
-                <tr><td colspan="10" class="text-center py-8 text-gray-400">No vehicles found.</td></tr>
+                <tr><td colspan="11" class="text-center py-8 text-gray-400">No vehicles found.</td></tr>
               {% endif %}
             </tbody>
           </table>
@@ -376,6 +384,120 @@ document.addEventListener('DOMContentLoaded', function(){
   });
 });
 </script>
+
+<script>
+/* ── Individual DTR row AJAX submit ─────────────────────── */
+const DTR_SINGLE_URL = "{{ url_for('dtr_single') }}";
+
+/* Intercept all OK status forms (set_dtr_status) so the page doesn't reload */
+document.addEventListener('submit', async function(e) {
+  const form = e.target;
+  if (!form.classList.contains('dtr-status-form')) return;
+  e.preventDefault();
+
+  const btn    = form.querySelector('button[type="submit"]');
+  const select = form.querySelector('select[name="status"]');
+  const status = select ? select.value : 'Pending';
+  const origText = btn ? btn.textContent : 'OK';
+  if (btn) { btn.disabled = true; btn.textContent = '...'; }
+
+  try {
+    const fd = new FormData(form);
+    const res  = await fetch(form.action, {
+      method: 'POST',
+      headers: { 'X-Requested-With': 'XMLHttpRequest' },
+      body: fd
+    });
+    const data = await res.json();
+    if (data.success) {
+      // Update the badge in the status cell next to this form
+      const statusTd = form.closest('td').previousElementSibling;
+      if (statusTd) {
+        const badgeClass = status === 'Arrested' ? 'badge-arrested'
+                         : status === 'No Issue'  ? 'badge-running'
+                         : 'badge-pending';
+        statusTd.innerHTML = `<span class="${badgeClass}">${status}</span>`;
+      }
+      if (btn) { btn.disabled = false; btn.textContent = origText; }
+      showDTRToast('Status updated to ' + status, 'success');
+    } else {
+      if (btn) { btn.disabled = false; btn.textContent = origText; }
+      showDTRToast(data.message || 'Failed to update status', 'error');
+    }
+  } catch (err) {
+    if (btn) { btn.disabled = false; btn.textContent = origText; }
+    showDTRToast('Network error while updating status', 'error');
+  }
+});
+
+function showDTRToast(msg, type) {
+  const t = document.createElement('div');
+  t.style.cssText = 'position:fixed;right:20px;top:80px;z-index:9999;padding:13px 18px;border-radius:10px;box-shadow:0 6px 20px rgba(0,0,0,0.18);color:white;font-size:13px;display:flex;align-items:center;gap:8px;';
+  t.style.background = type === 'success' ? '#16a34a' : type === 'warning' ? '#d97706' : '#dc2626';
+  t.innerHTML = (type === 'success' ? '&#x2705; ' : type === 'warning' ? '&#x26A0;&#xFE0F; ' : '&#x274C; ') + msg;
+  document.body.appendChild(t);
+  setTimeout(() => { t.style.transition = 'opacity 0.4s'; t.style.opacity = '0'; setTimeout(() => t.remove(), 400); }, 3500);
+}
+
+async function submitDTRRow(btn) {
+  const row  = btn.closest('tr.entry-input-row');
+  const vid  = row.dataset.vehicleId || '';
+  const vreg = row.dataset.vehicleNo || '';
+
+  const get = sel => { const el = row.querySelector(sel); return el ? el.value.trim() : ''; };
+  const rowDate   = get('input[name="row_date[]"]');
+  const kilometer = get('input[name="kilometer[]"]');
+  const dVoice    = get('textarea[name="drivers_voice[]"]');
+  const techObs   = get('textarea[name="technical_observation[]"]');
+  const materials = get('textarea[name="materials_purchased[]"]');
+  const supplier  = get('input[name="supplier_bill[]"]');
+  const amount    = get('input[name="amount[]"]');
+  const status    = get('select[name="day_end_status[]"]');
+  const headerDate = (document.getElementById('daily_date') || {}).value || '';
+
+  if (![dVoice, techObs, materials, supplier, amount].some(v => v)) {
+    showDTRToast('Fill at least one field (voice, observation, materials, supplier, or amount) for ' + vid, 'error');
+    return;
+  }
+
+  btn.disabled = true; btn.textContent = '...';
+
+  const fd = new FormData();
+  fd.append('vehicle_id',            vid);
+  fd.append('registration_no',       vreg);
+  fd.append('row_date',              rowDate);
+  fd.append('daily_date',            headerDate);
+  fd.append('kilometer',             kilometer);
+  fd.append('drivers_voice',         dVoice);
+  fd.append('technical_observation', techObs);
+  fd.append('materials_purchased',   materials);
+  fd.append('supplier_bill',         supplier);
+  fd.append('amount',                amount);
+  fd.append('day_end_status',        status);
+
+  try {
+    const res  = await fetch(DTR_SINGLE_URL, { method: 'POST', body: fd });
+    const data = await res.json();
+    if (data.success) {
+      row.style.background = '#f0fdf4';
+      btn.textContent = '✓ Done';
+      btn.style.background = 'linear-gradient(135deg,#16a34a,#15803d)';
+      // Clear meaningful fields so Submit All won't re-submit this row
+      ['textarea[name="drivers_voice[]"]', 'textarea[name="technical_observation[]"]',
+       'textarea[name="materials_purchased[]"]', 'input[name="supplier_bill[]"]',
+       'input[name="amount[]"]'].forEach(sel => { const el = row.querySelector(sel); if (el) el.value = ''; });
+      showDTRToast('Saved entry for ' + vid, 'success');
+    } else {
+      btn.disabled = false; btn.textContent = 'Submit';
+      showDTRToast(data.message || 'Error saving entry for ' + vid, 'error');
+    }
+  } catch (err) {
+    btn.disabled = false; btn.textContent = 'Submit';
+    showDTRToast('Network error for ' + vid, 'error');
+  }
+}
+</script>
+
 {% include 'footer.html' %}
 </body>
 </html>
