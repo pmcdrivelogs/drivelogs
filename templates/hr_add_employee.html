@@ -784,18 +784,28 @@
             </div>
             
             <div class="form-group">
+              <label class="form-label">EXTRA SKILLS</label>
+              <input type="text" name="extra_skills" class="form-input" value="{{ employee.extra_skills if edit_mode else '' }}">
+            </div>
+            
+            <div class="form-group">
               <label class="form-label">NATIONALITY</label>
               <input type="text" name="nationality" class="form-input" value="{{ employee.nationality if edit_mode else 'Indian' }}">
             </div>
             
             <div class="form-group">
-              <label class="form-label">COMMUNITY & CASTE</label>
-              <input type="text" name="community_caste" class="form-input" value="{{ employee.community_caste if edit_mode else '' }}">
+              <label class="form-label">RELIGION</label>
+              <input type="text" name="religion" class="form-input" value="{{ employee.religion if edit_mode else '' }}">
             </div>
             
             <div class="form-group">
-              <label class="form-label">RELIGION</label>
-              <input type="text" name="religion" class="form-input" value="{{ employee.religion if edit_mode else '' }}">
+              <label class="form-label">COMMUNITY</label>
+              <input type="text" name="community" class="form-input" value="{{ employee.community if edit_mode else '' }}">
+            </div>
+            
+            <div class="form-group">
+              <label class="form-label">CASTE</label>
+              <input type="text" name="caste" class="form-input" value="{{ employee.caste if edit_mode else '' }}">
             </div>
           </div>
           
