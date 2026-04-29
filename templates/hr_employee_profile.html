@@ -685,11 +685,14 @@
                 <label><input type="checkbox" checked data-sec="sec-personal" data-fid="f-ch3-occ" onchange="toggleField(this)"> Child 3 Occupation</label>
                 <label><input type="checkbox" checked data-sec="sec-personal" data-fid="f-edu" onchange="toggleField(this)"> Max Education</label>
                 <label><input type="checkbox" checked data-sec="sec-personal" data-fid="f-school" onchange="toggleField(this)"> School</label>
-                <label><input type="checkbox" checked data-sec="sec-personal" data-fid="f-nat-rel" onchange="toggleField(this)"> Nationality &amp; Religion</label>
+                <label><input type="checkbox" checked data-sec="sec-personal" data-fid="f-drv-school" onchange="toggleField(this)"> Driving School</label>
                 <label><input type="checkbox" checked data-sec="sec-personal" data-fid="f-mtongue" onchange="toggleField(this)"> Mother Tongue</label>
                 <label><input type="checkbox" checked data-sec="sec-personal" data-fid="f-otherlang" onchange="toggleField(this)"> Other Languages</label>
-                <label><input type="checkbox" checked data-sec="sec-personal" data-fid="f-community" onchange="toggleField(this)"> Community &amp; Caste</label>
-                <label><input type="checkbox" checked data-sec="sec-personal" data-fid="f-drv-school" onchange="toggleField(this)"> Driving School</label>
+                <label><input type="checkbox" checked data-sec="sec-personal" data-fid="f-extra-skills" onchange="toggleField(this)"> Extra Skills</label>
+                <label><input type="checkbox" checked data-sec="sec-personal" data-fid="f-nationality" onchange="toggleField(this)"> Nationality</label>
+                <label><input type="checkbox" checked data-sec="sec-personal" data-fid="f-religion" onchange="toggleField(this)"> Religion</label>
+                <label><input type="checkbox" checked data-sec="sec-personal" data-fid="f-community" onchange="toggleField(this)"> Community</label>
+                <label><input type="checkbox" checked data-sec="sec-personal" data-fid="f-caste" onchange="toggleField(this)"> Caste</label>
                 <label><input type="checkbox" checked data-sec="sec-personal" data-fid="f-present-addr" onchange="toggleField(this)"> Present Address</label>
                 <label><input type="checkbox" checked data-sec="sec-personal" data-fid="f-perm-addr" onchange="toggleField(this)"> Permanent Address</label>
                 <label><input type="checkbox" checked data-sec="sec-personal" data-fid="f-phone" onchange="toggleField(this)"> Phone No.</label>
@@ -882,9 +885,9 @@
             <div class="info-label">School</div>
             <div class="info-value">{{ employee.school or '-' }}</div>
           </div>
-          <div id="f-nat-rel" class="info-item">
-            <div class="info-label">Nationality &amp; Religion</div>
-            <div class="info-value">{{ ((employee.nationality or '') ~ (' / ' ~ employee.religion if employee.religion else '')) or '-' }}</div>
+          <div id="f-drv-school" class="info-item">
+            <div class="info-label">Driving School</div>
+            <div class="info-value">{{ employee.driving_school or '-' }}</div>
           </div>
           <div id="f-mtongue" class="info-item">
             <div class="info-label">Mother Tongue</div>
@@ -894,13 +897,25 @@
             <div class="info-label">Other Languages</div>
             <div class="info-value">{{ employee.other_lang or '-' }}</div>
           </div>
-          <div id="f-community" class="info-item">
-            <div class="info-label">Community &amp; Caste</div>
-            <div class="info-value">{{ employee.community_caste or '-' }}</div>
+          <div id="f-extra-skills" class="info-item">
+            <div class="info-label">Extra Skills</div>
+            <div class="info-value">{{ employee.extra_skills or '-' }}</div>
           </div>
-          <div id="f-drv-school" class="info-item">
-            <div class="info-label">Driving School</div>
-            <div class="info-value">{{ employee.driving_school or '-' }}</div>
+          <div id="f-nationality" class="info-item">
+            <div class="info-label">Nationality</div>
+            <div class="info-value">{{ employee.nationality or '-' }}</div>
+          </div>
+          <div id="f-religion" class="info-item">
+            <div class="info-label">Religion</div>
+            <div class="info-value">{{ employee.religion or '-' }}</div>
+          </div>
+          <div id="f-community" class="info-item">
+            <div class="info-label">Community</div>
+            <div class="info-value">{{ employee.community or employee.community_caste or '-' }}</div>
+          </div>
+          <div id="f-caste" class="info-item">
+            <div class="info-label">Caste</div>
+            <div class="info-value">{{ employee.caste or '-' }}</div>
           </div>
           <div id="f-present-addr" class="info-item">
             <div class="info-label">Present Address</div>
