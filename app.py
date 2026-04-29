@@ -2876,10 +2876,21 @@ def trip_sheet():
         except Exception:
             vehicles_data.sort(key=lambda v: str(v.get('vehicle_id', '')))
         
-        # Pass empty latest_kms to avoid connection timeout issues
-        # Users can still use localStorage for KM persistence
+        # Fetch latest closing KM per vehicle (used to pre-fill start KM)
         latest_kms = {}
-        
+        try:
+            kms_res = supabase.table('trip_sheet') \
+                .select('vehicle_id, trip_close_km, date_time') \
+                .order('date_time', desc=True) \
+                .execute()
+            for rec in (kms_res.data or []):
+                vid = rec.get('vehicle_id')
+                km  = rec.get('trip_close_km')
+                if vid and km and vid not in latest_kms:
+                    latest_kms[vid] = km
+        except Exception:
+            latest_kms = {}
+
         return render_template('trip_sheet.html', vehicles=vehicles_data, latest_kms=latest_kms)
     except Exception as e:
         flash(f'Error loading form: {str(e)}', 'danger')
@@ -6084,6 +6095,32 @@ def edit_daily_technical_remark(remark_id):
     return redirect(url_for('daily_technical_remarks_history'))
 
 
+@app.route('/daily-technical-remarks/single', methods=['POST'])
+@login_required
+def dtr_single():
+    """Handle single-vehicle DTR submission via AJAX (returns JSON, no page reload)."""
+    try:
+        entry = {
+            'vehicle_id':            request.form.get('vehicle_id', '').strip(),
+            'registration_no':       request.form.get('registration_no', '').strip(),
+            'date':                  request.form.get('row_date') or request.form.get('daily_date') or None,
+            'kilometer':             request.form.get('kilometer', '').strip(),
+            'drivers_voice':         request.form.get('drivers_voice', '').strip(),
+            'technical_observation': request.form.get('technical_observation', '').strip(),
+            'materials_purchased':   request.form.get('materials_purchased', '').strip(),
+            'supplier_bill':         request.form.get('supplier_bill', '').strip(),
+            'amount':                request.form.get('amount', '').strip(),
+            'day_end_status':        request.form.get('day_end_status', 'Pending').strip(),
+        }
+        saved = save_daily_technical_remarks([entry])
+        if saved > 0:
+            return jsonify({'success': True, 'message': 'Saved successfully'})
+        else:
+            return jsonify({'success': False, 'message': 'Nothing to save — fill at least one field (voice, observation, materials, supplier, amount)'})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
 @app.route('/daily-technical-remarks/arrest/<int:remark_id>', methods=['POST'])
 @login_required
 def arrest_daily_technical_remark(remark_id):
@@ -6113,8 +6150,13 @@ def set_dtr_status(remark_id):
         status = 'Pending'
     try:
         update_daily_technical_remark(remark_id, {'day_end_status': status})
+        # Return JSON for AJAX callers, redirect for normal form POST
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({'success': True, 'status': status})
         flash(f'Status updated to {status}.', 'success')
     except Exception as e:
+        if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+            return jsonify({'success': False, 'message': str(e)}), 500
         flash('Failed to update status.', 'danger')
     return redirect(request.referrer or url_for('daily_technical_remarks'))
 
@@ -7081,6 +7123,9 @@ def hr_add_employee():
                 'other_lang': (request.form.get('other_lang') or '').upper() or None,
                 'nationality': (request.form.get('nationality') or '').upper() or None,
                 'community_caste': (request.form.get('community_caste') or '').upper() or None,
+                'community': (request.form.get('community') or '').upper() or None,
+                'caste': (request.form.get('caste') or '').upper() or None,
+                'extra_skills': (request.form.get('extra_skills') or '').upper() or None,
                 'religion': (request.form.get('religion') or '').upper() or None,
                 'permanent_address': (request.form.get('permanent_address') or '').upper() or None,
                 'present_address': (request.form.get('present_address') or '').upper() or None,
@@ -7282,6 +7327,9 @@ def hr_edit_employee(employee_id):
                 'other_lang': (request.form.get('other_lang') or '').upper() or None,
                 'nationality': (request.form.get('nationality') or '').upper() or None,
                 'community_caste': (request.form.get('community_caste') or '').upper() or None,
+                'community': (request.form.get('community') or '').upper() or None,
+                'caste': (request.form.get('caste') or '').upper() or None,
+                'extra_skills': (request.form.get('extra_skills') or '').upper() or None,
                 'religion': (request.form.get('religion') or '').upper() or None,
                 'permanent_address': (request.form.get('permanent_address') or '').upper() or None,
                 'present_address': (request.form.get('present_address') or '').upper() or None,
