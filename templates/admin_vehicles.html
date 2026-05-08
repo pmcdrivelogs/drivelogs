@@ -109,12 +109,12 @@
                 <td class="px-4 py-3 font-medium">{{ vehicle.registration_no or '-' }}</td>
                   <td class="px-4 py-3 font-medium editable-cell" data-field="make">{{ vehicle.make or '' }}</td>
                   <td class="px-4 py-3 font-medium editable-cell" data-field="model">{{ vehicle.model or '' }}</td>
-                  <td class="px-4 py-3 text-sm date-cell" data-field="date_of_registration">{{ vehicle.date_of_registration[:10] if vehicle.date_of_registration else '' }}</td>
-                <td class="px-4 py-3 text-sm date-cell" data-field="fitness_validity">{{ vehicle.fitness_validity[:10] if vehicle.fitness_validity else '' }}</td>
-                <td class="px-4 py-3 text-sm date-cell" data-field="insurance_validity">{{ vehicle.insurance_validity[:10] if vehicle.insurance_validity else '' }}</td>
-                <td class="px-4 py-3 text-sm date-cell" data-field="permit_validity">{{ vehicle.permit_validity[:10] if vehicle.permit_validity else '' }}</td>
-                <td class="px-4 py-3 text-sm date-cell" data-field="pucc_validity">{{ vehicle.pucc_validity[:10] if vehicle.pucc_validity else '' }}</td>
-                <td class="px-4 py-3 text-sm date-cell" data-field="tax_validity">{{ vehicle.tax_validity[:10] if vehicle.tax_validity else '' }}</td>
+                  <td class="px-4 py-3 text-sm date-cell" data-field="date_of_registration">{{ vehicle.date_of_registration[8:10] + '/' + vehicle.date_of_registration[5:7] + '/' + vehicle.date_of_registration[0:4] if vehicle.date_of_registration else '' }}</td>
+                <td class="px-4 py-3 text-sm date-cell" data-field="fitness_validity">{{ vehicle.fitness_validity[8:10] + '/' + vehicle.fitness_validity[5:7] + '/' + vehicle.fitness_validity[0:4] if vehicle.fitness_validity else '' }}</td>
+                <td class="px-4 py-3 text-sm date-cell" data-field="insurance_validity">{{ vehicle.insurance_validity[8:10] + '/' + vehicle.insurance_validity[5:7] + '/' + vehicle.insurance_validity[0:4] if vehicle.insurance_validity else '' }}</td>
+                <td class="px-4 py-3 text-sm date-cell" data-field="permit_validity">{{ vehicle.permit_validity[8:10] + '/' + vehicle.permit_validity[5:7] + '/' + vehicle.permit_validity[0:4] if vehicle.permit_validity else '' }}</td>
+                <td class="px-4 py-3 text-sm date-cell" data-field="pucc_validity">{{ vehicle.pucc_validity[8:10] + '/' + vehicle.pucc_validity[5:7] + '/' + vehicle.pucc_validity[0:4] if vehicle.pucc_validity else '' }}</td>
+                <td class="px-4 py-3 text-sm date-cell" data-field="tax_validity">{{ vehicle.tax_validity[8:10] + '/' + vehicle.tax_validity[5:7] + '/' + vehicle.tax_validity[0:4] if vehicle.tax_validity else '' }}</td>
                 <td class="px-4 py-3 text-center">
                   <div class="flex justify-center gap-2">
                     <a href="{{ url_for('admin_view_vehicle', vehicle_id=vehicle.id) }}" class="bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded text-sm font-medium transition-colors">
@@ -293,14 +293,21 @@
             if (editMode) {
               // choose input type by field name
               let inp;
-              if (field && field.toLowerCase().indexOf('date') !== -1 || field.indexOf('validity') !== -1) {
+              if (field && (field.toLowerCase().indexOf('date') !== -1 || field.indexOf('validity') !== -1)) {
                 inp = document.createElement('input');
                 inp.type = 'date';
+                // Convert DD/MM/YYYY back to YYYY-MM-DD for input[type=date]
+                if (cur && cur.includes('/')) {
+                  const p = cur.split('/');
+                  if (p.length === 3) inp.value = `${p[2]}-${p[1]}-${p[0]}`;
+                } else {
+                  inp.value = cur;
+                }
               } else {
                 inp = document.createElement('input');
                 inp.type = 'text';
+                inp.value = cur;
               }
-              inp.value = cur;
               inp.className = 'border px-2 py-1 rounded text-sm w-full';
               inp.setAttribute('data-field', field);
               cell.innerHTML = '';
@@ -309,7 +316,12 @@
               // revert inputs back to text
               const inp = cell.querySelector('input');
               if (inp) {
-                const v = inp.value || '';
+                let v = inp.value || '';
+                // Format back to DD/MM/YYYY if it was a date input
+                if (inp.type === 'date' && v.includes('-')) {
+                   const p = v.split('-');
+                   v = `${p[2]}/${p[1]}/${p[0]}`;
+                }
                 cell.innerHTML = v;
               }
             }
@@ -351,7 +363,12 @@
           if (js && js.success) {
             // reflect saved values back to table
             inputs.forEach(i => {
-              const v = i.value || '';
+              let v = i.value || '';
+              // Format back to DD/MM/YYYY if it was a date input
+              if (i.type === 'date' && v.includes('-')) {
+                const p = v.split('-');
+                v = `${p[2]}/${p[1]}/${p[0]}`;
+              }
               const td = i.closest('td');
               if (td) td.innerHTML = v;
             });
@@ -408,18 +425,28 @@
             const tds = tr.querySelectorAll('td');
             if (tds.length < 11) return;
 
+            function formatDate(dateStr) {
+              if (!dateStr || dateStr === '-' || dateStr === '') return dateStr;
+              // Check if matches yyyy-mm-dd or yyyy-mm-dd... (with time)
+              const parts = dateStr.split(' ')[0].split('-');
+              if (parts.length === 3 && parts[0].length === 4) {
+                return `${parts[2]}/${parts[1]}/${parts[0]}`;
+              }
+              return dateStr;
+            }
+
             const rowData = [
               (tds[0] && tds[0].innerText.trim()) || '',
               (tds[1] && tds[1].innerText.trim()) || '',
               (tds[2] && tds[2].innerText.trim()) || '',
               (tds[3] && tds[3].innerText.trim()) || '',
               (tds[4] && tds[4].innerText.trim()) || '',
-              (tds[5] && tds[5].innerText.trim()) || '',
-              (tds[6] && tds[6].innerText.trim()) || '',
-              (tds[7] && tds[7].innerText.trim()) || '',
-              (tds[8] && tds[8].innerText.trim()) || '',
-              (tds[9] && tds[9].innerText.trim()) || '',
-              (tds[10] && tds[10].innerText.trim()) || ''
+              formatDate((tds[5] && tds[5].innerText.trim()) || ''),
+              formatDate((tds[6] && tds[6].innerText.trim()) || ''),
+              formatDate((tds[7] && tds[7].innerText.trim()) || ''),
+              formatDate((tds[8] && tds[8].innerText.trim()) || ''),
+              formatDate((tds[9] && tds[9].innerText.trim()) || ''),
+              formatDate((tds[10] && tds[10].innerText.trim()) || '')
             ];
 
             // Convert all text to UPPERCASE
