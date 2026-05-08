@@ -6,6 +6,8 @@
   <title>Vehicle Management - Drive Logs Admin</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  <!-- ExcelJS Library -->
+  <script src="https://cdn.jsdelivr.net/npm/exceljs/dist/exceljs.min.js"></script>
 </head>
 <body class="bg-gray-100 min-h-screen">
   <!-- Header -->
@@ -51,7 +53,12 @@
           + Add New Vehicle
         </a>
         <button id="toggleEditBtn" class="bg-yellow-500 hover:bg-yellow-600 text-gray-900 px-4 py-2 rounded-lg font-semibold transition-colors">Enable Edit</button>
-        <button id="exportCsvBtn" class="bg-gray-200 hover:bg-gray-300 text-gray-800 px-3 py-2 rounded-lg text-sm">Export Dates CSV</button>
+        <button id="exportExcelBtn" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg font-semibold shadow-md transition-all flex items-center gap-2">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          </svg>
+          Export Excel
+        </button>
       </div>
 
       <form method="GET" class="flex items-center gap-2">
@@ -361,42 +368,97 @@
         }).finally(()=>{ btn.disabled = false; });
       });
 
-      // Export CSV for only these date fields
-      if (exportCsvBtn) {
-        exportCsvBtn.addEventListener('click', () => {
-          const header = ['vehicle_id','registration_no','make','model','date_of_registration','fitness_validity','insurance_validity','permit_validity','pucc_validity','tax_validity'];
-          const rows = [];
+        // Export Excel with formatting
+      const exportExcelBtn = document.getElementById('exportExcelBtn');
+      if (exportExcelBtn) {
+        exportExcelBtn.addEventListener('click', async () => {
+          const workbook = new ExcelJS.Workbook();
+          const worksheet = workbook.addWorksheet('Vehicles Data');
+
+          // Define headers
+          const headers = [
+            'S.NO', 'VEHICLE ID', 'REGISTRATION NO', 'MAKE', 'MODEL', 
+            'DATE OF REGISTRATION', 'FITNESS', 'INSURANCE', 
+            'PERMIT', 'PUCC', 'TAX'
+          ];
+
+          const headerRow = worksheet.addRow(headers);
+
+          // Style header row: Bold, yellow background, borders
+          headerRow.eachCell((cell) => {
+            cell.font = { bold: true, color: { argb: '000000' } };
+            cell.fill = {
+              type: 'pattern',
+              pattern: 'solid',
+              fgColor: { argb: 'FFFF00' } // Highlighter Yellow
+            };
+            cell.border = {
+              top: { style: 'thin' },
+              left: { style: 'thin' },
+              bottom: { style: 'thin' },
+              right: { style: 'thin' }
+            };
+            cell.alignment = { vertical: 'middle', horizontal: 'center' };
+          });
+
+          // Get data from table
           const trs = Array.from(document.querySelectorAll('#vehiclesTable tbody tr')).filter(r => r.id !== 'noResultsRow');
-          trs.forEach(tr => {
+          
+          trs.forEach((tr) => {
             const tds = tr.querySelectorAll('td');
-            const vehicleId = (tds[1] && tds[1].innerText.trim()) || '';
-            const reg = (tds[2] && tds[2].innerText.trim()) || '';
-            const make = (tds[3] && tds[3].innerText.trim()) || '';
-            const model = (tds[4] && tds[4].innerText.trim()) || '';
-            const dateReg = (tds[5] && tds[5].innerText.trim()) || '';
-            // after these, date columns
-            const fitness = (tds[6] && tds[6].innerText.trim()) || '';
-            const insurance = (tds[7] && tds[7].innerText.trim()) || '';
-            const permit = (tds[8] && tds[8].innerText.trim()) || '';
-            const pucc = (tds[9] && tds[9].innerText.trim()) || '';
-            const tax = (tds[10] && tds[10].innerText.trim()) || '';
-            rows.push([vehicleId, reg, make, model, dateReg, fitness, insurance, permit, pucc, tax]);
+            if (tds.length < 11) return;
+
+            const rowData = [
+              (tds[0] && tds[0].innerText.trim()) || '',
+              (tds[1] && tds[1].innerText.trim()) || '',
+              (tds[2] && tds[2].innerText.trim()) || '',
+              (tds[3] && tds[3].innerText.trim()) || '',
+              (tds[4] && tds[4].innerText.trim()) || '',
+              (tds[5] && tds[5].innerText.trim()) || '',
+              (tds[6] && tds[6].innerText.trim()) || '',
+              (tds[7] && tds[7].innerText.trim()) || '',
+              (tds[8] && tds[8].innerText.trim()) || '',
+              (tds[9] && tds[9].innerText.trim()) || '',
+              (tds[10] && tds[10].innerText.trim()) || ''
+            ];
+
+            // Convert all text to UPPERCASE
+            const upperRowData = rowData.map(val => String(val).toUpperCase());
+            
+            const row = worksheet.addRow(upperRowData);
+
+            // Add borders to data cells
+            row.eachCell((cell) => {
+              cell.border = {
+                top: { style: 'thin' },
+                left: { style: 'thin' },
+                bottom: { style: 'thin' },
+                right: { style: 'thin' }
+              };
+            });
           });
 
-          let csv = header.join(',') + '\n';
-          rows.forEach(r => {
-            csv += r.map(v => '"' + String(v || '').replace(/"/g,'""') + '"').join(',') + '\n';
+          // Auto-fit columns
+          worksheet.columns.forEach(column => {
+            let maxColumnLength = 0;
+            column.eachCell({ includeEmpty: true }, (cell) => {
+              const columnLength = cell.value ? cell.value.toString().length : 10;
+              if (columnLength > maxColumnLength) {
+                maxColumnLength = columnLength;
+              }
+            });
+            column.width = maxColumnLength < 12 ? 12 : maxColumnLength + 2;
           });
 
-          const blob = new Blob([csv], { type: 'text/csv' });
-          const url = URL.createObjectURL(blob);
+          // Generate and download file
+          const buffer = await workbook.xlsx.writeBuffer();
+          const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+          const url = window.URL.createObjectURL(blob);
           const a = document.createElement('a');
           a.href = url;
-          a.download = 'vehicles_dates.csv';
-          document.body.appendChild(a);
+          a.download = `VEHICLES_LIST_${new Date().toISOString().slice(0,10)}.xlsx`;
           a.click();
-          a.remove();
-          URL.revokeObjectURL(url);
+          window.URL.revokeObjectURL(url);
         });
       }
     });
