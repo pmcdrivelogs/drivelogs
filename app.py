@@ -7560,7 +7560,7 @@ def admin_payments():
                 inv_no = payment['invoice_no']
                 payable = payment.get('total_payable', 0)
                 paid_resp = supabase.table('payments').select('amount').eq('payment_type', 'payment_details').eq('voucher_entry_no', payment.get('entry_no')).execute()
-                total_paid = sum(float(p.get('amount', 0)) for p in paid_resp.data or [])
+                total_paid = sum(float(p.get('amount') or 0) for p in paid_resp.data or [])
                 payment['payment_status'] = 'paid' if total_paid >= payable else 'pending'
                 
                 # Fetch associated invoice items for this payment voucher
@@ -7591,7 +7591,7 @@ def admin_payments():
         total_payments = len(payments)
         approved_payments = sum(1 for p in payments if p.get('approval_status') == 'approved')
         pending_payments = sum(1 for p in payments if p.get('approval_status') == 'pending')
-        total_amount = sum(float(p.get('amount', 0)) for p in payments if p.get('approval_status') == 'approved')
+        total_amount = sum(float(p.get('amount') or 0) for p in payments if p.get('approval_status') == 'approved')
         
         return render_template('admin_payments.html',
                              payments=payments,
@@ -7672,7 +7672,7 @@ def admin_add_payment():
                         'invoice_date': purchase.get('invoice_date'),
                         'total_value': 0
                     }
-                invoice_dict[inv_no]['total_value'] += float(purchase.get('total_payment', 0))
+                invoice_dict[inv_no]['total_value'] += float(purchase.get('total_payment') or 0)
         
         invoices_list = list(invoice_dict.values())
         
@@ -7874,7 +7874,7 @@ def admin_add_payment_voucher():
                         'invoice_date': purchase.get('invoice_date'),
                         'total_value': 0
                     }
-                invoice_dict[inv_no]['total_value'] += float(purchase.get('total_payment', 0))
+                invoice_dict[inv_no]['total_value'] += float(purchase.get('total_payment') or 0)
         
         invoices_list = list(invoice_dict.values())
         
@@ -7970,11 +7970,11 @@ def admin_add_payment_details():
             for voucher in vouchers_response.data:
                 entry_no = voucher.get('entry_no')
                 ref_number = voucher.get('ref_number')
-                total_payable = float(voucher.get('total_payable', 0))
+                total_payable = float(voucher.get('total_payable') or 0)
                 
                 # Fetch payment details already recorded for this voucher
                 paid_response = supabase.table('payments').select('amount').eq('payment_type', 'payment_details').eq('voucher_entry_no', entry_no).execute()
-                paid_amount = sum(float(p.get('amount', 0)) for p in (paid_response.data or []))
+                paid_amount = sum(float(p.get('amount') or 0) for p in (paid_response.data or []))
                 
                 # Only show vouchers that haven't been fully paid
                 remaining = total_payable - paid_amount
