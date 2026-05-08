@@ -380,7 +380,7 @@
             const permit = (tds[8] && tds[8].innerText.trim()) || '';
             const pucc = (tds[9] && tds[9].innerText.trim()) || '';
             const tax = (tds[10] && tds[10].innerText.trim()) || '';
-            rows.push([vehicleId, reg, make, model, dateReg, fitness, insurance, permit, pucc, tax]);
+            rows.push([vehicleId, REG, make, model, dateReg, fitness, insurance, permit, pucc, tax]);
           });
 
           let csv = header.join(',') + '\n';
