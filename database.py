@@ -2468,6 +2468,10 @@ def get_vehicle_history_data(vehicle_id_str, registration_no):
         'statutory': [],
         'accidents': [],
         'daily_remarks': [],
+        'weekly_attention': [],
+        'monthly_maintenance': [],
+        'halfyearly_maintenance': [],
+        'annual_maintenance': [],
     }
 
     vid = str(vehicle_id_str).strip() if vehicle_id_str else ''
@@ -2641,5 +2645,89 @@ def get_vehicle_history_data(vehicle_id_str, registration_no):
         result['daily_remarks'] = rows
     except Exception as e:
         print(f"[VehicleHistory] daily_technical_remarks error: {e}")
+
+    # ----- Weekly Attention -----
+    try:
+        seen_ids = set()
+        rows = []
+        if vid:
+            resp = supabase.table('weekly_attention').select('*').eq('vehicle_id', vid).order('created_at', desc=True).execute()
+            for r in (resp.data or []):
+                if r.get('id') not in seen_ids:
+                    seen_ids.add(r.get('id'))
+                    rows.append(r)
+        if reg:
+            resp2 = supabase.table('weekly_attention').select('*').eq('registration_no', reg).order('created_at', desc=True).execute()
+            for r in (resp2.data or []):
+                if r.get('id') not in seen_ids:
+                    seen_ids.add(r.get('id'))
+                    rows.append(r)
+        rows.sort(key=lambda r: r.get('date') or r.get('created_at') or '', reverse=True)
+        result['weekly_attention'] = rows
+    except Exception as e:
+        print(f"[VehicleHistory] weekly_attention error: {e}")
+
+    # ----- Monthly Maintenance -----
+    try:
+        seen_ids = set()
+        rows = []
+        if vid:
+            resp = supabase.table('monthly_maintenance').select('*').eq('vehicle_id', vid).order('created_at', desc=True).execute()
+            for r in (resp.data or []):
+                if r.get('id') not in seen_ids:
+                    seen_ids.add(r.get('id'))
+                    rows.append(r)
+        if reg:
+            resp2 = supabase.table('monthly_maintenance').select('*').eq('registration_no', reg).order('created_at', desc=True).execute()
+            for r in (resp2.data or []):
+                if r.get('id') not in seen_ids:
+                    seen_ids.add(r.get('id'))
+                    rows.append(r)
+        rows.sort(key=lambda r: r.get('date') or r.get('created_at') or '', reverse=True)
+        result['monthly_maintenance'] = rows
+    except Exception as e:
+        print(f"[VehicleHistory] monthly_maintenance error: {e}")
+
+    # ----- Half-Yearly Maintenance -----
+    try:
+        seen_ids = set()
+        rows = []
+        if vid:
+            resp = supabase.table('halfyearly_maintenance').select('*').eq('vehicle_id', vid).order('created_at', desc=True).execute()
+            for r in (resp.data or []):
+                if r.get('id') not in seen_ids:
+                    seen_ids.add(r.get('id'))
+                    rows.append(r)
+        if reg:
+            resp2 = supabase.table('halfyearly_maintenance').select('*').eq('registration_no', reg).order('created_at', desc=True).execute()
+            for r in (resp2.data or []):
+                if r.get('id') not in seen_ids:
+                    seen_ids.add(r.get('id'))
+                    rows.append(r)
+        rows.sort(key=lambda r: r.get('date') or r.get('created_at') or '', reverse=True)
+        result['halfyearly_maintenance'] = rows
+    except Exception as e:
+        print(f"[VehicleHistory] halfyearly_maintenance error: {e}")
+
+    # ----- Annual Maintenance -----
+    try:
+        seen_ids = set()
+        rows = []
+        if vid:
+            resp = supabase.table('annual_maintenance').select('*').eq('vehicle_id', vid).order('created_at', desc=True).execute()
+            for r in (resp.data or []):
+                if r.get('id') not in seen_ids:
+                    seen_ids.add(r.get('id'))
+                    rows.append(r)
+        if reg:
+            resp2 = supabase.table('annual_maintenance').select('*').eq('registration_no', reg).order('created_at', desc=True).execute()
+            for r in (resp2.data or []):
+                if r.get('id') not in seen_ids:
+                    seen_ids.add(r.get('id'))
+                    rows.append(r)
+        rows.sort(key=lambda r: r.get('date') or r.get('created_at') or '', reverse=True)
+        result['annual_maintenance'] = rows
+    except Exception as e:
+        print(f"[VehicleHistory] annual_maintenance error: {e}")
 
     return result
