@@ -3106,6 +3106,32 @@ def admin_vehicle_detail(vehicle_id_str):
     reg_no = vehicle.get('registration_no') or ''
     history = get_vehicle_history_data(vehicle_id_str, reg_no)
 
+    # Group weekly_attention rows into submissions (one submission = multiple process rows)
+    wa_rows = history.get('weekly_attention') or []
+    seen_wa = {}
+    wa_submissions = []
+    for row in wa_rows:
+        # group by vehicle + minute of creation
+        key = "{}_{}".format(row.get('vehicle_id', ''), (row.get('created_at', '') or '')[:16])
+        if key not in seen_wa:
+            sub = {
+                'id': row.get('id'), # use first row id as proxy
+                'vehicle_id': row.get('vehicle_id'),
+                'registration_no': row.get('registration_no'),
+                'created_at': row.get('created_at'),
+                'date': row.get('date'),
+                'kilometer': row.get('kilometer'),
+                'driver_name': row.get('driver_name'),
+                'technician_name': row.get('technician_name'),
+                'processes': []
+            }
+            seen_wa[key] = sub
+            wa_submissions.append(sub)
+        seen_wa[key]['processes'].append(row)
+    history['weekly_attention_grouped'] = wa_submissions
+    # Update stats count to reflect submissions instead of individual rows
+    stats_wa_count = len(wa_submissions)
+
     # Compute quick summary stats
     total_fuel_amount = sum(
         float(r.get('amount') or 0) for r in history['fuel']
@@ -3156,6 +3182,11 @@ def admin_vehicle_detail(vehicle_id_str):
     # Overall expenditure = all monetary values that have been recorded
     overall_expenditure = total_fuel_amount + total_statutory_amount + accident_total_loss + total_util_amount
 
+    # Daily average passengers (passengers per day of operation)
+    unique_trip_days = { (r.get('date_time') or r.get('date') or '')[:10] for r in history['trip_sheets'] if (r.get('date_time') or r.get('date')) }
+    num_trip_days = len(unique_trip_days)
+    daily_avg_passengers = round(total_passengers / num_trip_days, 1) if num_trip_days > 0 else 0
+
     # Average mileage per litre from fuel records (filter out zero/invalid values)
     mpl_values = []
     for r in history['fuel']:
@@ -3187,11 +3218,17 @@ def admin_vehicle_detail(vehicle_id_str):
         'accident_count': len(history['accidents']),
         'accident_total_loss': round(accident_total_loss, 2),
         'daily_remarks_count': len(history['daily_remarks']),
+        'weekly_count': stats_wa_count,
+        'monthly_count': len(history['monthly_maintenance']),
+        'halfyearly_count': len(history['halfyearly_maintenance']),
+        'annual_count': len(history['annual_maintenance']),
         # Passenger totals
         'total_students': total_students,
         'total_faculty': total_faculty,
         'total_guests': total_guests,
         'total_passengers': total_passengers,
+        'daily_avg_passengers': daily_avg_passengers,
+        'num_trip_days': num_trip_days,
         # Overall monetary expenditure
         'overall_expenditure': round(overall_expenditure, 2),
     }
