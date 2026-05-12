@@ -2381,14 +2381,13 @@ def consume_part_from_purchases(part_no, qty_to_consume):
             return consumed
 
         for row in resp.data:
-            # skip rows that are already issued/consumed
-            status_val = (row.get('status') or '')
-            try:
-                if status_val and status_val.lower() in ('issued', 'consumed', 'removed', 'scrapped', 'deleted'):
-                    # nothing to take from rows already marked issued/consumed
-                    continue
-            except Exception:
-                pass
+            # Only skip rows with terminal/invalid statuses.
+            # IMPORTANT: 'issued' means the stock was moved to a workshop/vehicle but
+            # quantity may still remain (e.g. a bulk barrel of engine oil). We must NOT
+            # skip 'issued' rows — they can still be consumed as long as quantity > 0.
+            status_val = (row.get('status') or '').lower()
+            if status_val in ('deleted', 'cancelled', 'removed', 'scrapped'):
+                continue
 
             # match by part_number or part_no field
             pn = (row.get('part_number') or row.get('part_no') or '')
