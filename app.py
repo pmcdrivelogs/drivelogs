@@ -1569,9 +1569,8 @@ def api_part_availability(part_id):
             available = 0
         return jsonify({'part_id': part_id, 'available': available}), 200
     except Exception as e:
-        app.logger.exception('Error computing part availability for %s', part_id)
-        # Return a safe JSON response so clients (AJAX) can still show availability as 0
-        return jsonify({'part_id': part_id, 'available': 0, 'error': str(e)}), 200
+        print(f"Error getting part availability: {e}")
+        return jsonify({'error': str(e)}), 500
 
 # Part ID Generator Route
 @app.route('/part-generator', methods=['GET', 'POST'])
