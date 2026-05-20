@@ -268,9 +268,15 @@
             <label class="filter-label">To Date</label>
             <input id="hist_to" type="date" class="filter-input">
           </div>
+          <button id="hist_filter" class="clear-btn" style="background: #3b82f6; color: white; border: none;">
+            🔍 Filter
+          </button>
           <button id="hist_clear" class="clear-btn">
             <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24"><path d="M19.293 4.293L12 11.586 4.707 4.293 3.293 5.707 10.586 13l-7.293 7.293 1.414 1.414L12 14.414l7.293 7.293 1.414-1.414L13.414 13l7.293-7.293z"/></svg>
             Clear
+          </button>
+          <button onclick="exportToExcel()" class="clear-btn" style="background: #10b981; color: white; border: none; margin-left: 8px;">
+            📊 Export Excel
           </button>
         </div>
       </div>
@@ -305,9 +311,15 @@
             <tbody id="pendingTableBody" class="bg-white">
               {% for r in pending_records %}
               <tr>
-                <td class="font-medium text-gray-700 whitespace-nowrap">
-                  {% set d = r.date or r.created_at or '' %}
-                  {% if d %}<div class="flex items-center gap-1.5"><svg class="w-3.5 h-3.5 text-gray-400 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24"><path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11zM7 10h5v5H7z"/></svg><span>{{ d }}</span></div>{% endif %}
+                <td class="font-medium text-gray-700 whitespace-nowrap" data-date="{{ (r.date or r.created_at)|string }}">
+                  {% set raw_d = (r.date or r.created_at)|string %}
+                  {% set d = raw_d[:10] %}
+                  {% if d|length == 10 and d[4] == '-' %}
+                    {% set display_date = d[8:10] ~ '/' ~ d[5:7] ~ '/' ~ d[0:4] %}
+                  {% else %}
+                    {% set display_date = d %}
+                  {% endif %}
+                  {% if display_date %}<div class="flex items-center gap-1.5"><svg class="w-3.5 h-3.5 text-gray-400 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24"><path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11zM7 10h5v5H7z"/></svg><span>{{ display_date }}</span></div>{% endif %}
                 </td>
                 <td><span class="inline-flex items-center px-2 py-0.5 bg-blue-50 text-blue-700 rounded-md font-semibold text-xs" data-vid>{{ r.vehicle_id }}</span></td>
                 <td class="font-medium">{{ r.registration_no }}</td>
@@ -372,9 +384,15 @@
             <tbody id="arrestedTableBody" class="bg-white">
               {% for r in arrested_records %}
               <tr style="background:#fff5f5;">
-                <td class="font-medium text-gray-700 whitespace-nowrap">
-                  {% set d = r.date or r.created_at or '' %}
-                  {% if d %}<div class="flex items-center gap-1.5"><svg class="w-3.5 h-3.5 text-gray-400 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24"><path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11zM7 10h5v5H7z"/></svg><span>{{ d }}</span></div>{% endif %}
+                <td class="font-medium text-gray-700 whitespace-nowrap" data-date="{{ (r.date or r.created_at)|string }}">
+                  {% set raw_d = (r.date or r.created_at)|string %}
+                  {% set d = raw_d[:10] %}
+                  {% if d|length == 10 and d[4] == '-' %}
+                    {% set display_date = d[8:10] ~ '/' ~ d[5:7] ~ '/' ~ d[0:4] %}
+                  {% else %}
+                    {% set display_date = d %}
+                  {% endif %}
+                  {% if display_date %}<div class="flex items-center gap-1.5"><svg class="w-3.5 h-3.5 text-gray-400 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24"><path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11zM7 10h5v5H7z"/></svg><span>{{ display_date }}</span></div>{% endif %}
                 </td>
                 <td><span class="inline-flex items-center px-2 py-0.5 bg-red-50 text-red-700 rounded-md font-semibold text-xs" data-vid>{{ r.vehicle_id }}</span></td>
                 <td class="font-medium">{{ r.registration_no }}</td>
@@ -406,6 +424,7 @@
     </div>
   </div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="{{ url_for('static', filename='js/uppercase.js') }}"></script>
 <script>
 // Toast notifications
@@ -446,10 +465,12 @@ document.addEventListener('DOMContentLoaded', function(){
   const arrInfo       = document.getElementById('arrestedFilterInfo');
 
   function parseRowDate(row) {
-    // Date cell is index 0; extract YYYY-MM-DD pattern
-    var txt = row.cells[0] ? row.cells[0].innerText.trim() : '';
-    var m = txt.match(/(\d{4}-\d{2}-\d{2})/);
-    return m ? m[1] : null;
+    if (row.cells[0] && row.cells[0].hasAttribute('data-date')) {
+        var txt = row.cells[0].getAttribute('data-date');
+        var m = txt.match(/(\d{4}-\d{2}-\d{2})/);
+        return m ? m[1] : null;
+    }
+    return null;
   }
 
   function filterTable(tbody, noRes, infoEl) {
@@ -485,7 +506,15 @@ document.addEventListener('DOMContentLoaded', function(){
     if (visCount) visCount.textContent = pv;
   }
 
-  [search, fromDate, toDate].forEach(function(el) { if (el) el.addEventListener('input', applyFilter); });
+  const filterBtn = document.getElementById('hist_filter');
+  if (filterBtn) filterBtn.addEventListener('click', applyFilter);
+
+  if (search) {
+    search.addEventListener('keypress', function(e) {
+      if (e.key === 'Enter') applyFilter();
+    });
+  }
+
   if (clearBtn) clearBtn.addEventListener('click', function(){
     if (search)   search.value   = '';
     if (fromDate) fromDate.value = '';
@@ -494,6 +523,24 @@ document.addEventListener('DOMContentLoaded', function(){
   });
   applyFilter();
 });
+
+function exportToExcel() {
+    const wb = XLSX.utils.book_new();
+    
+    const pendingTable = document.getElementById('pendingTable');
+    if (pendingTable) {
+        const wsPending = XLSX.utils.table_to_sheet(pendingTable);
+        XLSX.utils.book_append_sheet(wb, wsPending, "Pending Entries");
+    }
+    
+    const arrestedTable = document.getElementById('arrestedTable');
+    if (arrestedTable) {
+        const wsArrested = XLSX.utils.table_to_sheet(arrestedTable);
+        XLSX.utils.book_append_sheet(wb, wsArrested, "Arrested Entries");
+    }
+    
+    XLSX.writeFile(wb, "Technical_Remarks_" + new Date().toISOString().split('T')[0] + ".xlsx");
+}
 </script>
 {% include 'footer.html' %}
 </body>
