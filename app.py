@@ -6070,24 +6070,34 @@ def daily_technical_remarks():
 @login_required
 def daily_technical_remarks_history():
     try:
-        # Allow showing all records via ?per_page=all or a numeric per_page query
+        records = get_all_daily_technical_remarks(limit=10000) or []
+        
+        def get_date(r):
+            d = r.get('date')
+            if d: return str(d)
+            ca = r.get('created_at')
+            if ca: return str(ca)[:10]
+            return ''
+            
+        dates = list(set(get_date(r) for r in records if get_date(r)))
+        dates.sort(reverse=True)
+        
         per_page_arg = request.args.get('per_page')
         if per_page_arg == 'all':
-            # Fetch all (bounded by database-side limit)
-            records = get_all_daily_technical_remarks()
             page = 1
-            per_page = len(records) if records is not None else 0
+            per_page = 'all'
             has_more = False
         else:
-            # Pagination: page number from query params
             page = int(request.args.get('page', '1') or 1)
-            try:
-                per_page = int(per_page_arg) if per_page_arg and str(per_page_arg).isdigit() else 10
-            except Exception:
-                per_page = 10
-            page_data = get_daily_technical_remarks_page(page=page, per_page=per_page)
-            records = page_data.get('records', [])
-            has_more = page_data.get('has_more', False)
+            per_page = 1
+            if page < 1: page = 1
+            if page <= len(dates):
+                target_date = dates[page - 1]
+                records = [r for r in records if get_date(r) == target_date]
+                has_more = page < len(dates)
+            else:
+                records = []
+                has_more = False
     except Exception:
         records = []
         has_more = False
@@ -6097,6 +6107,9 @@ def daily_technical_remarks_history():
         pass
     pending_records  = [r for r in (records or []) if 'arrest' not in (r.get('day_end_status') or '').lower()]
     arrested_records = [r for r in (records or []) if 'arrest' in (r.get('day_end_status') or '').lower()]
+
+    pending_records.sort(key=lambda x: str(x.get('vehicle_id') or '').lower())
+    arrested_records.sort(key=lambda x: str(x.get('vehicle_id') or '').lower())
     return render_template('daily_technical_remarks_history.html',
                            records=records, pending_records=pending_records, arrested_records=arrested_records,
                            page=page, per_page=per_page, has_more=has_more)
