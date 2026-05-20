@@ -381,7 +381,12 @@
             <tr>
               <td>
                 {% if record.date_time %}
-                  {{ record.date_time[:10] if record.date_time|length > 10 else record.date_time }}
+                  {% set d = record.date_time[:10] %}
+                  {% if d|length == 10 and d[4] == '-' %}
+                    {{ d[8:10] }}/{{ d[5:7] }}/{{ d[0:4] }}
+                  {% else %}
+                    {{ d }}
+                  {% endif %}
                 {% else %}
                   -
                 {% endif %}
