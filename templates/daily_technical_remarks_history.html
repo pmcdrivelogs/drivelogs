@@ -265,28 +265,29 @@
             📊 Export Excel
           </button>
 
-          <div class="flex items-end gap-2 ml-auto">
+          <!-- Modern Pagination for Pending -->
+          <div id="pendingPagination" class="flex items-end gap-2 ml-auto" style="{% if active_tab == 'arrested' %}display:none;{% endif %}">
             {% if request.args.get('per_page') != 'all' %}
-              <a href="{{ url_for('daily_technical_remarks_history', page=page-1) if page > 1 else '#' }}" 
-                 class="clear-btn flex items-center justify-center rounded-lg {% if page <= 1 %}opacity-50 cursor-not-allowed{% endif %}"
-                 style="background: #f1f5f9; color: #475569; width: 36px; height: 36px; border: 1px solid #e2e8f0; pointer-events: {% if page <= 1 %}none{% else %}auto{% endif %}; padding:0;">
+              <a href="{{ url_for('daily_technical_remarks_history', p_page=p_page-1, a_page=a_page, tab='pending') if p_page > 1 else '#' }}" 
+                 class="clear-btn flex items-center justify-center rounded-lg {% if p_page <= 1 %}opacity-50 cursor-not-allowed{% endif %}"
+                 style="background: #f1f5f9; color: #475569; width: 36px; height: 36px; border: 1px solid #e2e8f0; pointer-events: {% if p_page <= 1 %}none{% else %}auto{% endif %}; padding:0;">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
               </a>
               
               <div class="flex flex-col items-center">
                 <span class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-0.5">Page</span>
                 <div class="flex items-center justify-center rounded-lg font-bold" style="background: white; border: 1.5px solid #e11d48; color: #e11d48; min-width: 40px; height: 36px;">
-                  {{ page or 1 }}
+                  {{ p_page }}
                 </div>
               </div>
               
-              <a href="{{ url_for('daily_technical_remarks_history', page=page+1) if has_more else '#' }}"
-                 class="clear-btn flex items-center justify-center rounded-lg {% if not has_more %}opacity-50 cursor-not-allowed{% endif %}"
-                 style="background: #f1f5f9; color: #475569; width: 36px; height: 36px; border: 1px solid #e2e8f0; pointer-events: {% if not has_more %}none{% else %}auto{% endif %}; padding:0;">
+              <a href="{{ url_for('daily_technical_remarks_history', p_page=p_page+1, a_page=a_page, tab='pending') if p_has_more else '#' }}"
+                 class="clear-btn flex items-center justify-center rounded-lg {% if not p_has_more %}opacity-50 cursor-not-allowed{% endif %}"
+                 style="background: #f1f5f9; color: #475569; width: 36px; height: 36px; border: 1px solid #e2e8f0; pointer-events: {% if not p_has_more %}none{% else %}auto{% endif %}; padding:0;">
                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
               </a>
               
-              <a href="{{ url_for('daily_technical_remarks_history', per_page='all') }}" class="text-xs text-gray-500 hover:text-gray-700 underline ml-2 font-medium pb-2">Show All</a>
+              <a href="{{ url_for('daily_technical_remarks_history', per_page='all', tab='pending') }}" class="text-xs text-gray-500 hover:text-gray-700 underline ml-2 font-medium pb-2">Show All</a>
             {% else %}
                <div class="flex flex-col items-center">
                 <span class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-0.5">Page</span>
@@ -294,7 +295,41 @@
                   All Records
                 </div>
               </div>
-              <a href="{{ url_for('daily_technical_remarks_history') }}" class="text-xs text-gray-500 hover:text-gray-700 underline ml-2 font-medium pb-2">Paginate</a>
+              <a href="{{ url_for('daily_technical_remarks_history', tab='pending') }}" class="text-xs text-gray-500 hover:text-gray-700 underline ml-2 font-medium pb-2">Paginate</a>
+            {% endif %}
+          </div>
+
+          <!-- Modern Pagination for Arrested -->
+          <div id="arrestedPagination" class="flex items-end gap-2 ml-auto" style="{% if active_tab != 'arrested' %}display:none;{% endif %}">
+            {% if request.args.get('per_page') != 'all' %}
+              <a href="{{ url_for('daily_technical_remarks_history', p_page=p_page, a_page=a_page-1, tab='arrested') if a_page > 1 else '#' }}" 
+                 class="clear-btn flex items-center justify-center rounded-lg {% if a_page <= 1 %}opacity-50 cursor-not-allowed{% endif %}"
+                 style="background: #f1f5f9; color: #475569; width: 36px; height: 36px; border: 1px solid #e2e8f0; pointer-events: {% if a_page <= 1 %}none{% else %}auto{% endif %}; padding:0;">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
+              </a>
+              
+              <div class="flex flex-col items-center">
+                <span class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-0.5">Page</span>
+                <div class="flex items-center justify-center rounded-lg font-bold" style="background: white; border: 1.5px solid #e11d48; color: #e11d48; min-width: 40px; height: 36px;">
+                  {{ a_page }}
+                </div>
+              </div>
+              
+              <a href="{{ url_for('daily_technical_remarks_history', p_page=p_page, a_page=a_page+1, tab='arrested') if a_has_more else '#' }}"
+                 class="clear-btn flex items-center justify-center rounded-lg {% if not a_has_more %}opacity-50 cursor-not-allowed{% endif %}"
+                 style="background: #f1f5f9; color: #475569; width: 36px; height: 36px; border: 1px solid #e2e8f0; pointer-events: {% if not a_has_more %}none{% else %}auto{% endif %}; padding:0;">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+              </a>
+              
+              <a href="{{ url_for('daily_technical_remarks_history', per_page='all', tab='arrested') }}" class="text-xs text-gray-500 hover:text-gray-700 underline ml-2 font-medium pb-2">Show All</a>
+            {% else %}
+               <div class="flex flex-col items-center">
+                <span class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-0.5">Page</span>
+                <div class="flex items-center justify-center rounded-lg font-bold px-3" style="background: white; border: 1.5px solid #e11d48; color: #e11d48; height: 36px;">
+                  All Records
+                </div>
+              </div>
+              <a href="{{ url_for('daily_technical_remarks_history', tab='arrested') }}" class="text-xs text-gray-500 hover:text-gray-700 underline ml-2 font-medium pb-2">Paginate</a>
             {% endif %}
           </div>
         </div>
@@ -302,16 +337,16 @@
 
       <!-- Tabs -->
       <div class="flex gap-4 mb-4">
-        <button id="tabPending" class="clear-btn" style="background:#e11d48; color:white; border:none;" onclick="switchTab('pending')">
+        <button id="tabPending" class="clear-btn" style="{% if active_tab == 'arrested' %}background:#f1f5f9; color:#64748b; border:1px solid #e2e8f0;{% else %}background:#e11d48; color:white; border:none;{% endif %}" onclick="switchTab('pending')">
           ⏳ Pending Entries ({{ pending_records|length }})
         </button>
-        <button id="tabArrested" class="clear-btn" style="background:#f1f5f9; color:#64748b; border:1px solid #e2e8f0;" onclick="switchTab('arrested')">
+        <button id="tabArrested" class="clear-btn" style="{% if active_tab == 'arrested' %}background:#e11d48; color:white; border:none;{% else %}background:#f1f5f9; color:#64748b; border:1px solid #e2e8f0;{% endif %}" onclick="switchTab('arrested')">
           🚫 Arrested History ({{ arrested_records|length }})
         </button>
       </div>
 
       <!-- ═══════════════ PENDING SECTION ═══════════════ -->
-      <div id="sectionPending" class="glass-card p-0 overflow-hidden mb-8" style="display: block;">
+      <div id="sectionPending" class="glass-card p-0 overflow-hidden mb-8" style="{% if active_tab == 'arrested' %}display: none;{% else %}display: block;{% endif %}">
         <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between" style="background:#fef9c3;">
           <div class="flex items-center gap-2">
             <div class="w-1 h-6 bg-yellow-500 rounded-full"></div>
@@ -384,7 +419,7 @@
       </div>
 
       <!-- ═══════════════ ARRESTED SECTION ═══════════════ -->
-      <div id="sectionArrested" class="glass-card p-0 overflow-hidden" style="display: none;">
+      <div id="sectionArrested" class="glass-card p-0 overflow-hidden" style="{% if active_tab == 'arrested' %}display: block;{% else %}display: none;{% endif %}">
         <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between" style="background:#fee2e2;">
           <div class="flex items-center gap-2">
             <div class="w-1 h-6 bg-red-600 rounded-full"></div>
@@ -558,10 +593,14 @@ function switchTab(tab) {
   const arrestedSection = document.getElementById('sectionArrested');
   const tabPending = document.getElementById('tabPending');
   const tabArrested = document.getElementById('tabArrested');
+  const pendingPagination = document.getElementById('pendingPagination');
+  const arrestedPagination = document.getElementById('arrestedPagination');
 
   if (tab === 'pending') {
     pendingSection.style.display = 'block';
     arrestedSection.style.display = 'none';
+    if(pendingPagination) pendingPagination.style.display = 'flex';
+    if(arrestedPagination) arrestedPagination.style.display = 'none';
     tabPending.style.background = '#e11d48';
     tabPending.style.color = 'white';
     tabPending.style.border = 'none';
@@ -571,6 +610,8 @@ function switchTab(tab) {
   } else {
     pendingSection.style.display = 'none';
     arrestedSection.style.display = 'block';
+    if(pendingPagination) pendingPagination.style.display = 'none';
+    if(arrestedPagination) arrestedPagination.style.display = 'flex';
     tabArrested.style.background = '#e11d48';
     tabArrested.style.color = 'white';
     tabArrested.style.border = 'none';
