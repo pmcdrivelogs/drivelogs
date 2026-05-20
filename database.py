@@ -1187,11 +1187,23 @@ def save_feedback(feedback_data):
 def get_next_purchase_entry_no():
     """Get the next purchase entry number"""
     try:
-        # Get the count of existing purchases
-        response = supabase.table('purchases').select('id', count='exact').execute()
-        count = response.count if response.count else 0
-        # Next entry number is count + 1, formatted as 001, 002, etc.
-        next_no = count + 1
+        # Get the maximum existing entry number
+        response = supabase.table('purchases').select('entry_no').execute()
+        max_no = 0
+        if response.data:
+            import re
+            for row in response.data:
+                val = row.get('entry_no')
+                if val:
+                    m = re.search(r'(\d+)$', str(val))
+                    if m:
+                        try:
+                            num = int(m.group(1))
+                            if num > max_no:
+                                max_no = num
+                        except ValueError:
+                            pass
+        next_no = max_no + 1
         return f"{next_no:03d}"
     except Exception as e:
         print(f"Error getting next purchase entry no: {e}")
@@ -2044,7 +2056,7 @@ def get_all_trip_sheets():
                 *,
                 vehicles:vehicle_id(registration_no),
                 employees:driver_id(name)
-            ''').order('created_at', desc=True).range(start, start + chunk_size - 1).execute()
+            ''').order('date_time', desc=True).range(start, start + chunk_size - 1).execute()
 
             batch = response.data or []
             if not batch:
@@ -2075,7 +2087,7 @@ def get_all_trip_sheets():
         print(f"Error getting trip sheet records: {e}")
         # Fallback to a single request (best-effort)
         try:
-            response = supabase.table('trip_sheet').select('*').order('created_at', desc=True).execute()
+            response = supabase.table('trip_sheet').select('*').order('date_time', desc=True).execute()
             records = []
             for record in (response.data or []):
                 record['vehicle_no'] = '-'
