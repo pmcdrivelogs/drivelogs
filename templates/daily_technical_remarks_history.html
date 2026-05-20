@@ -230,21 +230,7 @@
             <p class="text-red-100 text-sm">View and manage all daily technical observations &amp; vehicle status records</p>
           </div>
           <div class="flex gap-3 relative z-10">
-            <div class="stat-pill">
-              <div class="text-xs text-red-100 font-medium">Showing</div>
-              <div class="text-xl font-bold text-white" id="visibleCount">{{ records|length }}</div>
-            </div>
-            <div class="stat-pill">
-              <div class="text-xs text-red-100 font-medium">Page</div>
-              <div class="text-xl font-bold text-white">{{ page or 1 }}</div>
-            </div>
-            <div class="flex items-center">
-              {% if request.args.get('per_page') == 'all' %}
-                <a href="{{ url_for('daily_technical_remarks_history') }}" class="clear-btn" style="margin-left:8px;">Show paginated</a>
-              {% else %}
-                <a href="{{ url_for('daily_technical_remarks_history', per_page='all') }}" class="clear-btn" style="margin-left:8px;">Show all</a>
-              {% endif %}
-            </div>
+            <!-- Pagination moved to filter bar -->
           </div>
         </div>
       </div>
@@ -255,7 +241,7 @@
           <svg class="w-4 h-4 text-gray-400" fill="currentColor" viewBox="0 0 24 24"><path d="M10 18h4v-2h-4v2zM3 6v2h18V6H3zm3 7h12v-2H6v2z"/></svg>
           <span class="filter-label">Search by Vehicle ID</span>
         </div>
-        <div class="flex flex-wrap gap-3 items-end">
+        <div class="flex flex-wrap gap-3 items-end w-full">
           <div class="flex flex-col gap-1">
             <label class="filter-label">Vehicle ID</label>
             <input id="hist_search" type="search" placeholder="Enter Vehicle ID…" class="filter-input" style="min-width:220px;">
@@ -278,11 +264,54 @@
           <button onclick="exportToExcel()" class="clear-btn" style="background: #10b981; color: white; border: none; margin-left: 8px;">
             📊 Export Excel
           </button>
+
+          <div class="flex items-end gap-2 ml-auto">
+            {% if request.args.get('per_page') != 'all' %}
+              <a href="{{ url_for('daily_technical_remarks_history', page=page-1) if page > 1 else '#' }}" 
+                 class="clear-btn flex items-center justify-center rounded-lg {% if page <= 1 %}opacity-50 cursor-not-allowed{% endif %}"
+                 style="background: #f1f5f9; color: #475569; width: 36px; height: 36px; border: 1px solid #e2e8f0; pointer-events: {% if page <= 1 %}none{% else %}auto{% endif %}; padding:0;">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
+              </a>
+              
+              <div class="flex flex-col items-center">
+                <span class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-0.5">Page</span>
+                <div class="flex items-center justify-center rounded-lg font-bold" style="background: white; border: 1.5px solid #e11d48; color: #e11d48; min-width: 40px; height: 36px;">
+                  {{ page or 1 }}
+                </div>
+              </div>
+              
+              <a href="{{ url_for('daily_technical_remarks_history', page=page+1) if has_more else '#' }}"
+                 class="clear-btn flex items-center justify-center rounded-lg {% if not has_more %}opacity-50 cursor-not-allowed{% endif %}"
+                 style="background: #f1f5f9; color: #475569; width: 36px; height: 36px; border: 1px solid #e2e8f0; pointer-events: {% if not has_more %}none{% else %}auto{% endif %}; padding:0;">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+              </a>
+              
+              <a href="{{ url_for('daily_technical_remarks_history', per_page='all') }}" class="text-xs text-gray-500 hover:text-gray-700 underline ml-2 font-medium pb-2">Show All</a>
+            {% else %}
+               <div class="flex flex-col items-center">
+                <span class="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-0.5">Page</span>
+                <div class="flex items-center justify-center rounded-lg font-bold px-3" style="background: white; border: 1.5px solid #e11d48; color: #e11d48; height: 36px;">
+                  All Records
+                </div>
+              </div>
+              <a href="{{ url_for('daily_technical_remarks_history') }}" class="text-xs text-gray-500 hover:text-gray-700 underline ml-2 font-medium pb-2">Paginate</a>
+            {% endif %}
+          </div>
         </div>
       </div>
 
+      <!-- Tabs -->
+      <div class="flex gap-4 mb-4">
+        <button id="tabPending" class="clear-btn" style="background:#e11d48; color:white; border:none;" onclick="switchTab('pending')">
+          ⏳ Pending Entries ({{ pending_records|length }})
+        </button>
+        <button id="tabArrested" class="clear-btn" style="background:#f1f5f9; color:#64748b; border:1px solid #e2e8f0;" onclick="switchTab('arrested')">
+          🚫 Arrested History ({{ arrested_records|length }})
+        </button>
+      </div>
+
       <!-- ═══════════════ PENDING SECTION ═══════════════ -->
-      <div class="glass-card p-0 overflow-hidden mb-8">
+      <div id="sectionPending" class="glass-card p-0 overflow-hidden mb-8" style="display: block;">
         <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between" style="background:#fef9c3;">
           <div class="flex items-center gap-2">
             <div class="w-1 h-6 bg-yellow-500 rounded-full"></div>
@@ -319,10 +348,10 @@
                   {% else %}
                     {% set display_date = d %}
                   {% endif %}
-                  {% if display_date %}<div class="flex items-center gap-1.5"><svg class="w-3.5 h-3.5 text-gray-400 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24"><path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11zM7 10h5v5H7z"/></svg><span>{{ display_date }}</span></div>{% endif %}
+                  {% if display_date %}<span>{{ display_date }}</span>{% endif %}
                 </td>
                 <td><span class="inline-flex items-center px-2 py-0.5 bg-blue-50 text-blue-700 rounded-md font-semibold text-xs" data-vid>{{ r.vehicle_id }}</span></td>
-                <td class="font-medium">{{ r.registration_no }}</td>
+                <td class="font-medium whitespace-nowrap">{{ r.registration_no }}</td>
                 <td>{% if r.kilometer %}<span class="inline-flex items-center gap-1 text-gray-600">{{ r.kilometer }}</span>{% endif %}</td>
                 <td class="text-gray-600"><div class="truncate" style="max-width:160px;" title="{{ r.drivers_voice }}">{{ r.drivers_voice or '—' }}</div></td>
                 <td class="text-gray-600"><div class="truncate" style="max-width:200px;" title="{{ r.technical_observation }}">{{ r.technical_observation or '—' }}</div></td>
@@ -355,7 +384,7 @@
       </div>
 
       <!-- ═══════════════ ARRESTED SECTION ═══════════════ -->
-      <div class="glass-card p-0 overflow-hidden">
+      <div id="sectionArrested" class="glass-card p-0 overflow-hidden" style="display: none;">
         <div class="px-6 py-4 border-b border-gray-100 flex items-center justify-between" style="background:#fee2e2;">
           <div class="flex items-center gap-2">
             <div class="w-1 h-6 bg-red-600 rounded-full"></div>
@@ -392,10 +421,10 @@
                   {% else %}
                     {% set display_date = d %}
                   {% endif %}
-                  {% if display_date %}<div class="flex items-center gap-1.5"><svg class="w-3.5 h-3.5 text-gray-400 flex-shrink-0" fill="currentColor" viewBox="0 0 24 24"><path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V8h14v11zM7 10h5v5H7z"/></svg><span>{{ display_date }}</span></div>{% endif %}
+                  {% if display_date %}<span>{{ display_date }}</span>{% endif %}
                 </td>
                 <td><span class="inline-flex items-center px-2 py-0.5 bg-red-50 text-red-700 rounded-md font-semibold text-xs" data-vid>{{ r.vehicle_id }}</span></td>
-                <td class="font-medium">{{ r.registration_no }}</td>
+                <td class="font-medium whitespace-nowrap">{{ r.registration_no }}</td>
                 <td>{% if r.kilometer %}<span class="text-gray-600">{{ r.kilometer }}</span>{% endif %}</td>
                 <td class="text-gray-600"><div class="truncate" style="max-width:160px;" title="{{ r.drivers_voice }}">{{ r.drivers_voice or '—' }}</div></td>
                 <td class="text-gray-600"><div class="truncate" style="max-width:200px;" title="{{ r.technical_observation }}">{{ r.technical_observation or '—' }}</div></td>
@@ -523,6 +552,33 @@ document.addEventListener('DOMContentLoaded', function(){
   });
   applyFilter();
 });
+
+function switchTab(tab) {
+  const pendingSection = document.getElementById('sectionPending');
+  const arrestedSection = document.getElementById('sectionArrested');
+  const tabPending = document.getElementById('tabPending');
+  const tabArrested = document.getElementById('tabArrested');
+
+  if (tab === 'pending') {
+    pendingSection.style.display = 'block';
+    arrestedSection.style.display = 'none';
+    tabPending.style.background = '#e11d48';
+    tabPending.style.color = 'white';
+    tabPending.style.border = 'none';
+    tabArrested.style.background = '#f1f5f9';
+    tabArrested.style.color = '#64748b';
+    tabArrested.style.border = '1px solid #e2e8f0';
+  } else {
+    pendingSection.style.display = 'none';
+    arrestedSection.style.display = 'block';
+    tabArrested.style.background = '#e11d48';
+    tabArrested.style.color = 'white';
+    tabArrested.style.border = 'none';
+    tabPending.style.background = '#f1f5f9';
+    tabPending.style.color = '#64748b';
+    tabPending.style.border = '1px solid #e2e8f0';
+  }
+}
 
 function exportToExcel() {
     const wb = XLSX.utils.book_new();
