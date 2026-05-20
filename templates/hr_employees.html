@@ -115,6 +115,9 @@
     }
     
     @media print {
+      @page {
+        margin: 5mm;
+      }
       .no-print {
         display: none !important;
       }
@@ -301,8 +304,8 @@
           <title>HR Employee Records</title>
           <style>
             * { margin: 0; padding: 0; box-sizing: border-box; font-family: Arial, sans-serif; }
-            body { padding: 10mm; font-size: 9pt; color: #000; }
-            @page { margin: 8mm; size: A4; }
+            body { padding: 0; font-size: 9pt; color: #000; }
+            @page { margin: 5mm; size: A4; }
             .header { text-align: center; margin-bottom: 10px; }
             .header img { width: 100%; max-width: 100%; height: auto; }
             .title { font-size: 18pt; font-weight: bold; text-align: center; color: #eab308; margin: 10px 0; }
