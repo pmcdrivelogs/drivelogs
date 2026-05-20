@@ -6070,7 +6070,7 @@ def daily_technical_remarks():
 @login_required
 def daily_technical_remarks_history():
     try:
-        records = get_all_daily_technical_remarks(limit=10000) or []
+        all_records = get_all_daily_technical_remarks(limit=10000) or []
         
         def get_date(r):
             d = r.get('date')
@@ -6079,40 +6079,58 @@ def daily_technical_remarks_history():
             if ca: return str(ca)[:10]
             return ''
             
-        dates = list(set(get_date(r) for r in records if get_date(r)))
-        dates.sort(reverse=True)
+        pending_all = [r for r in all_records if 'arrest' not in (r.get('day_end_status') or '').lower()]
+        arrested_all = [r for r in all_records if 'arrest' in (r.get('day_end_status') or '').lower()]
+        
+        p_dates = list(set(get_date(r) for r in pending_all if get_date(r)))
+        p_dates.sort(reverse=True)
+        
+        a_dates = list(set(get_date(r) for r in arrested_all if get_date(r)))
+        a_dates.sort(reverse=True)
         
         per_page_arg = request.args.get('per_page')
+        p_page = int(request.args.get('p_page', '1') or 1)
+        a_page = int(request.args.get('a_page', '1') or 1)
+        active_tab = request.args.get('tab', 'pending')
+        
+        if p_page < 1: p_page = 1
+        if a_page < 1: a_page = 1
+        
         if per_page_arg == 'all':
-            page = 1
-            per_page = 'all'
-            has_more = False
+            pending_records = pending_all
+            arrested_records = arrested_all
+            p_has_more = False
+            a_has_more = False
         else:
-            page = int(request.args.get('page', '1') or 1)
-            per_page = 1
-            if page < 1: page = 1
-            if page <= len(dates):
-                target_date = dates[page - 1]
-                records = [r for r in records if get_date(r) == target_date]
-                has_more = page < len(dates)
+            if p_page <= len(p_dates):
+                p_target = p_dates[p_page - 1]
+                pending_records = [r for r in pending_all if get_date(r) == p_target]
+                p_has_more = p_page < len(p_dates)
             else:
-                records = []
-                has_more = False
-    except Exception:
-        records = []
-        has_more = False
-    try:
-        current_app.logger.info('Fetched %d daily technical remark records for history', len(records))
-    except Exception:
-        pass
-    pending_records  = [r for r in (records or []) if 'arrest' not in (r.get('day_end_status') or '').lower()]
-    arrested_records = [r for r in (records or []) if 'arrest' in (r.get('day_end_status') or '').lower()]
+                pending_records = []
+                p_has_more = False
+                
+            if a_page <= len(a_dates):
+                a_target = a_dates[a_page - 1]
+                arrested_records = [r for r in arrested_all if get_date(r) == a_target]
+                a_has_more = a_page < len(a_dates)
+            else:
+                arrested_records = []
+                a_has_more = False
 
-    pending_records.sort(key=lambda x: str(x.get('vehicle_id') or '').lower())
-    arrested_records.sort(key=lambda x: str(x.get('vehicle_id') or '').lower())
-    return render_template('daily_technical_remarks_history.html',
-                           records=records, pending_records=pending_records, arrested_records=arrested_records,
-                           page=page, per_page=per_page, has_more=has_more)
+        pending_records.sort(key=lambda x: str(x.get('vehicle_id') or '').lower())
+        arrested_records.sort(key=lambda x: str(x.get('vehicle_id') or '').lower())
+        
+        return render_template('daily_technical_remarks_history.html',
+                               pending_records=pending_records, arrested_records=arrested_records,
+                               p_page=p_page, a_page=a_page,
+                               p_has_more=p_has_more, a_has_more=a_has_more,
+                               active_tab=active_tab,
+                               per_page=per_page_arg)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return redirect(url_for('admin_dashboard'))
 
 
 @app.route('/daily-technical-remarks/edit/<int:remark_id>', methods=['GET', 'POST'])
