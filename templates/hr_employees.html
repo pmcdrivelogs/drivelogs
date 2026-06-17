@@ -235,7 +235,7 @@
               <tr>
                 <td><strong>{{ emp.employee_id }}</strong></td>
                 <td><strong>{{ emp.name }}</strong></td>
-                <td class="experience" data-doj="{{ emp.date_of_joining or '' }}">-</td>
+                <td class="experience" data-emp-id="{{ emp.employee_id }}">-</td>
                 <td>{{ emp.date_of_birth or '-' }}</td>
                 <td>{{ emp.aadhar_no or '-' }}</td>
                 <td>{{ emp.phone_no or '-' }}</td>
@@ -291,7 +291,52 @@
     </div>
   </div>
 
+  <script id="employees-data" type="application/json">{{ employees | tojson | safe }}</script>
   <script>
+    function parseDateSafe(dateStr) {
+      if (!dateStr) return null;
+      const d = new Date(dateStr);
+      if (!Number.isNaN(d.getTime())) return d;
+      const parts = ('' + dateStr).trim().split(/[-/]/);
+      if (parts.length >= 3) {
+        const y = parseInt(parts[0], 10);
+        const m = parseInt(parts[1], 10) - 1;
+        const day = parseInt(parts[2], 10);
+        const dd = new Date(y, m, day);
+        if (!Number.isNaN(dd.getTime())) return dd;
+      }
+      return null;
+    }
+
+    function computeExperienceFromEntries(exps) {
+      if (!exps || !exps.length) return null;
+      const msPerYear = 365.25 * 24 * 60 * 60 * 1000;
+      const msPerMonth = 30.4375 * 24 * 60 * 60 * 1000;
+      let totalMs = 0;
+      for (let i = 0; i < exps.length; i++) {
+        const e = exps[i] || {};
+        const from = parseDateSafe(e.from_date || e.from || e.fromDate);
+        let to = parseDateSafe(e.to_date || e.to || e.toDate);
+        if (!from) continue;
+        if (!to) to = new Date();
+        const diff = to - from;
+        if (diff > 0) totalMs += diff;
+      }
+      if (totalMs <= 0) return null;
+      const years = Math.floor(totalMs / msPerYear);
+      const months = Math.floor((totalMs % msPerYear) / msPerMonth);
+      return { years, months };
+    }
+
+    function computeYearsSince(isoDate) {
+      if (!isoDate) return null;
+      const d = new Date(isoDate);
+      if (Number.isNaN(d.getTime())) return null;
+      const now = new Date();
+      const msPerYear = 365.25 * 24 * 60 * 60 * 1000;
+      return Math.floor((now - d) / msPerYear);
+    }
+
     function exportToPDF() {
       const headerImg = '{{ url_for("static", filename="img/header_full.png", _external=True) }}';
       const employees = {{ employees | tojson }};
@@ -336,12 +381,28 @@
             </thead>
             <tbody>
               ${(() => {
-                  const processed = employees.map(emp => ({...emp, experience: (emp.date_of_joining ? computeYearsSince(emp.date_of_joining) : '-') }));
+                  const processed = employees.map(emp => {
+                    let expStr = '-';
+                    const calc = computeExperienceFromEntries(emp.experience);
+                    if (calc) {
+                      const yrs = calc.years;
+                      const mos = calc.months;
+                      expStr = yrs + ' yr' + (yrs === 1 ? '' : 's');
+                      if (mos) expStr += ' ' + mos + ' mo' + (mos === 1 ? '' : 's');
+                    } else {
+                      const doj = emp.date_of_joining || emp.expected_date_of_joining || null;
+                      if (doj) {
+                        const yrs = computeYearsSince(doj);
+                        if (yrs !== null) expStr = yrs + ' yrs';
+                      }
+                    }
+                    return {...emp, display_experience: expStr};
+                  });
                   return processed.map(emp => `
                   <tr>
                     <td><strong>${emp.employee_id}</strong></td>
                     <td>${emp.name}</td>
-                    <td>${emp.experience !== '-' ? emp.experience + ' yrs' : '-'}</td>
+                    <td>${emp.display_experience}</td>
                     <td>${emp.date_of_birth || '-'}</td>
                     <td>${emp.aadhar_no || '-'}</td>
                     <td>${emp.phone_no || '-'}</td>
@@ -379,27 +440,47 @@
   </script>
 
   <script>
-    // Compute years since ISO date (YYYY-MM-DD)
-    function computeYearsSince(isoDate) {
-      if (!isoDate) return 0;
-      const d = new Date(isoDate);
-      if (Number.isNaN(d.getTime())) return 0;
-      const now = new Date();
-      const msPerYear = 365.25 * 24 * 60 * 60 * 1000;
-      return Math.floor((now - d) / msPerYear);
-    }
-
     document.addEventListener('DOMContentLoaded', function() {
+      let employeesData = [];
+      try {
+        const dataStr = document.getElementById('employees-data').textContent;
+        employeesData = JSON.parse(dataStr);
+      } catch (e) {
+        console.error("Could not parse employees data");
+      }
+      const empMap = {};
+      employeesData.forEach(emp => { empMap[emp.employee_id] = emp; });
+
       // Fill experience cells in table
       document.querySelectorAll('#employeesTable tbody tr').forEach(row => {
         const expCell = row.querySelector('td.experience');
         if (!expCell) return;
-        const doj = expCell.getAttribute('data-doj') || '';
-        if (doj) {
-          const yrs = computeYearsSince(doj);
-          expCell.textContent = yrs + ' yrs';
-        } else {
+        const empId = expCell.getAttribute('data-emp-id');
+        const emp = empMap[empId];
+        if (!emp) {
           expCell.textContent = '-';
+          return;
+        }
+
+        const calc = computeExperienceFromEntries(emp.experience);
+        if (calc) {
+          const yrs = calc.years;
+          const mos = calc.months;
+          let txt = yrs + ' yr' + (yrs === 1 ? '' : 's');
+          if (mos) txt += ' ' + mos + ' mo' + (mos === 1 ? '' : 's');
+          expCell.textContent = txt;
+        } else {
+          const doj = emp.date_of_joining || emp.expected_date_of_joining || null;
+          if (doj) {
+            const yrs = computeYearsSince(doj);
+            if (yrs !== null) {
+              expCell.textContent = yrs + ' yrs';
+            } else {
+              expCell.textContent = '-';
+            }
+          } else {
+            expCell.textContent = '-';
+          }
         }
       });
     });
